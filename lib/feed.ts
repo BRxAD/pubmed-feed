@@ -213,6 +213,7 @@ export async function getFeedItems(
         fetched_at?: string | null;
         publication_types?: string[] | null;
         keywords?: string[] | null;
+        source?: string | null;
       } | null;
     };
     const journal = row.articles?.journal;
