@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -15,8 +20,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
 
-      - run: npm install
-      - run: npm run typecheck
-      - run: npm run build
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Check OpenAlex ingest route (production)
+        run: |
+          url="https://pubmedfeed.vercel.app/api/ingest/openalex?topicName=main"
+          echo "GET $url"
+          code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "$url")
+          echo "HTTP $code"
+          cat /tmp/body.json
+          test "$code" = "200"
+          grep -q '"ok":true' /tmp/body.json
+
+      - name: Check OpenAlex feed page
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "https://pubmedfeed.vercel.app/feed?source=openalex")
+          echo "Feed HTTP $code"
+          test "$code" = "200"
