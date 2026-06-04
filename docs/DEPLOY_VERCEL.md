@@ -37,6 +37,10 @@ In the Vercel project, go to **Settings** → **Environment Variables** and add 
 | `NEXT_PUBLIC_APP_URL` | Recommended | e.g. `https://pubmedfeed.vercel.app` (cron/scripts) |
 | `OPENALEX_MAILTO` | For OpenAlex | Your email (required by OpenAlex) |
 | `OPENALEX_API_KEY` | For OpenAlex | API key from openalex.org — see `docs/OPENALEX_SETUP.md` |
+| `CRON_SECRET` | For daily digest | Random secret; see `docs/DAILY_DIGEST.md` |
+| `RESEND_API_KEY` | For daily digest | From [resend.com](https://resend.com) |
+| `DIGEST_RECIPIENT_EMAILS` | For daily digest | Comma-separated recipient emails |
+| `DIGEST_FROM_EMAIL` | For daily digest | e.g. `ASP Feed <digest@yourdomain.com>` |
 
 **Do not** commit `.env.local` or any file containing real keys. Set everything in Vercel (or use Vercel’s env UI).
 
