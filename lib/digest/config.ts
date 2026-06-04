@@ -60,6 +60,6 @@ export function getDigestReplyTo(): string | undefined {
 /** Default 20% — same as feed admin “min relevance” baseline. */
 export const DEFAULT_DIGEST_MIN_RELEVANCE = 20;
 
-export const DEFAULT_DIGEST_MAX_SUMMARIES = 20;
+export const DEFAULT_DIGEST_MAX_SUMMARIES = 100;
 
 export const DEFAULT_DIGEST_HOURS_BACK = 24;

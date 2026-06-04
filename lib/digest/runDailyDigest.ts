@@ -1,8 +1,6 @@
 import { getDefaultTopicId } from "@/lib/feed";
-import {
-  digestSinceIso,
-  getDigestItems,
-} from "@/lib/digest/items";
+import type { FeedSource } from "@/lib/feedSource";
+import { digestSinceIso, getDigestItems } from "@/lib/digest/items";
 import {
   DEFAULT_DIGEST_HOURS_BACK,
   DEFAULT_DIGEST_MAX_SUMMARIES,
@@ -29,6 +27,15 @@ async function triggerIngest(path: string): Promise<Record<string, unknown>> {
   return data;
 }
 
+export type SourceDigestEmailResult = {
+  source: FeedSource;
+  sent: boolean;
+  recipients: string[];
+  messageId?: string;
+  skippedReason?: string;
+  itemCount: number;
+};
+
 export type DailyDigestResult = {
   ok: boolean;
   topicId: string;
@@ -37,18 +44,77 @@ export type DailyDigestResult = {
   ingestOpenAlex?: Record<string, unknown>;
   digest: {
     minRelevancePercent: number;
+    maxSummariesPerSource: number;
     since: string;
-    itemCount: number;
-    items: { title: string; relevancePercent: number; url: string }[];
+    pubmed: { itemCount: number; items: { title: string; relevancePercent: number; url: string }[] };
+    openalex: { itemCount: number; items: { title: string; relevancePercent: number; url: string }[] };
   };
-  email?: {
-    sent: boolean;
-    recipients: string[];
-    messageId?: string;
-    skippedReason?: string;
-  };
+  emails: SourceDigestEmailResult[];
   error?: string;
 };
+
+async function sendSourceDigest(options: {
+  source: FeedSource;
+  topicId: string;
+  since: string;
+  minRelevancePercent: number;
+  hoursBack: number;
+  recipients: string[];
+}): Promise<SourceDigestEmailResult> {
+  const { source, topicId, since, minRelevancePercent, hoursBack, recipients } =
+    options;
+
+  const { items } = await getDigestItems({
+    topicId,
+    sinceIso: since,
+    minRelevancePercent,
+    maxItems: DEFAULT_DIGEST_MAX_SUMMARIES,
+    source,
+  });
+
+  const baseFeed = `${appBaseUrl()}/feed?topicId=${topicId}`;
+  const feedUrl =
+    source === "openalex" ? `${baseFeed}&source=openalex` : baseFeed;
+
+  const periodLabel = `the last ${hoursBack} hours`;
+  const { subject, html, text } = buildDigestEmail({
+    items,
+    topicName: "Antimicrobial Stewardship",
+    feedUrl,
+    minRelevancePercent,
+    periodLabel,
+    source,
+  });
+
+  if (recipients.length === 0) {
+    return {
+      source,
+      sent: false,
+      recipients: [],
+      skippedReason: "No recipient email configured",
+      itemCount: items.length,
+    };
+  }
+
+  if (items.length === 0 && process.env.DIGEST_SEND_IF_EMPTY !== "1") {
+    return {
+      source,
+      sent: false,
+      recipients,
+      skippedReason: "No items met relevance threshold",
+      itemCount: 0,
+    };
+  }
+
+  const sent = await sendDigestEmail({ to: recipients, subject, html, text });
+  return {
+    source,
+    sent: true,
+    recipients,
+    messageId: sent.id,
+    itemCount: items.length,
+  };
+}
 
 export async function runDailyDigest(): Promise<DailyDigestResult> {
   const topicId = await getDefaultTopicId();
@@ -60,19 +126,34 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     100,
     Math.max(
       0,
-      parseInt(process.env.DIGEST_MIN_RELEVANCE ?? String(DEFAULT_DIGEST_MIN_RELEVANCE), 10) ||
-      DEFAULT_DIGEST_MIN_RELEVANCE
+      parseInt(
+        process.env.DIGEST_MIN_RELEVANCE ?? String(DEFAULT_DIGEST_MIN_RELEVANCE),
+        10
+      ) || DEFAULT_DIGEST_MIN_RELEVANCE
     )
   );
   const maxSummaries = Math.min(
-    50,
-    Math.max(1, parseInt(process.env.DIGEST_MAX_SUMMARIES ?? String(DEFAULT_DIGEST_MAX_SUMMARIES), 10) || DEFAULT_DIGEST_MAX_SUMMARIES)
+    100,
+    Math.max(
+      1,
+      parseInt(
+        process.env.DIGEST_MAX_SUMMARIES ?? String(DEFAULT_DIGEST_MAX_SUMMARIES),
+        10
+      ) || DEFAULT_DIGEST_MAX_SUMMARIES
+    )
   );
   const hoursBack = Math.min(
     168,
-    Math.max(1, parseInt(process.env.DIGEST_HOURS_BACK ?? String(DEFAULT_DIGEST_HOURS_BACK), 10) || DEFAULT_DIGEST_HOURS_BACK)
+    Math.max(
+      1,
+      parseInt(
+        process.env.DIGEST_HOURS_BACK ?? String(DEFAULT_DIGEST_HOURS_BACK),
+        10
+      ) || DEFAULT_DIGEST_HOURS_BACK
+    )
   );
   const since = digestSinceIso(hoursBack);
+  const recipients = getDigestRecipients();
 
   const ingestPubmed = await triggerIngest(
     `/api/ingest?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
@@ -90,47 +171,39 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     };
   }
 
-  const { items } = await getDigestItems({
+  const pubmedItems = await getDigestItems({
     topicId,
     sinceIso: since,
     minRelevancePercent,
+    maxItems: maxSummaries,
+    source: "pubmed",
   });
 
-  const feedUrl = `${appBaseUrl()}/feed?topicId=${topicId}`;
-  const periodLabel = `the last ${hoursBack} hours`;
-  const { subject, html, text } = buildDigestEmail({
-    items,
-    topicName: "Antimicrobial Stewardship",
-    feedUrl,
+  const openalexItems = await getDigestItems({
+    topicId,
+    sinceIso: since,
     minRelevancePercent,
-    periodLabel,
+    maxItems: maxSummaries,
+    source: "openalex",
   });
 
-  const recipients = getDigestRecipients();
+  const emailPubmed = await sendSourceDigest({
+    source: "pubmed",
+    topicId,
+    since,
+    minRelevancePercent,
+    hoursBack,
+    recipients,
+  });
 
-  let emailResult: DailyDigestResult["email"];
-
-  if (recipients.length === 0) {
-    emailResult = {
-      sent: false,
-      recipients: [],
-      skippedReason:
-        "No recipient email — set OPENALEX_MAILTO or NCBI_EMAIL (or DIGEST_RECIPIENT_EMAILS)",
-    };
-  } else if (items.length === 0 && process.env.DIGEST_SEND_IF_EMPTY !== "1") {
-    emailResult = {
-      sent: false,
-      recipients,
-      skippedReason: "No items met relevance threshold",
-    };
-  } else {
-    const sent = await sendDigestEmail({ to: recipients, subject, html, text });
-    emailResult = {
-      sent: true,
-      recipients,
-      messageId: sent.id,
-    };
-  }
+  const emailOpenAlex = await sendSourceDigest({
+    source: "openalex",
+    topicId,
+    since,
+    minRelevancePercent,
+    hoursBack,
+    recipients,
+  });
 
   return {
     ok: true,
@@ -140,14 +213,25 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     ingestOpenAlex,
     digest: {
       minRelevancePercent,
+      maxSummariesPerSource: maxSummaries,
       since,
-      itemCount: items.length,
-      items: items.map((i) => ({
-        title: i.title,
-        relevancePercent: i.relevancePercent,
-        url: i.url,
-      })),
+      pubmed: {
+        itemCount: pubmedItems.items.length,
+        items: pubmedItems.items.map((i) => ({
+          title: i.title,
+          relevancePercent: i.relevancePercent,
+          url: i.url,
+        })),
+      },
+      openalex: {
+        itemCount: openalexItems.items.length,
+        items: openalexItems.items.map((i) => ({
+          title: i.title,
+          relevancePercent: i.relevancePercent,
+          url: i.url,
+        })),
+      },
     },
-    email: emailResult,
+    emails: [emailPubmed, emailOpenAlex],
   };
 }

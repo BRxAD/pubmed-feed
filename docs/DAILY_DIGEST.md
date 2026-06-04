@@ -1,6 +1,7 @@
 # Daily email digest
 
-Sends you a daily email of new stewardship studies **≥ 20% relevance** after ingest + summarize.
+- Up to **100** new summaries per source per day
+- **Two separate emails**: `[PubMed]` and `[OpenAlex]`, each linking to its feed
 
 ## Minimum setup (one new variable)
 
@@ -31,7 +32,7 @@ No need for `DIGEST_RECIPIENT_EMAILS` if `OPENALEX_MAILTO=brad.langford@utoronto
 |----------|-------------|
 | `DIGEST_RECIPIENT_EMAILS` | Extra recipients: `you@x.com,colleague@y.com` |
 | `DIGEST_FROM_EMAIL` | After you verify a domain in Resend |
-| `DIGEST_MIN_RELEVANCE` | Default `20`; try `40` for a shorter digest |
+| `DIGEST_MAX_SUMMARIES` | Default **100** per source per run |
 
 ## Schedule: 7 AM Eastern
 

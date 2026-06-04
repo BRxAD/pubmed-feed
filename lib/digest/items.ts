@@ -35,12 +35,14 @@ export async function getDigestItems(options: {
   sinceIso: string;
   minRelevancePercent?: number;
   maxItems?: number;
+  source?: FeedSource;
 }): Promise<{ query_string: string; items: DigestItem[] }> {
   const {
     topicId,
     sinceIso,
     minRelevancePercent = 20,
-    maxItems = 50,
+    maxItems = 100,
+    source: sourceFilter,
   } = options;
 
   const supabase = getSupabaseServerClient();
@@ -68,7 +70,7 @@ export async function getDigestItems(options: {
     .eq("topic_id", topicId)
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(1000);
 
   if (error) throw new Error(error.message);
 
@@ -97,6 +99,7 @@ export async function getDigestItems(options: {
     if (!row.articles?.title?.trim() || !row.summary_text?.trim()) continue;
 
     const source = rowSource(row.articles.source);
+    if (sourceFilter && source !== sourceFilter) continue;
     const rec: PubMedRecord = {
       pmid: row.pmid,
       title: row.articles.title ?? null,
