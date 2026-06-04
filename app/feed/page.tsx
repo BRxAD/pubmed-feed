@@ -29,6 +29,7 @@ import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
 import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
+import SourceSelector from "@/components/SourceSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 import {
   articleExternalUrl,
