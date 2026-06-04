@@ -19,8 +19,26 @@ export async function GET(request: NextRequest) {
     authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const secret = secretParam ?? bearerSecret;
 
-  if (!expected?.trim() || secret !== expected) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!expected?.trim()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "CRON_SECRET is not set on the server. Add it in Vercel → Settings → Environment Variables, then redeploy.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (secret !== expected) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Invalid secret. If your secret contains / or =, URL-encode it in the browser, or use a letters-and-numbers-only secret.",
+      },
+      { status: 401 }
+    );
   }
 
   try {
