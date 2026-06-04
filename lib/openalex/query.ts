@@ -1,4 +1,18 @@
 /**
+ * OpenAlex boolean search uses uppercase AND/OR/NOT — not the pipe character.
+ * @see https://developers.openalex.org/guides/searching
+ */
+export function normalizeOpenAlexSearch(query: string): string {
+  return query
+    .replace(/\|/g, " OR ")
+    .replace(/\band\b/g, "AND")
+    .replace(/\bor\b/g, "OR")
+    .replace(/\bnot\b/g, "NOT")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Convert a PubMed-style topic query into an OpenAlex full-text search string.
  * Uses the positive (include) clause only; exclusions are applied via passesClinicalInclusionFilter.
  */

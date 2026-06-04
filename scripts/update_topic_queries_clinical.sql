@@ -38,7 +38,7 @@ NOT
   animals[MeSH] NOT humans[MeSH]
   OR case reports[Publication Type]
 )',
-  openalex_query_string = '"antimicrobial stewardship" | "antibiotic stewardship"'
+  openalex_query_string = '"antimicrobial stewardship" OR "antibiotic stewardship"'
 where name ilike '%antimicrobial stewardship%'
   and name not ilike '%artificial intelligence%';
 
@@ -66,5 +66,5 @@ NOT
   animals[MeSH] NOT humans[MeSH]
   OR case reports[Publication Type]
 )',
-  openalex_query_string = '("antimicrobial stewardship" | "antibiotic stewardship" | "antibiotic prescribing") ("machine learning" | "deep learning" | "natural language processing" | NLP | algorithm | "predictive model")'
+  openalex_query_string = '("antimicrobial stewardship" OR "antibiotic stewardship" OR "antibiotic prescribing") AND ("machine learning" OR "deep learning" OR "natural language processing" OR NLP OR algorithm OR "predictive model")'
 where name ilike '%artificial intelligence%';

@@ -1,4 +1,5 @@
 import { openAlexFetch } from "@/lib/openalex/client";
+import { normalizeOpenAlexSearch } from "@/lib/openalex/query";
 import { openAlexIdFromUrl, openAlexWorkToRecord } from "@/lib/openalex/works";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 
@@ -30,6 +31,7 @@ export async function searchOpenAlexAllPages(options: {
   pages: number;
 }> {
   const { search, mindate, maxdate, maxTotal = 200 } = options;
+  const searchQuery = normalizeOpenAlexSearch(search);
   const filter = `from_publication_date:${mindate},to_publication_date:${maxdate}`;
   const seen = new Set<string>();
   const workIds: string[] = [];
@@ -40,7 +42,7 @@ export async function searchOpenAlexAllPages(options: {
 
   while (workIds.length < maxTotal) {
     const params = new URLSearchParams({
-      search,
+      search: searchQuery,
       filter,
       sort: "publication_date:desc",
       "per-page": String(PER_PAGE),
