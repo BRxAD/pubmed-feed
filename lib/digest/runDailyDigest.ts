@@ -2,8 +2,13 @@ import { getDefaultTopicId } from "@/lib/feed";
 import {
   digestSinceIso,
   getDigestItems,
-  parseRecipientEmails,
 } from "@/lib/digest/items";
+import {
+  DEFAULT_DIGEST_HOURS_BACK,
+  DEFAULT_DIGEST_MAX_SUMMARIES,
+  DEFAULT_DIGEST_MIN_RELEVANCE,
+  getDigestRecipients,
+} from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 
@@ -55,16 +60,17 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     100,
     Math.max(
       0,
-      parseInt(process.env.DIGEST_MIN_RELEVANCE ?? "20", 10) || 20
+      parseInt(process.env.DIGEST_MIN_RELEVANCE ?? String(DEFAULT_DIGEST_MIN_RELEVANCE), 10) ||
+      DEFAULT_DIGEST_MIN_RELEVANCE
     )
   );
   const maxSummaries = Math.min(
     50,
-    Math.max(1, parseInt(process.env.DIGEST_MAX_SUMMARIES ?? "20", 10) || 20)
+    Math.max(1, parseInt(process.env.DIGEST_MAX_SUMMARIES ?? String(DEFAULT_DIGEST_MAX_SUMMARIES), 10) || DEFAULT_DIGEST_MAX_SUMMARIES)
   );
   const hoursBack = Math.min(
     168,
-    Math.max(1, parseInt(process.env.DIGEST_HOURS_BACK ?? "24", 10) || 24)
+    Math.max(1, parseInt(process.env.DIGEST_HOURS_BACK ?? String(DEFAULT_DIGEST_HOURS_BACK), 10) || DEFAULT_DIGEST_HOURS_BACK)
   );
   const since = digestSinceIso(hoursBack);
 
@@ -100,7 +106,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     periodLabel,
   });
 
-  const recipients = parseRecipientEmails(process.env.DIGEST_RECIPIENT_EMAILS);
+  const recipients = getDigestRecipients();
 
   let emailResult: DailyDigestResult["email"];
 
@@ -108,7 +114,8 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     emailResult = {
       sent: false,
       recipients: [],
-      skippedReason: "DIGEST_RECIPIENT_EMAILS not set",
+      skippedReason:
+        "No recipient email — set OPENALEX_MAILTO or NCBI_EMAIL (or DIGEST_RECIPIENT_EMAILS)",
     };
   } else if (items.length === 0 && process.env.DIGEST_SEND_IF_EMPTY !== "1") {
     emailResult = {

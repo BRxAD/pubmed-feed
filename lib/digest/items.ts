@@ -160,15 +160,3 @@ export function digestSinceIso(hoursBack = 24): string {
   d.setHours(d.getHours() - hoursBack);
   return d.toISOString();
 }
-
-export function parseRecipientEmails(raw: string | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return [
-    ...new Set(
-      raw
-        .split(/[,;\s]+/)
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.includes("@"))
-    ),
-  ];
-}

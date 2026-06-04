@@ -1,61 +1,72 @@
 # Daily email digest
 
-Automated daily pipeline:
+Sends you a daily email of new stewardship studies **≥ 20% relevance** after ingest + summarize.
 
-1. **Ingest** PubMed + OpenAlex (main stewardship topic)
-2. **Summarize** up to `DIGEST_MAX_SUMMARIES` new articles per source
-3. **Email** recipients a digest of studies with **≥ 20% relevance** (configurable)
+## Minimum setup (one new variable)
 
-## 1. Resend (email)
+You likely already have these on Vercel:
 
-1. Sign up at [resend.com](https://resend.com)
-2. Add and verify your sending domain (or use `onboarding@resend.dev` for testing)
-3. Create an API key
+| Variable | You probably have it? |
+|----------|------------------------|
+| `OPENALEX_MAILTO` | Yes → **`brad.langford@utoronto.ca`** becomes digest recipient |
+| `OPENAI_API_KEY` | Yes → summaries |
+| `CRON_SECRET` | Set once for secured cron |
+| `NEXT_PUBLIC_APP_URL` | Yes → `https://pubmedfeed.vercel.app` |
 
-## 2. Environment variables (Vercel + `.env.local`)
+**Only add this one new variable:**
 
-| Variable | Required | Example |
-|----------|----------|---------|
-| `CRON_SECRET` | Yes | long random string |
-| `RESEND_API_KEY` | Yes | `re_...` |
-| `DIGEST_RECIPIENT_EMAILS` | Yes | `you@utoronto.ca,colleague@hospital.org` |
-| `DIGEST_FROM_EMAIL` | Recommended | `ASP Feed <digest@yourdomain.com>` |
-| `DIGEST_MIN_RELEVANCE` | No | `20` (default) |
-| `DIGEST_MAX_SUMMARIES` | No | `20` per source per run |
-| `DIGEST_HOURS_BACK` | No | `24` — look at summaries from this window |
-| `DIGEST_SEND_IF_EMPTY` | No | `1` to email even when no items qualify |
-| `OPENAI_API_KEY` | Yes | for summarization |
-| `NEXT_PUBLIC_APP_URL` | Yes | `https://pubmedfeed.vercel.app` |
+| Variable | Value |
+|----------|--------|
+| `RESEND_API_KEY` | API key from [resend.com](https://resend.com) (free tier) |
 
-Comma-, semicolon-, or space-separated emails are all accepted for recipients.
+1. Sign up at Resend → **API Keys** → Create
+2. Vercel → **Settings → Environment Variables** → add `RESEND_API_KEY`
+3. Redeploy
 
-## 3. Schedule
+No need for `DIGEST_RECIPIENT_EMAILS` if `OPENALEX_MAILTO=brad.langford@utoronto.ca` is already set.
 
-**Vercel Cron** (in `vercel.json`):
+### Optional overrides
 
-```json
-"path": "/api/cron/daily-digest",
-"schedule": "0 10 * * *"
+| Variable | When to use |
+|----------|-------------|
+| `DIGEST_RECIPIENT_EMAILS` | Extra recipients: `you@x.com,colleague@y.com` |
+| `DIGEST_FROM_EMAIL` | After you verify a domain in Resend |
+| `DIGEST_MIN_RELEVANCE` | Default `20`; try `40` for a shorter digest |
+
+## Schedule: 7 AM Eastern
+
+Vercel cron runs at **11:00 UTC** daily (`0 11 * * *`):
+
+- **7 AM** during daylight time (EDT, roughly Mar–Nov)
+- **6 AM** during standard time (EST, roughly Nov–Mar)
+
+Exact offset depends on your province/state; adjust in `vercel.json` if needed (`0 12 * * *` = 7 AM EST / 8 AM EDT).
+
+## Test now
+
+```
+https://pubmedfeed.vercel.app/api/cron/daily-digest?secret=YOUR_CRON_SECRET
 ```
 
-`0 10 * * *` = 10:00 UTC daily (~5–6 AM Eastern).
+Response shows ingest results, digest items, and whether email was sent.
 
-**Manual / cron-job.org:**
+## What the email contains
+
+For each qualifying study (last 24 hours, ≥ 20% relevance):
+
+- Title (linked to PubMed / OpenAlex)
+- Journal, date, relevance %
+- Methods, Results, Bottom line from the AI summary
+- Link to full feed
+
+Emails are skipped if nothing qualifies (unless `DIGEST_SEND_IF_EMPTY=1`).
+
+## Add colleagues later
+
+Set on Vercel:
 
 ```
-GET https://pubmedfeed.vercel.app/api/cron/daily-digest?secret=YOUR_CRON_SECRET
+DIGEST_RECIPIENT_EMAILS=brad.langford@utoronto.ca,colleague@hospital.org
 ```
 
-## 4. Test without waiting for cron
-
-```bash
-curl "https://pubmedfeed.vercel.app/api/cron/daily-digest?secret=YOUR_CRON_SECRET"
-```
-
-Response JSON includes ingest counts, digest items, and whether email was sent.
-
-## 5. Relevance threshold
-
-Relevance uses the same scoring as the feed admin panel (0–100 scale). **20%** is a low bar that includes most stewardship-tagged articles; raise `DIGEST_MIN_RELEVANCE` (e.g. `40` or `50`) for a shorter, higher-yield digest.
-
-Admin priority ratings (1–10) also boost scores and improve future ranking via learned weights.
+(This overrides the `OPENALEX_MAILTO`-only default.)

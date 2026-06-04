@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  getDigestFromAddress,
+  getDigestReplyTo,
+} from "@/lib/digest/config";
 
 export async function sendDigestEmail(options: {
   to: string[];
@@ -11,11 +15,8 @@ export async function sendDigestEmail(options: {
     throw new Error("Missing RESEND_API_KEY");
   }
 
-  const from =
-    process.env.DIGEST_FROM_EMAIL?.trim() ??
-    "ASP Feed <onboarding@resend.dev>";
-
-  const replyTo = process.env.DIGEST_REPLY_TO?.trim();
+  const from = getDigestFromAddress();
+  const replyTo = getDigestReplyTo();
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
