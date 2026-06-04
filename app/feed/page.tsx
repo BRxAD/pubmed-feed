@@ -28,7 +28,8 @@ import AdminToggle from "@/components/AdminToggle";
 import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
 import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
-import SourceSelector from "@/components/SourceSelector";
+import AdminPrioritySelector from "@/components/AdminPrioritySelector";
+import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 import {
   articleExternalUrl,
   parseFeedSource,
@@ -370,7 +371,22 @@ function ArticleCard({
                 </strong>
               </span>
             )}
+            {item.admin_priority != null && (
+              <span>
+                Admin priority:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {item.admin_priority}/10
+                </strong>
+              </span>
+            )}
           </div>
+
+          <AdminPrioritySelector
+            topicId={topicId}
+            pmid={item.pmid}
+            initialPriority={item.admin_priority}
+            featureSnapshot={snapshotFromBreakdown(breakdown)}
+          />
         </div>
       )}
     </article>

@@ -4,8 +4,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { pubmedQueryToOpenAlex } from "@/lib/openalex/query";
+import { passesClinicalInclusionFilter } from "@/lib/openalex/filter";
 import { searchOpenAlexAllPages } from "@/lib/openalex/search";
+import {
+  getOpenAlexSearch,
+  topicExcludesClinicalNoise,
+  type TopicRow as TopicQueryRow,
+} from "@/lib/topicQuery";
 import {
   computeOpenAlexWindow,
   getOpenAlexWatermark,
@@ -65,7 +70,7 @@ function clampToToday(dateStr: string | null): string | null {
   return dateStr > today ? today : dateStr;
 }
 
-type TopicRow = { id: string; name: string; query_string: string };
+type TopicRow = TopicQueryRow;
 
 interface IngestParams {
   topicId: string | null;
@@ -148,7 +153,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (topicName?.toLowerCase() === "main") {
       const { data: rows, error } = await supabase
         .from("topics")
-        .select("id, name, query_string")
+        .select("id, name, query_string, openalex_query_string")
         .ilike("name", "%antimicrobial stewardship%")
         .limit(10);
 
@@ -166,7 +171,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     } else if (topicId) {
       const { data: row, error } = await supabase
         .from("topics")
-        .select("id, name, query_string")
+        .select("id, name, query_string, openalex_query_string")
         .eq("id", topicId)
         .single();
 
@@ -189,7 +194,8 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: false, error: "Topic has no query_string" }, { status: 400 });
     }
 
-    const searchQuery = pubmedQueryToOpenAlex(pubmedQuery);
+    const searchQuery = getOpenAlexSearch(topic);
+    const excludeNoise = topicExcludesClinicalNoise(pubmedQuery);
 
     let mindate: string;
     let maxdate: string;
@@ -216,7 +222,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       maxTotal: maxArticles,
     });
 
-    const records = searchResult.records;
+    const records = searchResult.records.filter((r) =>
+      passesClinicalInclusionFilter(r, excludeNoise)
+    );
     const totalFound = searchResult.count;
     const recordsParsed = records.length;
 

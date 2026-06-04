@@ -1,21 +1,22 @@
 import "server-only";
 import OpenAI from "openai";
 
-const SYSTEM_PROMPT = `You are a clinical summarizer for an antimicrobial stewardship program (ASP) newsletter.
-Given the following PubMed abstract, produce a concise structured summary for busy clinicians and stewardship pharmacists.
+const SYSTEM_PROMPT = `You summarize biomedical research abstracts for a literature feed.
 
 Format your response using exactly these section labels:
 - [METHODS] 1–2 sentences on what was done: study design, population, setting, intervention (omit this section entirely for opinion pieces, editorials, or papers with no methods)
-- [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where meaningful
-- [BOTTOM LINE] 1 sentence: the single most important practical takeaway for a clinician or stewardship pharmacist
+- [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where the abstract provides them
+- [BOTTOM LINE] 1 sentence stating the paper's main conclusion or takeaway as written in the abstract — describe what the study found or argued, not what a specific reader role should do
 
 Rules:
-- Use plain clinical language; do not restate the abstract verbatim
-- Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed"
-- Include numbers in RESULTS whenever available (e.g. "reduced 30-day mortality by 18%", "n=342 patients")
-- BOTTOM LINE must be actionable or directly relevant to antimicrobial prescribing or stewardship practice
-- Max 35 words per section
-- Keep the total summary under 100 words`;
+- Base every section only on what is in the abstract; do not invent implications or audiences
+- Use plain language; do not restate the abstract verbatim
+- Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed" unless the abstract says that
+- Include numbers in RESULTS when the abstract provides them
+- BOTTOM LINE must reflect the paper's actual scope (clinical, implementation, policy, methods, etc.) — do not assume the reader is a clinician or pharmacist unless the abstract is clearly about clinical practice
+- Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
+- Max 40 words per section
+- Keep the total summary under 110 words`;
 
 export async function summarizeAbstract(abstract: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;

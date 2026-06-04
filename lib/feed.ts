@@ -4,10 +4,13 @@ import type { FeedSource } from "@/lib/feedSource";
 import { DEFAULT_FEED_SOURCE } from "@/lib/feedSource";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
-  relevanceScore,
-  publicationTypeBoost,
-  finalScore,
+  computeBreakdown,
 } from "@/lib/ranking";
+import { isHighImpactJournal } from "@/lib/jif";
+import {
+  mergeLearnedWeights,
+  priorityScoreBoost,
+} from "@/lib/relevanceLearning";
 import {
   applyFiltersToFeedItems,
   canonicalKeywordForGrouping,
@@ -64,6 +67,7 @@ export type FeedItem = {
   label: string | null;
   jif_2024: number | null;
   source: FeedSource;
+  admin_priority: number | null;
   articles: {
     title: string | null;
     abstract: string | null;
@@ -101,7 +105,7 @@ export async function getFeedItems(
 
   const { data: topic, error: topicError } = await supabase
     .from("topics")
-    .select("id, query_string")
+    .select("id, query_string, ranking_weights")
     .eq("id", topicId)
     .maybeSingle();
 
@@ -113,6 +117,10 @@ export async function getFeedItems(
     topic.query_string != null && String(topic.query_string).trim()
       ? String(topic.query_string).trim()
       : "";
+
+  const learnedWeights = mergeLearnedWeights(
+    (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
+  );
 
   const hasFilters = Boolean(filters?.keyword?.trim());
   const fetchLimit = 500;
@@ -130,7 +138,7 @@ export async function getFeedItems(
     : [topicId];
 
   const selectColumns =
-    "pmid, summary_text, created_at, subheading, label, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
 
   let query = supabase
     .from("summaries")
@@ -204,6 +212,7 @@ export async function getFeedItems(
       subheading?: string | null;
       label?: string | null;
       rank_score?: number | null;
+      admin_priority?: number | null;
       articles?: {
         title?: string | null;
         abstract?: string | null;
@@ -247,6 +256,7 @@ export async function getFeedItems(
       subheading: row.subheading ?? null,
       label: row.label ?? null,
       rank_score: row.rank_score ?? null,
+      admin_priority: row.admin_priority ?? null,
       jif_2024,
       source: articleSource,
       articles,
@@ -272,9 +282,16 @@ export async function getFeedItems(
     itemsWithJif = itemsWithJif
       .map((item) => {
         const rec = recFromItem(item);
-        const relevance = relevanceScore(query_string, rec);
-        const boost = publicationTypeBoost(rec.publicationTypes);
-        const rank_score = finalScore(relevance, boost);
+        const jifIsHigh = isHighImpactJournal(item.articles?.journal);
+        const breakdown = computeBreakdown(
+          query_string,
+          rec,
+          learnedWeights,
+          true,
+          jifIsHigh
+        );
+        const rank_score =
+          breakdown.finalScore + priorityScoreBoost(item.admin_priority);
         return { ...item, rank_score };
       })
       .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));

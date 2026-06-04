@@ -28,6 +28,8 @@ import AdminToggle from "@/components/AdminToggle";
 import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
 import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
+import AdminPrioritySelector from "@/components/AdminPrioritySelector";
+import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 
 const PUBMED_ARTICLE_URL = "https://pubmed.ncbi.nlm.nih.gov";
 const MAX_KEYWORD_CHIPS = 5;
@@ -128,6 +130,7 @@ function formatDate(raw: string | null | undefined): string {
 function ArticleCard({
   item,
   query_string,
+  topicId,
   sort,
   keyword,
   minRelevance,
@@ -137,6 +140,7 @@ function ArticleCard({
 }: {
   item: FeedItem;
   query_string: string;
+  topicId: string;
   sort: FeedSort;
   keyword: string;
   minRelevance: number;
@@ -371,7 +375,22 @@ function ArticleCard({
                 </strong>
               </span>
             )}
+            {item.admin_priority != null && (
+              <span>
+                Admin priority:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {item.admin_priority}/10
+                </strong>
+              </span>
+            )}
           </div>
+
+          <AdminPrioritySelector
+            topicId={topicId}
+            pmid={item.pmid}
+            initialPriority={item.admin_priority}
+            featureSnapshot={snapshotFromBreakdown(breakdown)}
+          />
         </div>
       )}
     </article>
@@ -636,6 +655,7 @@ export default async function AIStewardshipFeedPage({
                     <ArticleCard
                       item={item}
                       query_string={query_string}
+                      topicId={topicId}
                       sort={sort}
                       keyword={keyword}
                       minRelevance={minRelevance}
