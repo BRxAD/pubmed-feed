@@ -9,20 +9,24 @@ import {
 } from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
+import { internalAppBaseUrl, internalFetchHeaders } from "@/lib/internalFetch";
 
 function appBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
-  );
+  return internalAppBaseUrl();
 }
 
 async function triggerIngest(path: string): Promise<Record<string, unknown>> {
-  const base = appBaseUrl();
-  const res = await fetch(`${base}${path}`, { method: "POST" });
+  const base = internalAppBaseUrl();
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: internalFetchHeaders(),
+  });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(String(data.error ?? res.statusText));
+    throw new Error(
+      `${url} → ${String(data.error ?? res.statusText)} (HTTP ${res.status})`
+    );
   }
   return data;
 }

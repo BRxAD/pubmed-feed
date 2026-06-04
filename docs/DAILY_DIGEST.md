@@ -51,6 +51,20 @@ https://pubmedfeed.vercel.app/api/cron/daily-digest?secret=YOUR_CRON_SECRET
 
 Response shows ingest results, digest items, and whether email was sent.
 
+### Troubleshooting `Unauthorized`
+
+| Response | Meaning |
+|----------|---------|
+| `Invalid secret` (401) | `CRON_SECRET` in the URL does not match Vercel. Copy the value from **Settings → Environment Variables**, redeploy, try again. |
+| `CRON_SECRET is not set` (503) | Variable missing on this deployment — add it for **Production**, redeploy. |
+| `Unauthorized` (500) | **Cron auth passed.** The digest failed while calling ingest (often `NEXT_PUBLIC_APP_URL` pointing at a different Vercel deployment). After the latest deploy, this should be fixed; confirm with `/api/health/env` (`CRON_SECRET: true`). |
+
+Check env vars loaded on production:
+
+```
+https://pubmedfeed.vercel.app/api/health/env
+```
+
 ## What the email contains
 
 For each qualifying study (last 24 hours, ≥ 20% relevance):

@@ -47,7 +47,14 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[cron/daily-digest]", message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    const hint =
+      message === "Unauthorized"
+        ? " Cron auth succeeded; ingest failed (often NEXT_PUBLIC_APP_URL pointing at another deployment). Redeploy after the latest fix or check /api/health/env."
+        : "";
+    return NextResponse.json(
+      { ok: false, error: message + hint },
+      { status: 500 }
+    );
   }
 }
 

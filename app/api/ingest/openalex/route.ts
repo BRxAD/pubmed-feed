@@ -102,12 +102,13 @@ async function getParams(request: NextRequest): Promise<IngestParams> {
     return { topicId, topicName, daysBack, maxArticles, maxSummaries, summarize };
   };
 
+  const fromQuery: Record<string, string | undefined> = {};
+  url.searchParams.forEach((v, k) => {
+    fromQuery[k] = v;
+  });
+
   if (request.method === "GET") {
-    const src: Record<string, string | undefined> = {};
-    url.searchParams.forEach((v, k) => {
-      src[k] = v;
-    });
-    return parseFrom(src);
+    return parseFrom(fromQuery);
   }
 
   try {
@@ -116,7 +117,7 @@ async function getParams(request: NextRequest): Promise<IngestParams> {
     for (const [k, v] of Object.entries(body)) {
       src[k] = v != null ? String(v) : undefined;
     }
-    return parseFrom(src);
+    return parseFrom({ ...fromQuery, ...src });
   } catch {
     return {
       topicId: null,
