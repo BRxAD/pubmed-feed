@@ -9,7 +9,8 @@ You likely already have these on Vercel:
 
 | Variable | You probably have it? |
 |----------|------------------------|
-| `OPENALEX_MAILTO` | Yes → **`brad.langford@utoronto.ca`** becomes digest recipient |
+| `NCBI_EMAIL` | Yes → digest recipient (same email PubMed ingest uses) |
+| `OPENALEX_MAILTO` | Yes → OpenAlex API only (not used for digest if `NCBI_EMAIL` is set) |
 | `OPENAI_API_KEY` | Yes → summaries |
 | `CRON_SECRET` | Set once for secured cron |
 | `NEXT_PUBLIC_APP_URL` | Yes → `https://pubmedfeed.vercel.app` |
@@ -24,7 +25,7 @@ You likely already have these on Vercel:
 2. Vercel → **Settings → Environment Variables** → add `RESEND_API_KEY`
 3. Redeploy
 
-No need for `DIGEST_RECIPIENT_EMAILS` if `OPENALEX_MAILTO=brad.langford@utoronto.ca` is already set.
+No need for `DIGEST_RECIPIENT_EMAILS` if `NCBI_EMAIL` is already set. On Resend’s free tier, set `DIGEST_RECIPIENT_EMAILS` to your Gmail if `NCBI_EMAIL` is a non-Gmail address.
 
 ### Optional overrides
 
@@ -100,4 +101,4 @@ Set on Vercel:
 DIGEST_RECIPIENT_EMAILS=brad.langford@utoronto.ca,colleague@hospital.org
 ```
 
-(This overrides the `OPENALEX_MAILTO`-only default.)
+(This overrides the `NCBI_EMAIL` default.)

@@ -29,10 +29,10 @@ export async function GET() {
     digestRecipientUses:
       process.env.DIGEST_RECIPIENT_EMAILS?.trim()
         ? "DIGEST_RECIPIENT_EMAILS"
-        : process.env.OPENALEX_MAILTO?.trim()
-          ? "OPENALEX_MAILTO"
-          : process.env.NCBI_EMAIL?.trim()
-            ? "NCBI_EMAIL"
+        : process.env.NCBI_EMAIL?.trim()
+          ? "NCBI_EMAIL"
+          : process.env.OPENALEX_MAILTO?.trim()
+            ? "OPENALEX_MAILTO"
             : "none",
   });
 }

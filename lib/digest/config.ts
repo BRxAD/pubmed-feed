@@ -15,28 +15,28 @@ export function parseRecipientEmails(raw: string | undefined): string[] {
 /**
  * Recipient order:
  * 1. DIGEST_RECIPIENT_EMAILS (optional override)
- * 2. OPENALEX_MAILTO (already required for OpenAlex)
- * 3. NCBI_EMAIL (already recommended for PubMed)
+ * 2. NCBI_EMAIL (PubMed contact — same email used for ingest)
+ * 3. OPENALEX_MAILTO (fallback if NCBI_EMAIL not set)
  */
 export function getDigestRecipients(): string[] {
   const explicit = parseRecipientEmails(process.env.DIGEST_RECIPIENT_EMAILS);
   if (explicit.length > 0) return explicit;
 
-  const openAlex = parseRecipientEmails(process.env.OPENALEX_MAILTO);
-  if (openAlex.length > 0) return openAlex;
-
   const ncbi = parseRecipientEmails(process.env.NCBI_EMAIL);
   if (ncbi.length > 0) return ncbi;
+
+  const openAlex = parseRecipientEmails(process.env.OPENALEX_MAILTO);
+  if (openAlex.length > 0) return openAlex;
 
   return [];
 }
 
-/** Contact email already on the project (for reply-to / from display). */
+/** Contact email already on the project (for reply-to). Prefers PubMed contact. */
 export function getProjectContactEmail(): string | null {
-  const mailto = process.env.OPENALEX_MAILTO?.trim();
-  if (mailto?.includes("@")) return mailto;
   const ncbi = process.env.NCBI_EMAIL?.trim();
   if (ncbi?.includes("@")) return ncbi;
+  const mailto = process.env.OPENALEX_MAILTO?.trim();
+  if (mailto?.includes("@")) return mailto;
   return null;
 }
 
@@ -45,7 +45,7 @@ export function getDigestFromAddress(): string {
   if (explicit) return explicit;
 
   // Resend requires a verified domain for custom From addresses.
-  // Use their shared sender; replies go to OPENALEX_MAILTO via Reply-To.
+  // Use their shared sender; replies go to NCBI_EMAIL (or OPENALEX_MAILTO) via Reply-To.
   return "ASP Literature Feed <onboarding@resend.dev>";
 }
 
