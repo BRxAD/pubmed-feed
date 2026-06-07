@@ -7,6 +7,11 @@ import { NextResponse } from "next/server";
 export async function GET() {
   return NextResponse.json({
     ok: true,
+    /** Which deployment answered — compare to your browser URL / Vercel project domain. */
+    deployment: {
+      vercelUrl: process.env.VERCEL_URL ?? null,
+      vercelEnv: process.env.VERCEL_ENV ?? null,
+    },
     productionUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
     configured: {
       CRON_SECRET: Boolean(process.env.CRON_SECRET?.trim()),

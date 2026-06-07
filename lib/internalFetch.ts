@@ -12,6 +12,15 @@ export function internalAppBaseUrl(): string {
   return "http://localhost:3000";
 }
 
+/** User-facing links in emails and UI — prefer custom/public domain. */
+export function publicAppBaseUrl(): string {
+  const publicUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (publicUrl) return publicUrl.replace(/\/$/, "");
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) return `https://${vercel}`;
+  return "http://localhost:3000";
+}
+
 export function internalFetchHeaders(): HeadersInit {
   const headers: Record<string, string> = {};
   const cronSecret = process.env.CRON_SECRET?.trim();

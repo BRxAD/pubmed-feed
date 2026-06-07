@@ -57,13 +57,29 @@ Response shows ingest results, digest items, and whether email was sent.
 |----------|---------|
 | `Invalid secret` (401) | `CRON_SECRET` in the URL does not match Vercel. Copy the value from **Settings → Environment Variables**, redeploy, try again. |
 | `CRON_SECRET is not set` (503) | Variable missing on this deployment — add it for **Production**, redeploy. |
-| `Unauthorized` (500) | **Cron auth passed.** The digest failed while calling ingest (often `NEXT_PUBLIC_APP_URL` pointing at a different Vercel deployment). After the latest deploy, this should be fixed; confirm with `/api/health/env` (`CRON_SECRET: true`). |
+| `Unauthorized` (500) with a `pubmedfeed-….vercel.app/api/ingest` URL | **Cron auth passed.** Vercel Deployment Protection blocked an internal HTTP call. Fixed by calling ingest in-process — redeploy the latest code. |
 
 Check env vars loaded on production:
 
 ```
 https://pubmedfeed.vercel.app/api/health/env
 ```
+
+Look for `"CRON_SECRET": true`. If it is `false`, see below.
+
+### Vercel shows an empty value for CRON_SECRET
+
+That is normal in the dashboard — **Vercel hides secret values after you save**. An empty-looking field does not mean it was deleted.
+
+When **editing** a variable, the value box is often blank. If you click **Save** without pasting the secret again, you can **wipe** the value. Always re-paste the full secret when editing.
+
+After any env change:
+
+1. **Key** must be exactly `CRON_SECRET` (no spaces).
+2. Check **Production** (not Preview only).
+3. Open the project that owns **pubmedfeed.vercel.app** (Settings → Domains).
+4. **Redeploy**: Deployments → latest → ⋮ → **Redeploy** (do not use “Redeploy without env” if offered).
+5. Wait for “Ready”, then reload `/api/health/env`.
 
 ## What the email contains
 

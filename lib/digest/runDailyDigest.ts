@@ -9,23 +9,25 @@ import {
 } from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
-import { internalAppBaseUrl, internalFetchHeaders } from "@/lib/internalFetch";
+import { publicAppBaseUrl } from "@/lib/internalFetch";
+import { GET as runPubmedIngest } from "@/app/api/ingest/route";
+import { GET as runOpenAlexIngest } from "@/app/api/ingest/openalex/route";
+import { NextRequest } from "next/server";
 
 function appBaseUrl(): string {
-  return internalAppBaseUrl();
+  return publicAppBaseUrl();
 }
 
+/** Run ingest in-process — avoids Vercel Deployment Protection on self-fetch URLs. */
 async function triggerIngest(path: string): Promise<Record<string, unknown>> {
-  const base = internalAppBaseUrl();
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: internalFetchHeaders(),
-  });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
+  const url = new URL(path, "http://digest-internal");
+  const request = new NextRequest(url);
+  const handler = path.includes("/openalex") ? runOpenAlexIngest : runPubmedIngest;
+  const response = await handler(request);
+  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
     throw new Error(
-      `${url} → ${String(data.error ?? res.statusText)} (HTTP ${res.status})`
+      `${path} → ${String(data.error ?? response.statusText)} (HTTP ${response.status})`
     );
   }
   return data;
