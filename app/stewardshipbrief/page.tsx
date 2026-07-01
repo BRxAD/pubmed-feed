@@ -1,6 +1,8 @@
 import { getBriefItems } from "@/lib/brief/items";
 import BriefArticleList from "@/components/brief/BriefArticleList";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "The Stewardship Brief · PubMed",
   description:

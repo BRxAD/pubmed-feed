@@ -220,17 +220,31 @@ export function predictArticlePriority(options: {
   };
 }
 
-type TrainingArticleRow = {
-  pmid: string;
-  admin_priority: number;
-  articles: {
-    title: string | null;
-    abstract: string | null;
-    journal: string | null;
-    publication_types: string[] | null;
-    keywords: string[] | null;
-  } | null;
+type JoinedArticle = {
+  title: string | null;
+  abstract: string | null;
+  journal: string | null;
+  publication_types: string[] | null;
+  keywords: string[] | null;
 };
+
+function articleFromSummaryRow(row: unknown): {
+  pmid: string;
+  article: JoinedArticle;
+} | null {
+  if (!row || typeof row !== "object") return null;
+  const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
+  if (!pmid) return null;
+
+  const joined = (row as { articles?: JoinedArticle | JoinedArticle[] | null })
+    .articles;
+  const article = Array.isArray(joined) ? joined[0] : joined;
+  if (!article || typeof article !== "object" || !article.title?.trim()) {
+    return null;
+  }
+
+  return { pmid, article };
+}
 
 export async function relearnPriorityModel(
   topicId: string,
@@ -276,16 +290,19 @@ export async function relearnPriorityModel(
 
   const samples: { features: number[]; priority: number }[] = [];
 
-  for (const raw of (articles ?? []) as TrainingArticleRow[]) {
-    const priority = byPmid.get(raw.pmid);
-    const art = raw.articles;
-    if (priority == null || !art?.title) continue;
+  for (const raw of articles ?? []) {
+    const parsed = articleFromSummaryRow(raw);
+    if (!parsed) continue;
+
+    const { pmid, article: art } = parsed;
+    const priority = byPmid.get(pmid);
+    if (priority == null) continue;
 
     const rec: PubMedRecord = {
-      pmid: raw.pmid,
+      pmid,
       title: art.title,
-      abstract: art.abstract,
-      journal: art.journal,
+      abstract: art.abstract ?? null,
+      journal: art.journal ?? null,
       pubDate: null,
       publicationTypes: art.publication_types ?? [],
       meshTerms: [],
