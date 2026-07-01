@@ -201,21 +201,24 @@ async function runOneTopic(
 
     const batchResults = await Promise.allSettled(
       batch.map(async (r) => {
-        const summaryText = await summarizeAbstract(r.abstract!);
+        const { summaryText, headline } = await summarizeAbstract(r.abstract!);
         const classification = await classifyStudyAbstract({
           title: r.title,
           abstract: r.abstract,
           publicationTypes: r.publicationTypes,
         });
 
+        const row: Record<string, unknown> = {
+          topic_id: topic.id,
+          pmid: r.pmid,
+          summary_text: summaryText,
+          subheading: classification.study_subheading,
+          label: classification.study_label,
+        };
+        if (headline) row.headline = headline;
+
         const { error: sumErr } = await supabase.from("summaries").upsert(
-          {
-            topic_id: topic.id,
-            pmid: r.pmid,
-            summary_text: summaryText,
-            subheading: classification.study_subheading,
-            label: classification.study_label,
-          },
+          row,
           { onConflict: "topic_id,pmid" }
         );
 

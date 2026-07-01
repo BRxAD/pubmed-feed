@@ -31,6 +31,8 @@ import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
 import SourceSelector from "@/components/SourceSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
+import { loadPriorityModel, predictArticlePriority, type PriorityModel } from "@/lib/brief/priorityModel";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   articleExternalUrl,
   parseFeedSource,
@@ -131,6 +133,7 @@ function ArticleCard({
   isAdmin,
   weights,
   source,
+  priorityModel,
 }: {
   item: FeedItem;
   query_string: string;
@@ -142,6 +145,7 @@ function ArticleCard({
   isAdmin: boolean;
   weights: RankingWeights;
   source: FeedSource;
+  priorityModel: PriorityModel | null;
 }) {
   const journal = item.articles?.journal != null ? String(item.articles.journal) : "";
   const dateStr = formatDate(
@@ -156,6 +160,15 @@ function ArticleCard({
     ? Number(item.rank_score)
     : breakdown.finalScore;
   const normalizedScore = normalizeScoreTo100(score);
+
+  const priorityPrediction = isAdmin
+    ? predictArticlePriority({
+        rec: makeRec(item),
+        queryString: query_string,
+        weights,
+        model: priorityModel,
+      })
+    : null;
 
   const studyLabelDisplay = [
     formatStudyLabel(item.subheading),
@@ -374,11 +387,26 @@ function ArticleCard({
             )}
             {item.admin_priority != null && (
               <span>
-                Admin priority:{" "}
+                Saved priority:{" "}
                 <strong className="text-zinc-700 dark:text-zinc-300">
                   {item.admin_priority}/10
                 </strong>
               </span>
+            )}
+            {priorityPrediction && (
+              <span>
+                Predicted priority:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {priorityPrediction.priority}/10
+                </strong>
+                <span className="text-zinc-400">
+                  {" "}
+                  ({priorityPrediction.source === "model" ? "ML" : "estimate"})
+                </span>
+              </span>
+            )}
+            {item.admin_priority == null && (
+              <span className="text-zinc-400">Saved priority: unset</span>
             )}
           </div>
 
@@ -499,6 +527,10 @@ export default async function FeedPage({
   }
 
   const hasFilters = keyword !== "" || minRelevance > 0 || setting !== "";
+
+  const priorityModel = isAdmin
+    ? await loadPriorityModel(getSupabaseServerClient(), topicId)
+    : null;
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-6">
@@ -682,6 +714,7 @@ export default async function FeedPage({
                       isAdmin={isAdmin}
                       weights={weights}
                       source={source}
+                      priorityModel={priorityModel}
                     />
                   </li>
                 ))}

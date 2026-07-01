@@ -3,7 +3,8 @@ import OpenAI from "openai";
 
 const SYSTEM_PROMPT = `You summarize biomedical research abstracts for a literature feed.
 
-Format your response using exactly these section labels:
+Format your response using exactly these section labels (one per line):
+- [HEADLINE] A plain-language headline ≤110 characters: state the finding and its scope; keep exact numbers from the abstract; no causal claims the study does not make; ban hype words (breakthrough, game-changer, revolutionary, cure)
 - [METHODS] 1–2 sentences on what was done: study design, population, setting, intervention (omit this section entirely for opinion pieces, editorials, or papers with no methods)
 - [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where the abstract provides them
 - [BOTTOM LINE] 1 sentence stating the paper's main conclusion or takeaway as written in the abstract — describe what the study found or argued, not what a specific reader role should do
@@ -12,13 +13,51 @@ Rules:
 - Base every section only on what is in the abstract; do not invent implications or audiences
 - Use plain language; do not restate the abstract verbatim
 - Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed" unless the abstract says that
-- Include numbers in RESULTS when the abstract provides them
+- Include numbers in RESULTS and HEADLINE when the abstract provides them
 - BOTTOM LINE must reflect the paper's actual scope (clinical, implementation, policy, methods, etc.) — do not assume the reader is a clinician or pharmacist unless the abstract is clearly about clinical practice
 - Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
-- Max 40 words per section
-- Keep the total summary under 110 words`;
+- Max 40 words per section except HEADLINE (≤110 characters)
+- Keep the total summary under 130 words`;
 
-export async function summarizeAbstract(abstract: string): Promise<string> {
+export type ParsedSummary = {
+  summaryText: string;
+  headline: string | null;
+};
+
+const HYPE_WORDS =
+  /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark)\b/i;
+
+/** Parse model output; strips [HEADLINE] from stored summary body when extracted. */
+export function parseSummaryResponse(content: string): ParsedSummary {
+  const lines = content
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let headline: string | null = null;
+  const bodyLines: string[] = [];
+
+  for (const line of lines) {
+    const stripped = line.replace(/^[-•*]\s*/, "");
+    if (/^\[HEADLINE\]/i.test(stripped)) {
+      const h = stripped.replace(/^\[HEADLINE\]\s*/i, "").trim();
+      if (h && h.length <= 110 && !HYPE_WORDS.test(h)) {
+        headline = h;
+      } else if (h) {
+        headline = h.slice(0, 110).trim();
+      }
+    } else {
+      bodyLines.push(line);
+    }
+  }
+
+  return {
+    summaryText: bodyLines.join("\n").trim(),
+    headline,
+  };
+}
+
+export async function summarizeAbstract(abstract: string): Promise<ParsedSummary> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || !apiKey.trim()) {
     throw new Error("Missing OPENAI_API_KEY environment variable");
@@ -40,5 +79,5 @@ export async function summarizeAbstract(abstract: string): Promise<string> {
     throw new Error("OpenAI returned no summary content");
   }
 
-  return content.trim();
+  return parseSummaryResponse(content.trim());
 }

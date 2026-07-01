@@ -22,6 +22,31 @@ import {
   predictArticlePriority,
   type PriorityPredictionSource,
 } from "@/lib/brief/priorityModel";
+import {
+  matchesBriefSettingFilter,
+  type BriefSettingFilter,
+} from "@/lib/brief/settingFilter";
+
+function extractHeadline(
+  summaryText: string,
+  storedHeadline: string | null | undefined,
+  title: string,
+  bottomLine: string | null
+): string {
+  if (storedHeadline?.trim()) return storedHeadline.trim();
+  for (const line of summaryText.split("\n")) {
+    const t = line.trim().replace(/^[-•*]\s*/, "");
+    if (/^\[HEADLINE\]/i.test(t)) {
+      const h = t.replace(/^\[HEADLINE\]\s*/i, "").trim();
+      if (h) return h.slice(0, 110);
+    }
+  }
+  if (bottomLine?.trim()) {
+    const b = bottomLine.trim();
+    return b.length <= 110 ? b : `${b.slice(0, 107)}…`;
+  }
+  return title;
+}
 
 /** Rolling window for the daily brief (summaries created within this period). */
 export const DEFAULT_BRIEF_DAYS_BACK = 7;
@@ -29,6 +54,7 @@ export const DEFAULT_BRIEF_DAYS_BACK = 7;
 export type BriefItem = {
   pmid: string;
   source: "pubmed";
+  headline: string;
   title: string;
   journal: string | null;
   jif: number | null;
@@ -84,6 +110,7 @@ function isPubMedArticle(pmid: string, source: string | null | undefined): boole
 export async function getBriefItems(options?: {
   daysBack?: number;
   maxItems?: number;
+  setting?: BriefSettingFilter;
 }): Promise<BriefFeedResult> {
   const daysBack = Math.min(
     30,
@@ -117,16 +144,39 @@ export async function getBriefItems(options?: {
   );
   const priorityModel = await loadPriorityModel(supabase, topicId);
 
-  const { data: rows, error } = await supabase
+  const settingFilter = options?.setting ?? "";
+
+  let rows: unknown[] | null = null;
+  let error: { message: string } | null = null;
+
+  const withHeadline = await supabase
     .from("summaries")
     .select(
-      "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
+      "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
     )
     .eq("topic_id", topicId)
     .eq("articles.source", "pubmed")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(1000);
+
+  if (withHeadline.error?.message?.toLowerCase().includes("headline")) {
+    const fallback = await supabase
+      .from("summaries")
+      .select(
+        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
+      )
+      .eq("topic_id", topicId)
+      .eq("articles.source", "pubmed")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    rows = fallback.data;
+    error = fallback.error;
+  } else {
+    rows = withHeadline.data;
+    error = withHeadline.error;
+  }
 
   if (error) throw new Error(error.message);
 
@@ -136,6 +186,7 @@ export async function getBriefItems(options?: {
     const row = raw as {
       pmid: string;
       summary_text: string | null;
+      headline?: string | null;
       created_at: string;
       subheading?: string | null;
       label?: string | null;
@@ -202,6 +253,12 @@ export async function getBriefItems(options?: {
       .filter(Boolean)
       .join(" · ");
     const studyLabel = formatStudyLabel(studyLabelRaw || null);
+    const headline = extractHeadline(
+      row.summary_text,
+      row.headline,
+      row.articles.title!.trim(),
+      bullets?.bottomLine ?? null
+    );
 
     const jifEntry = lookupJif(row.articles.journal);
 
@@ -228,9 +285,10 @@ export async function getBriefItems(options?: {
       },
     };
 
-    candidates.push({
+    const item: BriefItem = {
       pmid: row.pmid,
       source: "pubmed",
+      headline,
       title: row.articles.title!.trim(),
       journal: row.articles.journal?.trim() ?? null,
       jif: jifEntry?.jif ?? null,
@@ -254,7 +312,10 @@ export async function getBriefItems(options?: {
       prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
       keywords: (row.articles.keywords ?? []).slice(0, 8),
-    });
+    };
+
+    if (!matchesBriefSettingFilter(item, settingFilter)) continue;
+    candidates.push(item);
   }
 
   candidates.sort((a, b) => {
