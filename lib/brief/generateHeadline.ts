@@ -8,23 +8,24 @@ const HYPE_WORDS =
 export const HEADLINE_MAX_CHARS = 100;
 
 /** Target length band — keeps headlines complete without truncation. */
-export const HEADLINE_TARGET_MAX = 92;
+export const HEADLINE_TARGET_MAX = 88;
 
 const HEADLINE_SYSTEM = `You write headlines for "The Stewardship Brief" — a daily editorial digest for antimicrobial-stewardship clinicians (Nature Briefing / STAT News quality).
 
 Write exactly ONE headline per study.
 
 Requirements:
-- 55–${HEADLINE_TARGET_MAX} characters preferred; never exceed ${HEADLINE_MAX_CHARS}
-- One complete, grammatical sentence that stands alone — must not feel cut off
-- Pithy and interesting: lead with the hook (finding, number, or setting), not the paper title or acronyms
+- 50–${HEADLINE_TARGET_MAX} characters preferred; never exceed ${HEADLINE_MAX_CHARS}
+- One complete, grammatical sentence that stands alone — must not feel cut off mid-thought
+- Pithy and interesting: lead with the finding or surprise, NOT the paper title, framework name, or acronyms
 - High-quality science journalism: precise, readable, no hype
-- Keep exact numbers from the abstract only when they fit cleanly in one clear claim
-- Never pack contradictory statistics into one headline (e.g., two percentages that conflict or confuse)
+- Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
+- Never end on a bare number, preposition, or unfinished phrase ("across 118" is invalid — say "across 118 VA hospitals")
+- Never pack contradictory statistics into one headline
 - Do NOT use banned hype words: breakthrough, game-changer, revolutionary, cure, miracle, landmark, paradigm-shifting
 - Do NOT write a bottom-line, recommendation, or methods dump
-- Do NOT start with "Study shows", "Researchers find", or "New framework"
-- Do NOT paste the paper title or acronym-heavy names unless unavoidable
+- Do NOT start with "Study shows", "Researchers find", "New framework", "New [ACRONYM]", or "[NAME] framework reveals"
+- Do NOT paste the paper title or lead with tool/metric acronyms (DASC-LOT, S3, etc.) — translate into plain English
 
 Causality (critical):
 - If the study is a randomized trial, you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
@@ -33,10 +34,14 @@ Causality (critical):
 - When unsure of design, default to associative language
 
 Good examples:
-- "Report cards tied to higher guideline concordance and less cefdinir use in kids" (quasi-experimental)
+- "Antimicrobial use varied widely across 118 VA hospitals in a 728,000-patient audit"
+- "Report cards tied to higher guideline concordance and less cefdinir use in kids"
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs" (RCT)
-- "High prescribing linked to longer stays in 12-hospital cohort"
 - "Four in five sinusitis visits meeting criteria still got antibiotics"
+
+Bad examples (never write these):
+- "New DASC-LOT framework reveals 727,958 patients' antimicrobial use varies widely across 118"
+- "Study shows antibiotic use was high"
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
@@ -44,13 +49,19 @@ const STRONG_CAUSAL_RE =
   /\b(led to|resulted in|caused|drove|triggered|spurred|yielded)\b/i;
 
 const INTERVENTION_CAUSAL_RE =
-  /\b(cut|boosted|lowered|reduced|increased|improved|slashed|dropped|raised|curbed|slashed)\b/i;
+  /\b(cut|boosted|lowered|reduced|increased|improved|slashed|dropped|raised|curbed)\b/i;
 
 const DANGLING_ENDING_RE =
-  /\b(in|on|at|for|with|and|or|the|a|an|of|to|by|from|without|among|across|during|after|before|under|over|into|through|about|between|pediatric|paediatric|adult|hospital|clinical|acute|chronic|outpatient|inpatient)$/i;
+  /\b(in|on|at|for|with|and|or|the|a|an|of|to|by|from|without|among|across|during|after|before|under|over|into|through|about|between|pediatric|paediatric|adult|hospital|clinical|acute|chronic|outpatient|inpatient|wide|widely|varies|varied)$/i;
 
 const RCT_RE =
   /\b(randomized|randomised|randomized controlled|randomised controlled|placebo[- ]controlled|cluster[- ]randomized|cluster[- ]randomised|double[- ]blind|rct\b)\b/i;
+
+const FRAMEWORK_LEAD_RE =
+  /^(new\s+|.*\bframework\s+(reveals|shows|finds|demonstrates)\b)/i;
+
+const BARE_NUMBER_END_RE =
+  /\b(across|in|at|for|of|among|from|over|under|within|between|to|with|and)\s+\d[\d,.\s]*$/i;
 
 export type HeadlineValidation = {
   ok: boolean;
@@ -74,6 +85,14 @@ function sanitizeHeadline(raw: string): string {
   return h;
 }
 
+function countMajorStats(headline: string): number {
+  const matches = headline.match(/\d[\d,]*(?:\.\d+)?%?/g) ?? [];
+  return matches.filter((m) => {
+    const digits = m.replace(/\D/g, "");
+    return digits.length >= 2;
+  }).length;
+}
+
 function hasContradictoryPercentages(headline: string): boolean {
   const lower = headline.toLowerCase();
   if (!lower.includes("but")) return false;
@@ -83,7 +102,6 @@ function hasContradictoryPercentages(headline: string): boolean {
   );
   if (pcts.length < 2) return false;
 
-  // "93% received X but 80% did not" — conflicting framing
   if (
     /\d+(?:\.\d+)?\s*%[^.]{0,100}\bbut\b[^.]{0,60}\d+(?:\.\d+)?\s*%[^.]{0,40}\b(did not|were not|was not|without)\b/i.test(
       headline
@@ -92,7 +110,6 @@ function hasContradictoryPercentages(headline: string): boolean {
     return true;
   }
 
-  // Two high percentages in opposition without a clear comparison frame
   if (
     pcts.length >= 2 &&
     pcts.every((p) => p >= 50) &&
@@ -113,12 +130,9 @@ function looksTruncated(headline: string): boolean {
   if (h.endsWith("…") || h.endsWith("...")) return true;
   if (h.length >= HEADLINE_MAX_CHARS - 1) return true;
   if (DANGLING_ENDING_RE.test(h)) return true;
-
-  // Unclosed parenthesis or em-dash thought
+  if (BARE_NUMBER_END_RE.test(h)) return true;
+  if (/\b\d{1,4}$/.test(h)) return true;
   if (/\([^)]*$/.test(h)) return true;
-  if (/[,;:]\s*[\w]+$/.test(h) && DANGLING_ENDING_RE.test(h.split(/[,;:]/).pop()?.trim() ?? "")) {
-    return true;
-  }
 
   return false;
 }
@@ -132,13 +146,22 @@ export function validateHeadlineQuality(
 
   if (!h) issues.push("empty headline");
   if (h.length > HEADLINE_MAX_CHARS) {
-    issues.push(`over ${HEADLINE_MAX_CHARS} characters`);
+    issues.push(`over ${HEADLINE_MAX_CHARS} characters — shorten`);
   }
   if (looksTruncated(h)) {
-    issues.push("incomplete or truncated phrasing");
+    issues.push("incomplete or truncated — finish the thought with a noun (e.g., '118 VA hospitals')");
   }
   if (hasContradictoryPercentages(h)) {
     issues.push("contradictory or confusing statistics");
+  }
+  if (countMajorStats(h) > 1) {
+    issues.push("too many numbers — use at most one statistic and round large counts");
+  }
+  if (FRAMEWORK_LEAD_RE.test(h)) {
+    issues.push("do not lead with framework name or 'New … framework reveals'");
+  }
+  if (/^new\s+/i.test(h)) {
+    issues.push('do not start with "New …"');
   }
   if (HYPE_WORDS.test(h)) issues.push("hype language");
 
@@ -147,7 +170,9 @@ export function validateHeadlineQuality(
     issues.push('causal wording ("led to/resulted in") on non-RCT study');
   }
   if (!causalAllowed && INTERVENTION_CAUSAL_RE.test(h)) {
-    issues.push('intervention-style causal verb on non-RCT study — use "linked to" or "associated with"');
+    issues.push(
+      'intervention-style causal verb on non-RCT study — use "linked to" or "associated with"'
+    );
   }
 
   return { ok: issues.length === 0, issues };
@@ -166,6 +191,8 @@ export function isStaleHeadline(
   if (isTruncatedHeadline(h)) return true;
   if (h.length > HEADLINE_MAX_CHARS) return true;
   if (hasContradictoryPercentages(h)) return true;
+  if (FRAMEWORK_LEAD_RE.test(h)) return true;
+  if (countMajorStats(h) > 1) return true;
   if (abstract?.trim()) {
     const v = validateHeadlineQuality(h, abstract);
     if (!v.ok) return true;
@@ -177,8 +204,12 @@ async function requestHeadline(
   client: OpenAI,
   title: string,
   abstract: string,
-  revision?: { previous: string; issues: string[] }
+  revision?: { previous: string; issues: string[]; strict?: boolean }
 ): Promise<string> {
+  const strictNote = revision?.strict
+    ? `\n\nFINAL ATTEMPT: Under 80 characters. One statistic max. Plain English only. Complete sentence ending with a noun.`
+    : "";
+
   const userContent = revision
     ? `Title: ${title.trim()}
 
@@ -190,7 +221,7 @@ Your previous headline was rejected:
 
 Problems: ${revision.issues.join("; ")}
 
-Write a NEW headline that fixes all problems. Shorter and clearer if needed. One complete sentence under ${HEADLINE_TARGET_MAX} characters.`
+Write a NEW headline that fixes all problems. Shorter and clearer. One complete sentence under ${HEADLINE_TARGET_MAX} characters.${strictNote}`
     : `Title: ${title.trim()}
 
 Abstract:
@@ -200,12 +231,12 @@ Study design hint: ${allowsCausalLanguage(abstract) ? "Randomized trial — dire
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
-    temperature: revision ? 0.35 : 0.4,
+    temperature: revision?.strict ? 0.25 : revision ? 0.35 : 0.4,
     messages: [
       { role: "system", content: HEADLINE_SYSTEM },
       { role: "user", content: userContent },
     ],
-    max_tokens: 55,
+    max_tokens: 50,
   });
 
   const content = completion.choices[0]?.message?.content?.trim();
@@ -235,13 +266,17 @@ export async function generateBriefHeadline(options: {
   let lastHeadline = "";
   let lastIssues: string[] = [];
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     const headline = await requestHeadline(
       client,
       title,
       abstract,
       attempt > 0
-        ? { previous: lastHeadline, issues: lastIssues }
+        ? {
+            previous: lastHeadline,
+            issues: lastIssues,
+            strict: attempt >= 3,
+          }
         : undefined
     );
 
@@ -252,16 +287,9 @@ export async function generateBriefHeadline(options: {
     lastIssues = validation.issues;
   }
 
-  // Last resort: return best attempt rather than failing the brief load
-  if (lastHeadline) {
-    console.warn(
-      "[generateHeadline] using suboptimal headline after retries:",
-      lastIssues.join("; ")
-    );
-    return lastHeadline;
-  }
-
-  throw new Error("Failed to generate headline after retries");
+  throw new Error(
+    `Failed to generate valid headline after retries: ${lastIssues.join("; ")}`
+  );
 }
 
 /** True when we should call GenAI instead of using stored/fallback text. */

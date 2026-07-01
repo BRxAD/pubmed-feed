@@ -205,7 +205,43 @@ export function parseSummaryBullets(
   }
 
   if (!whatIsKnown && !methods && !results && !bottomLine) return null;
-  return { whatIsKnown, methods, results, bottomLine };
+  return {
+    whatIsKnown,
+    methods,
+    results,
+    bottomLine: bottomLine ? cleanBottomLine(bottomLine) : null,
+  };
+}
+
+/** Strip meta lead-ins from bottom-line text (applies to stored summaries at read time). */
+export function cleanBottomLine(text: string): string {
+  let s = text.trim();
+  if (!s) return s;
+
+  const leadIns = [
+    /^this study (shows|demonstrates|found|concluded|concludes|suggests|indicates) that\s+/i,
+    /^these findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
+    /^the (study|authors|researchers|results) (show|found|conclude|suggests?|indicate|demonstrate) that\s+/i,
+    /^the findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
+    /^findings (show|suggest|indicate) that\s+/i,
+    /^results (show|suggest|indicate|demonstrate) that\s+/i,
+    /^in (summary|conclusion),?\s+/i,
+    /^overall,?\s+/i,
+    /^taken together,?\s+/i,
+    /^collectively,?\s+/i,
+  ];
+
+  let prev = "";
+  while (prev !== s) {
+    prev = s;
+    for (const re of leadIns) {
+      s = s.replace(re, "");
+    }
+    s = s.trim();
+  }
+
+  if (!s) return text.trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function matchesKeyword(item: FeedItem, keyword: string): boolean {
