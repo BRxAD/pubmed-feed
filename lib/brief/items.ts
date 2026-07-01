@@ -24,6 +24,7 @@ export const DEFAULT_BRIEF_DAYS_BACK = 7;
 
 export type BriefItem = {
   pmid: string;
+  source: "pubmed";
   title: string;
   journal: string | null;
   jif: number | null;
@@ -47,6 +48,7 @@ export type BriefItem = {
 
 export type BriefFeedResult = {
   topicId: string;
+  source: "pubmed";
   query_string: string;
   daysBack: number;
   minPriority: number;
@@ -64,6 +66,14 @@ function isWithinHours(iso: string, hours: number): boolean {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return false;
   return Date.now() - t <= hours * 60 * 60 * 1000;
+}
+
+function isPubMedArticle(pmid: string, source: string | null | undefined): boolean {
+  const id = pmid.trim();
+  if (/^W\d+$/i.test(id)) return false;
+  if (source === "openalex") return false;
+  if (source === "pubmed") return true;
+  return /^\d+$/.test(id);
 }
 
 export async function getBriefItems(options?: {
@@ -136,7 +146,7 @@ export async function getBriefItems(options?: {
     };
 
     if (!row.articles?.title?.trim() || !row.summary_text?.trim()) continue;
-    if (row.articles.source && row.articles.source !== "pubmed") continue;
+    if (!isPubMedArticle(row.pmid, row.articles.source)) continue;
 
     const rec: PubMedRecord = {
       pmid: row.pmid,
@@ -198,6 +208,7 @@ export async function getBriefItems(options?: {
 
     candidates.push({
       pmid: row.pmid,
+      source: "pubmed",
       title: row.articles.title!.trim(),
       journal: row.articles.journal?.trim() ?? null,
       jif: jifEntry?.jif ?? null,
@@ -236,6 +247,7 @@ export async function getBriefItems(options?: {
 
   return {
     topicId,
+    source: "pubmed",
     query_string,
     daysBack,
     minPriority: 5,

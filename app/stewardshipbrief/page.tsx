@@ -2,9 +2,9 @@ import { getBriefItems } from "@/lib/brief/items";
 import BriefArticleList from "@/components/brief/BriefArticleList";
 
 export const metadata = {
-  title: "The Stewardship Brief",
+  title: "The Stewardship Brief · PubMed",
   description:
-    "Daily briefing of high-priority antimicrobial stewardship research from PubMed.",
+    "Daily PubMed briefing of high-priority antimicrobial stewardship research.",
 };
 
 export default async function StewardshipBriefPage() {

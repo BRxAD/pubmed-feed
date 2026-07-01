@@ -35,7 +35,8 @@ function MetaRow({ item }: { item: BriefItem }) {
   const settingLabel = item.setting ? SETTING_LABELS[item.setting] ?? item.setting : null;
   return (
     <p className="mt-1 text-sm text-zinc-600">
-      {item.journal && <span>{item.journal}</span>}
+      <span className="font-medium text-zinc-700">PubMed</span>
+      {item.journal && <span> · {item.journal}</span>}
       {item.jif != null && (
         <span>
           {item.journal ? " · " : ""}
@@ -138,7 +139,10 @@ export default function BriefArticleList({
       <header className="border-b border-zinc-300 bg-white">
         <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-            Antimicrobial stewardship · PubMed
+            Antimicrobial stewardship
+          </p>
+          <p className="mt-1 text-xs uppercase tracking-[0.15em] text-amber-800 font-semibold">
+            Source: PubMed
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">
             The Stewardship Brief
@@ -151,12 +155,12 @@ export default function BriefArticleList({
                 since yesterday ·{" "}
               </>
             ) : null}
-            {items.length} stud{items.length === 1 ? "y" : "ies"} at priority 5+
-            (last {daysBack} days)
+            {items.length} PubMed stud{items.length === 1 ? "y" : "ies"} at priority 5+
+            {" "}(last {daysBack} days)
           </p>
           <nav className="mt-4 flex gap-4 text-sm">
-            <a href="/feed" className="text-amber-800 hover:underline">
-              Full feed →
+            <a href="/feed?source=pubmed" className="text-amber-800 hover:underline">
+              Full PubMed feed →
             </a>
           </nav>
         </div>
@@ -167,8 +171,8 @@ export default function BriefArticleList({
           <p className="text-zinc-600">
             No PubMed studies met priority 5+ in the last {daysBack} days. Check back
             after the next ingest, or rate articles on the{" "}
-            <a href="/feed" className="text-amber-800 underline">
-              main feed
+            <a href="/feed?source=pubmed" className="text-amber-800 underline">
+              PubMed feed
             </a>
             .
           </p>
