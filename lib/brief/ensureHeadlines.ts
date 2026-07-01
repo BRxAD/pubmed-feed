@@ -49,7 +49,8 @@ export async function ensureBriefHeadlines(
     return headlineNeedsGeneration(
       c.storedHeadline,
       c.summaryText,
-      c.bottomLine
+      c.bottomLine,
+      c.abstract
     );
   });
 
