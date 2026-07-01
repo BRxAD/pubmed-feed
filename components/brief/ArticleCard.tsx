@@ -48,8 +48,7 @@ function hasDetailContent(item: BriefItem): boolean {
     item.methods ||
       item.results ||
       item.title ||
-      item.journal ||
-      item.studyLabel
+      item.journal
   );
 }
 
@@ -154,13 +153,7 @@ function StoryBody({
 }: StoryProps & { lead: boolean }) {
   return (
     <>
-      {lead ? (
-        <p className={`${brief.kicker} mb-3`}>Lead story</p>
-      ) : (
-        item.studyLabel && (
-          <p className={`${brief.meta} mb-2`}>{item.studyLabel}</p>
-        )
-      )}
+      {lead && <p className={`${brief.kicker} mb-3`}>Lead story</p>}
       <MetaLine item={item} />
       <h2
         className={`${brief.serif} font-bold leading-[1.15] tracking-[-0.01em] ${
