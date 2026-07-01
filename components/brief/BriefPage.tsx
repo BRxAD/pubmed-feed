@@ -23,14 +23,10 @@ function formatToday(): string {
 
 export default function BriefPage({
   items,
-  newSinceYesterday,
-  editorsNote,
   trending,
   setting,
 }: {
   items: BriefItem[];
-  newSinceYesterday: number;
-  editorsNote: string;
   trending: TrendingTerm[];
   setting: BriefSettingFilter;
 }) {
@@ -39,11 +35,7 @@ export default function BriefPage({
 
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
-      <Masthead
-        dateLabel={formatToday()}
-        editorsNote={editorsNote}
-        newSinceYesterday={newSinceYesterday}
-      />
+      <Masthead dateLabel={formatToday()} />
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="lg:grid lg:grid-cols-[1fr_280px] lg:gap-12">

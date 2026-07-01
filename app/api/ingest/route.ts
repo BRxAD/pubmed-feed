@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { searchPubMedAllPages } from "@/lib/pubmed/esearch";
 import { fetchPubMedRecords } from "@/lib/pubmed/efetch";
 import { summarizeAbstract } from "@/lib/summarize";
+import { generateBriefHeadline } from "@/lib/brief/generateHeadline";
 import { classifyStudyAbstract } from "@/lib/classifyStudy";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
@@ -395,7 +396,19 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
 
         const batchResults = await Promise.allSettled(
           batch.map(async (r) => {
-            const { summaryText, headline } = await summarizeAbstract(r.abstract!);
+            const { summaryText } = await summarizeAbstract(r.abstract!);
+            let headline: string | null = null;
+            try {
+              headline = await generateBriefHeadline({
+                title: r.title!,
+                abstract: r.abstract!,
+              });
+            } catch (headlineErr) {
+              console.warn(
+                `[ingest] headline ${r.pmid}:`,
+                headlineErr instanceof Error ? headlineErr.message : headlineErr
+              );
+            }
             const classification = await classifyStudyAbstract({
               title: r.title,
               abstract: r.abstract,

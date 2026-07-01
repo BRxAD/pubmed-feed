@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { searchPubMed } from "@/lib/pubmed/esearch";
 import { fetchPubMedRecords } from "@/lib/pubmed/efetch";
 import { summarizeAbstract } from "@/lib/summarize";
+import { generateBriefHeadline } from "@/lib/brief/generateHeadline";
 import { classifyStudyAbstract } from "@/lib/classifyStudy";
 
 export const runtime = "nodejs";
@@ -201,7 +202,19 @@ async function runOneTopic(
 
     const batchResults = await Promise.allSettled(
       batch.map(async (r) => {
-        const { summaryText, headline } = await summarizeAbstract(r.abstract!);
+        const { summaryText } = await summarizeAbstract(r.abstract!);
+        let headline: string | null = null;
+        try {
+          headline = await generateBriefHeadline({
+            title: r.title!,
+            abstract: r.abstract!,
+          });
+        } catch (headlineErr) {
+          console.warn(
+            `[daily-run] headline ${r.pmid}:`,
+            headlineErr instanceof Error ? headlineErr.message : headlineErr
+          );
+        }
         const classification = await classifyStudyAbstract({
           title: r.title,
           abstract: r.abstract,

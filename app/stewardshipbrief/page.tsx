@@ -1,5 +1,5 @@
 import { getBriefItems } from "@/lib/brief/items";
-import { getBriefTrendingTerms, buildEditorsNote } from "@/lib/brief/trending";
+import { getBriefTrendingTerms } from "@/lib/brief/trending";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
 import BriefPage from "@/components/brief/BriefPage";
 
@@ -22,16 +22,10 @@ export default async function StewardshipBriefPage({
   try {
     const brief = await getBriefItems({ setting });
     const trending = await getBriefTrendingTerms(brief.topicId);
-    const editorsNote = buildEditorsNote(
-      brief.items.map((i) => ({ headline: i.headline, setting: i.setting })),
-      brief.newSinceYesterday
-    );
 
     return (
       <BriefPage
         items={brief.items}
-        newSinceYesterday={brief.newSinceYesterday}
-        editorsNote={editorsNote}
         trending={trending}
         setting={setting}
       />

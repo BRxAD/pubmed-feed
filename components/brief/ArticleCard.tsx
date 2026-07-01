@@ -25,12 +25,17 @@ type StoryProps = {
 
 function MetaLine({ item }: { item: BriefItem }) {
   const settingLabel = briefSettingLabel(item.setting);
+  const dateLabel = formatDate(item.date);
+  const parts: string[] = [];
+  if (settingLabel) parts.push(settingLabel);
+  if (dateLabel) parts.push(dateLabel);
+
   return (
     <p className={`mt-2 ${brief.meta}`}>
-      {settingLabel && <span>{settingLabel}</span>}
+      {parts.length > 0 && <span>{parts.join(" · ")}</span>}
       {item.isNew && (
         <span>
-          {settingLabel ? " · " : ""}
+          {parts.length > 0 ? " · " : ""}
           <span className={brief.accent}>New</span>
         </span>
       )}
@@ -54,7 +59,6 @@ function OriginalTitleBlock({ item }: { item: BriefItem }) {
             {item.jifIsHigh ? " ★" : ""}
           </span>
         )}
-        {item.date && <span> · {formatDate(item.date)}</span>}
       </p>
     </div>
   );

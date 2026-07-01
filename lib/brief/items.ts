@@ -26,27 +26,10 @@ import {
   matchesBriefSettingFilter,
   type BriefSettingFilter,
 } from "@/lib/brief/settingFilter";
-
-function extractHeadline(
-  summaryText: string,
-  storedHeadline: string | null | undefined,
-  title: string,
-  bottomLine: string | null
-): string {
-  if (storedHeadline?.trim()) return storedHeadline.trim();
-  for (const line of summaryText.split("\n")) {
-    const t = line.trim().replace(/^[-•*]\s*/, "");
-    if (/^\[HEADLINE\]/i.test(t)) {
-      const h = t.replace(/^\[HEADLINE\]\s*/i, "").trim();
-      if (h) return h.slice(0, 110);
-    }
-  }
-  if (bottomLine?.trim()) {
-    const b = bottomLine.trim();
-    return b.length <= 110 ? b : `${b.slice(0, 107)}…`;
-  }
-  return title;
-}
+import {
+  ensureBriefHeadlines,
+  resolveStoredHeadline,
+} from "@/lib/brief/ensureHeadlines";
 
 /** Rolling window for the daily brief (summaries created within this period). */
 export const DEFAULT_BRIEF_DAYS_BACK = 7;
@@ -82,7 +65,6 @@ export type BriefFeedResult = {
   query_string: string;
   daysBack: number;
   minPriority: number;
-  newSinceYesterday: number;
   priorityModelSamples: number;
   items: BriefItem[];
 };
@@ -181,6 +163,15 @@ export async function getBriefItems(options?: {
   if (error) throw new Error(error.message);
 
   const candidates: BriefItem[] = [];
+  const abstractByPmid = new Map<string, string>();
+  const headlineMetaByPmid = new Map<
+    string,
+    {
+      summaryText: string;
+      bottomLine: string | null;
+      storedHeadline: string | null | undefined;
+    }
+  >();
 
   for (const raw of rows ?? []) {
     const row = raw as {
@@ -253,12 +244,19 @@ export async function getBriefItems(options?: {
       .filter(Boolean)
       .join(" · ");
     const studyLabel = formatStudyLabel(studyLabelRaw || null);
-    const headline = extractHeadline(
-      row.summary_text,
+    const title = row.articles.title!.trim();
+    const headline = resolveStoredHeadline(
       row.headline,
-      row.articles.title!.trim(),
-      bullets?.bottomLine ?? null
+      row.summary_text,
+      title
     );
+
+    abstractByPmid.set(row.pmid, row.articles.abstract?.trim() ?? "");
+    headlineMetaByPmid.set(row.pmid, {
+      summaryText: row.summary_text,
+      bottomLine: bullets?.bottomLine ?? null,
+      storedHeadline: row.headline,
+    });
 
     const jifEntry = lookupJif(row.articles.journal);
 
@@ -289,7 +287,7 @@ export async function getBriefItems(options?: {
       pmid: row.pmid,
       source: "pubmed",
       headline,
-      title: row.articles.title!.trim(),
+      title,
       journal: row.articles.journal?.trim() ?? null,
       jif: jifEntry?.jif ?? null,
       jifIsHigh,
@@ -326,7 +324,25 @@ export async function getBriefItems(options?: {
   });
 
   const items = candidates.slice(0, maxItems);
-  const newSinceYesterday = candidates.filter((i) => i.isNew).length;
+
+  const headlineJobs = items.map((item) => {
+    const meta = headlineMetaByPmid.get(item.pmid)!;
+    return {
+      pmid: item.pmid,
+      title: item.title,
+      abstract: abstractByPmid.get(item.pmid) ?? null,
+      summaryText: meta.summaryText,
+      bottomLine: meta.bottomLine,
+      storedHeadline: meta.storedHeadline,
+      headline: item.headline,
+    };
+  });
+
+  await ensureBriefHeadlines(topicId, supabase, headlineJobs);
+
+  for (let i = 0; i < items.length; i++) {
+    items[i].headline = headlineJobs[i].headline;
+  }
 
   return {
     topicId,
@@ -334,7 +350,6 @@ export async function getBriefItems(options?: {
     query_string,
     daysBack,
     minPriority: 5,
-    newSinceYesterday,
     priorityModelSamples: priorityModel?.sampleCount ?? 0,
     items,
   };
