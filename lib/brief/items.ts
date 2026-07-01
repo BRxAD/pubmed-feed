@@ -1,5 +1,5 @@
 import "server-only";
-import { getDefaultTopicId } from "@/lib/feed";
+import { getDefaultTopicId, type FeedItem } from "@/lib/feed";
 import { computeBreakdown } from "@/lib/ranking";
 import { mergeLearnedWeights } from "@/lib/relevanceLearning";
 import {
@@ -205,7 +205,7 @@ export async function getBriefItems(options?: {
 
     const jifEntry = lookupJif(row.articles.journal);
 
-    const feedLike = {
+    const feedLike: FeedItem = {
       pmid: row.pmid,
       summary_text: row.summary_text,
       created_at: row.created_at,
@@ -213,18 +213,18 @@ export async function getBriefItems(options?: {
       subheading: row.subheading ?? null,
       label: row.label ?? null,
       jif_2024: jifEntry?.jif ?? null,
-      source: "pubmed" as const,
+      source: "pubmed",
       admin_priority: row.admin_priority ?? null,
       articles: {
-        title: row.articles.title,
-        abstract: row.articles.abstract,
-        journal: row.articles.journal,
-        pub_date: row.articles.pub_date,
-        release_date: row.articles.release_date,
-        fetched_at: row.articles.fetched_at,
-        publication_types: row.articles.publication_types,
-        keywords: row.articles.keywords,
-        source: row.articles.source,
+        title: row.articles.title ?? null,
+        abstract: row.articles.abstract ?? null,
+        journal: row.articles.journal ?? null,
+        pub_date: row.articles.pub_date ?? null,
+        release_date: row.articles.release_date ?? null,
+        fetched_at: row.articles.fetched_at ?? null,
+        publication_types: row.articles.publication_types ?? null,
+        keywords: row.articles.keywords ?? null,
+        source: row.articles.source ?? null,
       },
     };
 
