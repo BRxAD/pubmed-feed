@@ -1,5 +1,6 @@
 import "server-only";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
+import { computeRelevancePenalty } from "@/lib/relevancePenalties";
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
 
@@ -63,17 +64,22 @@ const SIZE_PATTERNS: RegExp[] = [
   /\b([\d,]+)\s+(?:hospitals?|sites?|centers?|centres?|facilities|institutions?|icus?)\b/gi,
 ];
 
-function detectLargeStudy(abstract: string): boolean {
+function extractSampleSizes(abstract: string): number[] {
+  const sizes: number[] = [];
   for (const re of SIZE_PATTERNS) {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(abstract)) !== null) {
       const numStr = (m[1] ?? m[2] ?? "").replace(/,/g, "");
       const n = parseInt(numStr, 10);
-      if (Number.isFinite(n) && n > LARGE_STUDY_THRESHOLD) return true;
+      if (Number.isFinite(n) && n > 0) sizes.push(n);
     }
   }
-  return false;
+  return sizes;
+}
+
+function detectLargeStudy(abstract: string): boolean {
+  return extractSampleSizes(abstract).some((n) => n > LARGE_STUDY_THRESHOLD);
 }
 
 // ── Ranking weights ───────────────────────────────────────────────────────────
@@ -156,6 +162,8 @@ export type RelevanceBreakdown = {
   baseScore: number;
   studyBoostFactor: number;
   jifBoostFactor: number;
+  penaltyFactor: number;
+  penaltyReasons: string[];
   finalScore: number;
 };
 
@@ -237,8 +245,10 @@ export function computeBreakdown(
   }
 
   const baseScore = stewardshipTitle + stewardshipAbstract + largeStudy + extraTerms;
+  const penalty = computeRelevancePenalty(rec);
 
   if (!includeBoosts) {
+    const finalScore = baseScore * penalty.factor;
     return {
       stewardshipTitle,
       stewardshipAbstract,
@@ -247,7 +257,9 @@ export function computeBreakdown(
       baseScore,
       studyBoostFactor: 1,
       jifBoostFactor: 1,
-      finalScore: baseScore,
+      penaltyFactor: penalty.factor,
+      penaltyReasons: penalty.reasons,
+      finalScore,
     };
   }
 
@@ -260,7 +272,7 @@ export function computeBreakdown(
   const jifBoostFactor =
     weights.jifMultiplier && jifIsHigh ? JIF_HIGH_MULTIPLIER : 1;
 
-  const score = baseScore * studyBoostFactor * jifBoostFactor;
+  const score = baseScore * studyBoostFactor * jifBoostFactor * penalty.factor;
 
   return {
     stewardshipTitle,
@@ -270,6 +282,8 @@ export function computeBreakdown(
     baseScore,
     studyBoostFactor,
     jifBoostFactor,
+    penaltyFactor: penalty.factor,
+    penaltyReasons: penalty.reasons,
     finalScore: score,
   };
 }

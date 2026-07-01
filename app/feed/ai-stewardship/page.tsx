@@ -345,6 +345,17 @@ function ArticleCard({
             {breakdown.jifBoostFactor > 1 && (
               <span>JIF ×1.2: <strong className="text-green-700 dark:text-green-400">applied</strong></span>
             )}
+            {breakdown.penaltyFactor < 1 && (
+              <span>
+                Down-rate:{" "}
+                <strong className="text-red-700 dark:text-red-400">
+                  ×{breakdown.penaltyFactor.toFixed(2)}
+                  {breakdown.penaltyReasons.length > 0
+                    ? ` (${breakdown.penaltyReasons.join("; ")})`
+                    : ""}
+                </strong>
+              </span>
+            )}
             <span className="ml-1 text-zinc-400">→ raw {Math.round(breakdown.finalScore * 10) / 10}</span>
           </div>
 
