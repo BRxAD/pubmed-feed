@@ -191,6 +191,58 @@ export function parsePriorityModel(
   return m as PriorityModel;
 }
 
+/** Returns null if column missing or no model saved (safe before SQL migration). */
+export async function loadPriorityModel(
+  supabase: SupabaseClient,
+  topicId: string
+): Promise<PriorityModel | null> {
+  const { data, error } = await supabase
+    .from("topics")
+    .select("priority_model")
+    .eq("id", topicId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingPriorityModelColumn(error)) return null;
+    console.warn("[priorityModel] load failed:", error.message);
+    return null;
+  }
+
+  return parsePriorityModel(
+    (data as { priority_model?: unknown } | null)?.priority_model
+  );
+}
+
+function isMissingPriorityModelColumn(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  const msg = (error.message ?? "").toLowerCase();
+  return (
+    msg.includes("priority_model") &&
+    (msg.includes("does not exist") ||
+      msg.includes("could not find") ||
+      msg.includes("schema cache"))
+  );
+}
+
+async function savePriorityModel(
+  supabase: SupabaseClient,
+  topicId: string,
+  model: PriorityModel | null
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("topics")
+    .update({ priority_model: model })
+    .eq("id", topicId);
+
+  if (error) {
+    if (isMissingPriorityModelColumn(error)) return false;
+    throw new Error(error.message);
+  }
+  return true;
+}
+
 export function predictArticlePriority(options: {
   rec: PubMedRecord;
   queryString: string;
@@ -271,10 +323,7 @@ export async function relearnPriorityModel(
 
   const pmids = [...byPmid.keys()];
   if (pmids.length < MIN_PRIORITY_TRAINING_SAMPLES) {
-    await supabase
-      .from("topics")
-      .update({ priority_model: null })
-      .eq("id", topicId);
+    await savePriorityModel(supabase, topicId, null);
     return null;
   }
 
@@ -325,10 +374,7 @@ export async function relearnPriorityModel(
   }
 
   const model = trainPriorityModel(samples);
-  await supabase
-    .from("topics")
-    .update({ priority_model: model })
-    .eq("id", topicId);
+  await savePriorityModel(supabase, topicId, model);
 
   return model;
 }

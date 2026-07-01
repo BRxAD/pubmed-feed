@@ -18,7 +18,7 @@ import {
   meetsBriefThreshold,
 } from "@/lib/brief/priority";
 import {
-  parsePriorityModel,
+  loadPriorityModel,
   predictArticlePriority,
   type PriorityPredictionSource,
 } from "@/lib/brief/priorityModel";
@@ -101,21 +101,21 @@ export async function getBriefItems(options?: {
 
   const { data: topic, error: topicError } = await supabase
     .from("topics")
-    .select("query_string, ranking_weights, priority_model")
+    .select("query_string, ranking_weights")
     .eq("id", topicId)
     .maybeSingle();
 
   if (topicError || !topic) {
-    throw new Error("Topic not found");
+    throw new Error(
+      topicError?.message ? `Topic load failed: ${topicError.message}` : "Topic not found"
+    );
   }
 
   const query_string = String(topic.query_string ?? "").trim();
   const learnedWeights = mergeLearnedWeights(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
   );
-  const priorityModel = parsePriorityModel(
-    (topic as { priority_model?: unknown }).priority_model
-  );
+  const priorityModel = await loadPriorityModel(supabase, topicId);
 
   const { data: rows, error } = await supabase
     .from("summaries")

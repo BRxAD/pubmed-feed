@@ -177,6 +177,8 @@ export async function saveAdminPriority(options: {
       supabase,
       String(topicRow?.query_string ?? "").trim(),
       weights
-    );
+    ).catch((err) => {
+      console.warn("[relevanceLearning] priority model retrain skipped:", err);
+    });
   }
 }
