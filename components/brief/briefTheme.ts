@@ -8,9 +8,13 @@ export const brief = {
   rule: "border-[#1c1a16]",
   hairline: "border-[#d4cfc4]",
   kicker:
-    "font-sans text-[0.6875rem] uppercase tracking-[0.12em] text-[#b0672e]",
+    "brief-sans text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#b0672e]",
   meta:
-    "font-sans text-[0.6875rem] uppercase tracking-[0.12em] text-[#8a7f6d]",
+    "brief-sans text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-[#8a7f6d]",
   serif: "brief-serif",
   sans: "brief-sans",
+  deck: "brief-serif text-[#3d3830]",
+  action:
+    "brief-sans text-[0.8125rem] font-medium tracking-wide text-[#b0672e] hover:text-[#8a4f22] transition-colors",
+  detailPanel: "rounded-sm bg-[#ebe6dc]/80 border border-[#d4cfc4]/80",
 } as const;

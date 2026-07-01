@@ -64,6 +64,11 @@ export default function BriefPage({
                 )}
                 {rest.length > 0 && (
                   <section aria-label="More stories">
+                    <h2
+                      className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
+                    >
+                      Also in today&apos;s brief
+                    </h2>
                     {rest.map((item) => (
                       <BriefArticleCard
                         key={item.pmid}

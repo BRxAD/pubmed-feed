@@ -1,4 +1,4 @@
--- Plain-language headline for The Stewardship Brief (typically 90–180 chars).
+-- Plain-language headline for The Stewardship Brief (≤100 chars).
 alter table public.summaries
   add column if not exists headline text;
 
