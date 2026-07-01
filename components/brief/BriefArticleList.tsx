@@ -61,9 +61,14 @@ function BriefStory({ item, lead = false }: { item: BriefItem; lead?: boolean })
         )}
         <span>
           Priority {item.effectivePriority}
-          {item.prioritySource === "predicted" ? " (predicted)" : ""}
+          {item.prioritySource === "admin"
+            ? ""
+            : item.prioritySource === "model"
+              ? " (ML)"
+              : " (estimated)"}
         </span>
         {item.studyLabel && <span> · {item.studyLabel}</span>}
+        <span> · {item.relevancePercent}% relevance</span>
       </div>
 
       <h2 className={lead ? "mt-2 text-2xl font-semibold leading-snug text-zinc-900" : "mt-2 text-lg font-semibold leading-snug text-zinc-900"}>
@@ -127,10 +132,12 @@ export default function BriefArticleList({
   items,
   newSinceYesterday,
   daysBack,
+  priorityModelSamples,
 }: {
   items: BriefItem[];
   newSinceYesterday: number;
   daysBack: number;
+  priorityModelSamples: number;
 }) {
   const [lead, ...rest] = items;
 
@@ -157,6 +164,19 @@ export default function BriefArticleList({
             ) : null}
             {items.length} PubMed stud{items.length === 1 ? "y" : "ies"} at priority 5+
             {" "}(last {daysBack} days)
+          </p>
+          <p className="mt-2 text-xs text-zinc-500 leading-relaxed">
+            {priorityModelSamples >= 8 ? (
+              <>
+                Priority ranked by ridge regression (trained on {priorityModelSamples}{" "}
+                admin ratings) — separate from relevance score.
+              </>
+            ) : (
+              <>
+                Priority uses a fallback estimator until ≥8 articles are admin-rated on
+                the PubMed feed; relevance % is shown separately.
+              </>
+            )}
           </p>
           <nav className="mt-4 flex gap-4 text-sm">
             <a href="/feed?source=pubmed" className="text-amber-800 hover:underline">

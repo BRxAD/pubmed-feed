@@ -1,7 +1,7 @@
 import "server-only";
 import { getDefaultTopicId } from "@/lib/feed";
 import { computeBreakdown } from "@/lib/ranking";
-import { mergeLearnedWeights, priorityScoreBoost } from "@/lib/relevanceLearning";
+import { mergeLearnedWeights } from "@/lib/relevanceLearning";
 import {
   normalizeScoreTo100,
   parseSummaryBullets,
@@ -16,8 +16,12 @@ import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
   effectivePriority,
   meetsBriefThreshold,
-  relevanceToPredictedPriority,
 } from "@/lib/brief/priority";
+import {
+  parsePriorityModel,
+  predictArticlePriority,
+  type PriorityPredictionSource,
+} from "@/lib/brief/priorityModel";
 
 /** Rolling window for the daily brief (summaries created within this period). */
 export const DEFAULT_BRIEF_DAYS_BACK = 7;
@@ -41,7 +45,7 @@ export type BriefItem = {
   predictedPriority: number;
   adminPriority: number | null;
   effectivePriority: number;
-  prioritySource: "admin" | "predicted";
+  prioritySource: "admin" | PriorityPredictionSource;
   pubmedUrl: string;
   keywords: string[];
 };
@@ -53,6 +57,7 @@ export type BriefFeedResult = {
   daysBack: number;
   minPriority: number;
   newSinceYesterday: number;
+  priorityModelSamples: number;
   items: BriefItem[];
 };
 
@@ -96,7 +101,7 @@ export async function getBriefItems(options?: {
 
   const { data: topic, error: topicError } = await supabase
     .from("topics")
-    .select("query_string, ranking_weights")
+    .select("query_string, ranking_weights, priority_model")
     .eq("id", topicId)
     .maybeSingle();
 
@@ -107,6 +112,9 @@ export async function getBriefItems(options?: {
   const query_string = String(topic.query_string ?? "").trim();
   const learnedWeights = mergeLearnedWeights(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
+  );
+  const priorityModel = parsePriorityModel(
+    (topic as { priority_model?: unknown }).priority_model
   );
 
   const { data: rows, error } = await supabase
@@ -168,9 +176,23 @@ export async function getBriefItems(options?: {
       true,
       jifIsHigh
     );
-    const rankScore = breakdown.finalScore + priorityScoreBoost(row.admin_priority);
-    const relevancePercent = normalizeScoreTo100(rankScore);
-    const predictedPriority = relevanceToPredictedPriority(relevancePercent);
+    const relevancePercent = normalizeScoreTo100(breakdown.finalScore);
+
+    let predictedPriority: number;
+    let prioritySource: BriefItem["prioritySource"];
+    if (row.admin_priority != null) {
+      predictedPriority = row.admin_priority;
+      prioritySource = "admin";
+    } else {
+      const prediction = predictArticlePriority({
+        rec,
+        queryString: query_string,
+        weights: learnedWeights,
+        model: priorityModel,
+      });
+      predictedPriority = prediction.priority;
+      prioritySource = prediction.source;
+    }
 
     if (!meetsBriefThreshold(row.admin_priority, predictedPriority)) continue;
 
@@ -187,7 +209,7 @@ export async function getBriefItems(options?: {
       pmid: row.pmid,
       summary_text: row.summary_text,
       created_at: row.created_at,
-      rank_score: rankScore,
+      rank_score: breakdown.finalScore,
       subheading: row.subheading ?? null,
       label: row.label ?? null,
       jif_2024: jifEntry?.jif ?? null,
@@ -229,7 +251,7 @@ export async function getBriefItems(options?: {
       predictedPriority,
       adminPriority: row.admin_priority ?? null,
       effectivePriority: eff,
-      prioritySource: row.admin_priority != null ? "admin" : "predicted",
+      prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
       keywords: (row.articles.keywords ?? []).slice(0, 8),
     });
@@ -252,6 +274,7 @@ export async function getBriefItems(options?: {
     daysBack,
     minPriority: 5,
     newSinceYesterday,
+    priorityModelSamples: priorityModel?.sampleCount ?? 0,
     items,
   };
 }

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RelevanceBreakdown, RankingWeights } from "@/lib/ranking";
 import { DEFAULT_WEIGHTS } from "@/lib/ranking";
+import { relearnPriorityModel } from "@/lib/brief/priorityModel";
 
 export type FeatureSnapshot = {
   stewardshipTitle: number;
@@ -163,6 +164,19 @@ export async function saveAdminPriority(options: {
       feature_snapshot: snapshot,
     });
     if (fbErr) throw new Error(fbErr.message);
-    await relearnTopicWeights(topicId, supabase);
+    const weights = await relearnTopicWeights(topicId, supabase);
+
+    const { data: topicRow } = await supabase
+      .from("topics")
+      .select("query_string")
+      .eq("id", topicId)
+      .maybeSingle();
+
+    await relearnPriorityModel(
+      topicId,
+      supabase,
+      String(topicRow?.query_string ?? "").trim(),
+      weights
+    );
   }
 }

@@ -15,6 +15,7 @@ export default async function StewardshipBriefPage() {
       items={brief.items}
       newSinceYesterday={brief.newSinceYesterday}
       daysBack={brief.daysBack}
+      priorityModelSamples={brief.priorityModelSamples}
     />
   );
 }
