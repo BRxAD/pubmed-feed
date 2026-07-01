@@ -69,7 +69,7 @@ export function LeadStory({ item, saved, onToggleSave }: StoryProps) {
     <article className={`pb-10 mb-10 border-b-2 ${brief.rule}`}>
       <p className={brief.kicker}>Lead story</p>
       <MetaLine item={item} />
-      <h2 className={`mt-3 ${brief.serif} text-3xl sm:text-4xl font-bold leading-tight`}>
+      <h2 className={`mt-3 ${brief.serif} text-3xl sm:text-4xl font-bold leading-snug`}>
         <a
           href={item.pubmedUrl}
           target="_blank"

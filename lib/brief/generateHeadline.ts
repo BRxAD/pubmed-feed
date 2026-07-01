@@ -4,12 +4,15 @@ import OpenAI from "openai";
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
 
+/** Soft target for the model; display is not hard-truncated. */
+export const HEADLINE_MAX_CHARS = 180;
+
 const HEADLINE_SYSTEM = `You write headlines for "The Stewardship Brief" — a daily digest for antimicrobial-stewardship pharmacists and physicians (similar to Nature Briefing).
 
 Write exactly ONE headline per study.
 
 Requirements:
-- Maximum 110 characters
+- One complete sentence, ideally 90–140 characters (never exceed ${HEADLINE_MAX_CHARS})
 - Plain language: state the finding AND its scope (setting, population, or design when relevant)
 - Keep exact numbers, percentages, and effect sizes from the abstract when present
 - Active, journalistic tone — interesting to read but strictly factual
@@ -17,6 +20,7 @@ Requirements:
 - Do NOT use banned hype words: breakthrough, game-changer, revolutionary, cure, miracle, landmark, paradigm-shifting
 - Do NOT write a bottom-line or recommendation — this is a headline, not a conclusion sentence
 - Do NOT start with "Study shows" or "Researchers find"
+- Must read as a finished phrase — never trail off or end mid-word
 
 Good examples:
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs in a stepped-wedge trial"
@@ -25,17 +29,32 @@ Good examples:
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
+function trimAtWordBoundary(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const slice = text.slice(0, maxLen);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > maxLen * 0.6) return slice.slice(0, lastSpace).trim();
+  return slice.trim();
+}
+
 function sanitizeHeadline(raw: string): string {
   let h = raw
     .trim()
     .replace(/^["'""]+|["'""]+$/g, "")
     .replace(/^\[HEADLINE\]\s*/i, "")
     .trim();
-  if (h.length > 110) h = h.slice(0, 107).trim() + "…";
+  if (h.length > HEADLINE_MAX_CHARS) {
+    h = trimAtWordBoundary(h, HEADLINE_MAX_CHARS);
+  }
   if (HYPE_WORDS.test(h)) {
     h = h.replace(HYPE_WORDS, "").replace(/\s+/g, " ").trim();
   }
   return h;
+}
+
+function isTruncatedHeadline(headline: string): boolean {
+  const h = headline.trim();
+  return h.endsWith("…") || h.endsWith("...");
 }
 
 export async function generateBriefHeadline(options: {
@@ -86,6 +105,7 @@ export function headlineNeedsGeneration(
   if (storedHeadline?.trim()) {
     const h = storedHeadline.trim();
     if (bottomLine?.trim() && h === bottomLine.trim()) return true;
+    if (isTruncatedHeadline(h)) return true;
     return false;
   }
 
