@@ -122,6 +122,12 @@ async function sendSourceDigest(options: {
   };
 }
 
+/** When false or unset, OpenAlex ingest and digest email are skipped. */
+function isOpenAlexIngestEnabled(): boolean {
+  const raw = process.env.OPENALEX_INGEST_ENABLED?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
 export async function runDailyDigest(): Promise<DailyDigestResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -166,15 +172,19 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   );
 
   let ingestOpenAlex: Record<string, unknown> | undefined;
-  try {
-    ingestOpenAlex = await triggerIngest(
-      `/api/ingest/openalex?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
-    );
-  } catch (err) {
-    ingestOpenAlex = {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+  if (isOpenAlexIngestEnabled()) {
+    try {
+      ingestOpenAlex = await triggerIngest(
+        `/api/ingest/openalex?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
+      );
+    } catch (err) {
+      ingestOpenAlex = {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  } else {
+    ingestOpenAlex = { ok: true, skipped: true, reason: "OPENALEX_INGEST_ENABLED is off" };
   }
 
   const pubmedItems = await getDigestItems({
@@ -185,13 +195,15 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     source: "pubmed",
   });
 
-  const openalexItems = await getDigestItems({
-    topicId,
-    sinceIso: since,
-    minRelevancePercent,
-    maxItems: maxSummaries,
-    source: "openalex",
-  });
+  const openalexItems = isOpenAlexIngestEnabled()
+    ? await getDigestItems({
+        topicId,
+        sinceIso: since,
+        minRelevancePercent,
+        maxItems: maxSummaries,
+        source: "openalex",
+      })
+    : { items: [] as Awaited<ReturnType<typeof getDigestItems>>["items"] };
 
   const emailPubmed = await sendSourceDigest({
     source: "pubmed",
@@ -202,14 +214,22 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     recipients,
   });
 
-  const emailOpenAlex = await sendSourceDigest({
-    source: "openalex",
-    topicId,
-    since,
-    minRelevancePercent,
-    hoursBack,
-    recipients,
-  });
+  const emailOpenAlex = isOpenAlexIngestEnabled()
+    ? await sendSourceDigest({
+        source: "openalex",
+        topicId,
+        since,
+        minRelevancePercent,
+        hoursBack,
+        recipients,
+      })
+    : {
+        source: "openalex" as const,
+        sent: false,
+        recipients,
+        skippedReason: "OpenAlex ingest paused",
+        itemCount: 0,
+      };
 
   return {
     ok: true,

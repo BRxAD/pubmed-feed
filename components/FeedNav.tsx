@@ -12,6 +12,12 @@ type FeedTab = {
 
 const FEED_TABS: FeedTab[] = [
   {
+    id: "brief",
+    label: "The Brief",
+    href: "/stewardshipbrief",
+    description: "Daily priority briefing (PubMed)",
+  },
+  {
     id: "main",
     label: "StewardFeed",
     href: "/feed",
