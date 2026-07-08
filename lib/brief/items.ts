@@ -317,6 +317,10 @@ export async function getBriefItems(options?: {
   }
 
   candidates.sort((a, b) => {
+    const tA = new Date(a.createdAt).getTime();
+    const tB = new Date(b.createdAt).getTime();
+    if (tB !== tA) return tB - tA;
+
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }

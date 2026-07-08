@@ -29,12 +29,14 @@ Requirements:
 
 Causality (critical):
 - If the study is a randomized trial, you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
-- For observational, cross-sectional, descriptive, cohort, or quasi-experimental designs, do NOT imply causation
-- For non-RCT studies use "linked to", "associated with", or "tied to" — never "led to", "resulted in", "caused", "drove", or "triggered"
-- When unsure of design, default to associative language
+- For observational, cross-sectional, descriptive, cohort, or quasi-experimental designs, do NOT imply causation — never "led to", "resulted in", "caused", "drove", or "triggered"
+- For non-RCT studies, use varied non-causal framing: state the pattern directly ("use varied widely…", "prescribing was higher among…"), or soft association verbs (associated with, tied to, coincided with, correlated with, aligned with, accompanied by)
+- Do NOT reach for "linked to" by default — vary phrasing across headlines; many observational findings read best as plain descriptive statements
+- When unsure of design, default to non-causal / descriptive language
 
 Good examples:
 - "Antimicrobial use varied widely across 118 VA hospitals in a 728,000-patient audit"
+- "Higher macrolide prescribing accompanied broader-spectrum regimens in 12 EDs"
 - "Report cards tied to higher guideline concordance and less cefdinir use in kids"
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs" (RCT)
 - "Four in five sinusitis visits meeting criteria still got antibiotics"
@@ -171,7 +173,7 @@ export function validateHeadlineQuality(
   }
   if (!causalAllowed && INTERVENTION_CAUSAL_RE.test(h)) {
     issues.push(
-      'intervention-style causal verb on non-RCT study — use "linked to" or "associated with"'
+      "intervention-style causal verb on non-RCT study — use descriptive or non-causal phrasing"
     );
   }
 
@@ -193,6 +195,7 @@ export function isStaleHeadline(
   if (hasContradictoryPercentages(h)) return true;
   if (FRAMEWORK_LEAD_RE.test(h)) return true;
   if (countMajorStats(h) > 1) return true;
+  if (/\blinked to\b/i.test(h)) return true;
   if (abstract?.trim()) {
     const v = validateHeadlineQuality(h, abstract);
     if (!v.ok) return true;
@@ -227,7 +230,7 @@ Write a NEW headline that fixes all problems. Shorter and clearer. One complete 
 Abstract:
 ${abstract.trim()}
 
-Study design hint: ${allowsCausalLanguage(abstract) ? "Randomized trial — direct intervention verbs allowed if supported by abstract." : "Non-RCT — use linked to / associated with only; no led to or resulted in."}`;
+Study design hint: ${allowsCausalLanguage(abstract) ? "Randomized trial — direct intervention verbs allowed if supported by abstract." : "Non-RCT — use descriptive or non-causal phrasing (vary wording; do not default to \"linked to\")."}`;
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
