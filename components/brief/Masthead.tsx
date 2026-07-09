@@ -10,9 +10,7 @@ export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
       <div className="mx-auto max-w-6xl px-4 pt-10 pb-8 sm:px-6 lg:px-8 text-center">
-        <p className={`${brief.kicker} mb-4`}>
-          Antimicrobial stewardship · PubMed
-        </p>
+        <p className={`${brief.kicker} mb-4`}>Antimicrobial stewardship</p>
         <h1
           className={`${brief.serif} text-[2.75rem] sm:text-5xl font-bold tracking-tight leading-none`}
         >
@@ -23,11 +21,6 @@ export default function Masthead({ dateLabel }: Props) {
           <p className={`${brief.sans} text-sm ${brief.muted}`}>{dateLabel}</p>
           <span className="hidden sm:block h-px w-12 bg-[#d4cfc4]" />
         </div>
-        <p
-          className={`mt-4 max-w-md mx-auto ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
-        >
-          High-impact stewardship research, distilled for your morning read.
-        </p>
         <nav
           className={`mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 ${brief.sans} text-xs uppercase tracking-[0.12em]`}
           aria-label="Section"

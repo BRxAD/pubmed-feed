@@ -8,9 +8,16 @@ import {
 
 export type TrendingTerm = {
   keyword: string;
+  /** Mentions in the last 30 days */
   count: number;
+  /** Mentions in the prior 30 days (days 31–60) */
   priorCount: number;
-  deltaPercent: number;
+  /** Percent change vs prior window; null when the keyword is new in the recent window */
+  deltaPercent: number | null;
+  /** Absolute change in mentions (count − priorCount) */
+  deltaAbsolute: number;
+  /** Keyword absent from the prior 30-day window */
+  isNew: boolean;
 };
 
 export async function getBriefTrendingTerms(
@@ -58,23 +65,31 @@ export async function getBriefTrendingTerms(
   const terms: TrendingTerm[] = [];
   for (const [canonical, count] of recent) {
     const priorCount = prior.get(canonical) ?? 0;
-    let deltaPercent = 0;
-    if (priorCount === 0 && count > 0) {
-      deltaPercent = 100;
-    } else if (priorCount > 0) {
-      deltaPercent = Math.round(((count - priorCount) / priorCount) * 100);
+    const deltaAbsolute = count - priorCount;
+    const isNew = priorCount === 0 && count > 0;
+    let deltaPercent: number | null = null;
+    if (!isNew && priorCount > 0) {
+      deltaPercent = Math.round((deltaAbsolute / priorCount) * 100);
     }
+
     terms.push({
       keyword: keywordDisplayForm(canonical),
       count,
       priorCount,
       deltaPercent,
+      deltaAbsolute,
+      isNew,
     });
   }
 
   return terms
-    .filter((t) => t.deltaPercent > 0 || t.count >= 2)
-    .sort((a, b) => b.deltaPercent - a.deltaPercent || b.count - a.count)
+    .filter((t) => t.deltaAbsolute > 0 && (t.isNew ? t.count >= 1 : true))
+    .sort(
+      (a, b) =>
+        b.deltaAbsolute - a.deltaAbsolute ||
+        b.count - a.count ||
+        (b.deltaPercent ?? 0) - (a.deltaPercent ?? 0)
+    )
     .slice(0, 10);
 }
 

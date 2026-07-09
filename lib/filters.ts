@@ -209,35 +209,120 @@ export function parseSummaryBullets(
     whatIsKnown,
     methods,
     results,
-    bottomLine: bottomLine ? cleanBottomLine(bottomLine) : null,
+    bottomLine: bottomLine ? cleanBottomLine(bottomLine, methods) : null,
   };
 }
 
-/** Strip meta lead-ins from bottom-line text (applies to stored summaries at read time). */
-export function cleanBottomLine(text: string): string {
+const QUALIFIED_STUDY_RE =
+  /\b(cross[- ]sectional|randomized|randomised|cohort|systematic review|meta-analysis|quasi[- ]experimental|stepped wedge|before-and-after|descriptive|observational|prospective|retrospective|case-control)\b/i;
+
+/** Infer a short design label from the [METHODS] line for bottom-line enrichment. */
+export function inferStudyDesignLabel(methods: string | null | undefined): string | null {
+  const text = (methods ?? "").toLowerCase();
+  if (!text.trim()) return null;
+
+  if (/\b(systematic review|meta-analysis|meta analysis)\b/.test(text)) {
+    return "systematic review";
+  }
+  if (/\b(randomized controlled|randomised controlled|randomized trial|randomised trial|rct\b|placebo[- ]controlled)\b/.test(text)) {
+    return "randomized controlled trial";
+  }
+  if (/\b(stepped wedge|quasi[- ]experimental|before-and-after|before and after)\b/.test(text)) {
+    return "quasi-experimental study";
+  }
+  if (/\b(cross[- ]sectional)\b/.test(text)) {
+    return "cross-sectional study";
+  }
+  if (/\b(case-control|case control)\b/.test(text)) {
+    return "case-control study";
+  }
+  if (/\b(prospective cohort|retrospective cohort|cohort study|cohort)\b/.test(text)) {
+    return "cohort study";
+  }
+  if (/\b(descriptive|surveillance|point prevalence)\b/.test(text)) {
+    return "descriptive study";
+  }
+  if (/\b(observational)\b/.test(text)) {
+    return "observational study";
+  }
+  return null;
+}
+
+function alreadyDesignQualified(text: string): boolean {
+  return QUALIFIED_STUDY_RE.test(text);
+}
+
+/** Normalize bottom-line text; qualify generic "study" references with design when known. */
+export function cleanBottomLine(
+  text: string,
+  methods?: string | null
+): string {
   let s = text.trim();
   if (!s) return s;
 
-  const leadIns = [
-    /^this study (shows|demonstrates|found|concluded|concludes|suggests|indicates) that\s+/i,
-    /^these findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
-    /^the (study|authors|researchers|results) (show|found|conclude|suggests?|indicate|demonstrate) that\s+/i,
-    /^the findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
-    /^findings (show|suggest|indicate) that\s+/i,
-    /^results (show|suggest|indicate|demonstrate) that\s+/i,
+  const design = inferStudyDesignLabel(methods);
+
+  const stripOnly = [
     /^in (summary|conclusion),?\s+/i,
     /^overall,?\s+/i,
     /^taken together,?\s+/i,
     /^collectively,?\s+/i,
+    /^the authors (conclude|concluded|suggest|noted) that\s+/i,
   ];
 
-  let prev = "";
-  while (prev !== s) {
-    prev = s;
-    for (const re of leadIns) {
-      s = s.replace(re, "");
+  for (const re of stripOnly) {
+    s = s.replace(re, "");
+  }
+  s = s.trim();
+
+  if (design && !alreadyDesignQualified(s)) {
+    s = s.replace(
+      /^this study (found|shows|showed|demonstrates|demonstrated|suggests|suggested|indicates|indicated) that\s+/i,
+      (_, verb) => `This ${design} ${verb} that `
+    );
+    s = s.replace(
+      /^this study (found|shows|showed|demonstrates|demonstrated|suggests|suggested|indicates|indicated)\s+/i,
+      (_, verb) => `This ${design} ${verb} `
+    );
+    s = s.replace(/^this study\b/i, `this ${design}`);
+    s = s.replace(/^the study (found|shows|showed|suggests|indicated) that\s+/i, (_, verb) => {
+      const noun = design.includes("trial") ? design : design;
+      return `The ${noun} ${verb} that `;
+    });
+    s = s.replace(/^the study\b/i, `the ${design}`);
+    s = s.replace(
+      /^study findings (show|showed|illustrate|illustrated|indicate|indicated|suggest|suggested) that\s+/i,
+      (_, verb) => `Findings from a ${design} ${verb} that `
+    );
+    s = s.replace(
+      /^study findings (show|showed|illustrate|illustrated|indicate|indicated|suggest|suggested)\s+/i,
+      (_, verb) => `Findings from a ${design} ${verb} `
+    );
+    s = s.replace(
+      /^these findings (show|showed|suggest|suggested|indicate|indicated|demonstrate|demonstrated) that\s+/i,
+      (_, verb) => `Findings from the ${design} ${verb} that `
+    );
+    s = s.replace(
+      /^findings from this study (show|showed|indicate|indicated|suggest|suggested) that\s+/i,
+      (_, verb) => `Findings from a ${design} ${verb} that `
+    );
+  } else if (!design) {
+    const genericLeadIns = [
+      /^this study (shows|demonstrates|found|concluded|concludes|suggests|indicates) that\s+/i,
+      /^these findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
+      /^the (study|authors|researchers|results) (show|found|conclude|suggests?|indicate|demonstrate) that\s+/i,
+      /^the findings (show|suggest|indicate|demonstrate|conclude) that\s+/i,
+      /^findings (show|suggest|indicate) that\s+/i,
+      /^results (show|suggest|indicate|demonstrate) that\s+/i,
+    ];
+    let prev = "";
+    while (prev !== s) {
+      prev = s;
+      for (const re of genericLeadIns) {
+        s = s.replace(re, "");
+      }
+      s = s.trim();
     }
-    s = s.trim();
   }
 
   if (!s) return text.trim();

@@ -13,7 +13,9 @@ Rules:
 - Use plain language; do not restate the abstract verbatim
 - Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed" unless the abstract says that
 - Include numbers in RESULTS when the abstract provides them
-- BOTTOM LINE must start with the finding itself — never open with "This study shows", "These findings", "The authors conclude", "In conclusion", or similar lead-ins
+- BOTTOM LINE should lead with the finding when possible — do not open with empty meta phrases ("In conclusion", "Overall")
+- If the bottom line references the study itself, name the design when helpful (e.g., "this cross-sectional study", "findings from a randomized controlled trial") — never a vague "this study" alone
+- If the finding stands alone without mentioning the study, that is preferred
 - BOTTOM LINE must reflect the paper's actual scope (clinical, implementation, policy, methods, etc.) — do not assume the reader is a clinician or pharmacist unless the abstract is clearly about clinical practice
 - Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
 - Max 40 words per section
