@@ -7,7 +7,7 @@ import {
   feedSettingsToStored,
   type BriefFeedSettings,
 } from "@/lib/brief/feedSettings";
-import { DEFAULT_WEIGHTS, type RankingWeights } from "@/lib/ranking";
+import { DEFAULT_WEIGHTS, type RankingWeights, type RelevanceBreakdown } from "@/lib/ranking";
 import { relearnPriorityModel } from "@/lib/brief/priorityModel";
 
 export type FeatureSnapshot = {
