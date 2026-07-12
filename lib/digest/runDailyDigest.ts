@@ -8,6 +8,7 @@ import {
   getDigestRecipients,
 } from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
+import type { BriefDigestResult } from "@/lib/digest/runBriefDigest";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { GET as runPubmedIngest } from "@/app/api/ingest/route";
@@ -56,6 +57,7 @@ export type DailyDigestResult = {
     openalex: { itemCount: number; items: { title: string; relevancePercent: number; url: string }[] };
   };
   emails: SourceDigestEmailResult[];
+  briefEmail: BriefDigestResult;
   error?: string;
 };
 
@@ -167,9 +169,17 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   const since = digestSinceIso(hoursBack);
   const recipients = getDigestRecipients();
 
-  const ingestPubmed = await triggerIngest(
-    `/api/ingest?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
-  );
+  let ingestPubmed: Record<string, unknown>;
+  try {
+    ingestPubmed = await triggerIngest(
+      `/api/ingest?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
+    );
+  } catch (err) {
+    ingestPubmed = {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 
   let ingestOpenAlex: Record<string, unknown> | undefined;
   if (isOpenAlexIngestEnabled()) {
@@ -231,6 +241,14 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
         itemCount: 0,
       };
 
+  // Brief email is sent by /api/cron/brief-digest (5 min later) so ingest can finish first.
+  const briefEmail: BriefDigestResult = {
+    sent: false,
+    recipients: [],
+    itemCount: 0,
+    skippedReason: "Sent by /api/cron/brief-digest cron",
+  };
+
   return {
     ok: true,
     topicId,
@@ -259,5 +277,6 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
       },
     },
     emails: [emailPubmed, emailOpenAlex],
+    briefEmail,
   };
 }

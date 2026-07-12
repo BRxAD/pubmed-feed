@@ -1,7 +1,11 @@
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { classifyArticleSetting } from "@/lib/classifySetting";
+import {
+  DEFAULT_PENALTY_WEIGHTS,
+  type PenaltyWeights,
+} from "@/lib/brief/feedSettings";
 
-const SMALL_SAMPLE_MAX = 100;
+const DEFAULT_SMALL_SAMPLE_MAX = 100;
 
 const SIZE_PATTERNS: RegExp[] = [
   /\bn\s*[=≥>]\s*([\d,]+)/gi,
@@ -94,12 +98,15 @@ export function isVeterinaryOnlyStudy(rec: PubMedRecord): boolean {
   return false;
 }
 
-export function isSingleCenterSmallSampleStudy(rec: PubMedRecord): boolean {
+export function isSingleCenterSmallSampleStudy(
+  rec: PubMedRecord,
+  smallSampleMax = DEFAULT_SMALL_SAMPLE_MAX
+): boolean {
   const text = studyText(rec);
   if (MAJOR_SCOPE_RE.test(text) || MULTI_CENTER_RE.test(text)) return false;
 
   const n = primarySampleSize(rec);
-  const smallSample = n != null && n <= SMALL_SAMPLE_MAX;
+  const smallSample = n != null && n <= smallSampleMax;
   const singleCenter = SINGLE_CENTER_RE.test(text);
 
   if (singleCenter && smallSample) return true;
@@ -118,26 +125,31 @@ export function isSmallRegionalDescriptiveStudy(rec: PubMedRecord): boolean {
   return true;
 }
 
-/** Multiplicative down-rates applied to final relevance (minimum combined factor 0.28). */
-export function computeRelevancePenalty(rec: PubMedRecord): RelevancePenalty {
+/** Multiplicative down-rates applied to final relevance. */
+export function computeRelevancePenalty(
+  rec: PubMedRecord,
+  options?: Partial<PenaltyWeights> & { smallSampleMax?: number }
+): RelevancePenalty {
+  const weights = { ...DEFAULT_PENALTY_WEIGHTS, ...options };
+  const smallSampleMax = options?.smallSampleMax ?? DEFAULT_SMALL_SAMPLE_MAX;
   const reasons: string[] = [];
   let factor = 1;
 
   if (isVeterinaryOnlyStudy(rec)) {
-    factor *= 0.55;
+    factor *= weights.veterinary;
     reasons.push("Veterinary (non–One Health)");
   }
-  if (isSingleCenterSmallSampleStudy(rec)) {
-    factor *= 0.65;
+  if (isSingleCenterSmallSampleStudy(rec, smallSampleMax)) {
+    factor *= weights.singleCenterSmall;
     reasons.push("Single-center, small sample");
   }
   if (isSmallRegionalDescriptiveStudy(rec)) {
-    factor *= 0.7;
+    factor *= weights.descriptiveAmr;
     reasons.push("Small-scope descriptive AMR/use");
   }
 
   return {
-    factor: Math.max(0.28, factor),
+    factor: Math.max(weights.minFactor, factor),
     reasons,
   };
 }

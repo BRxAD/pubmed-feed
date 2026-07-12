@@ -1,7 +1,8 @@
 import "server-only";
 import { getDefaultTopicId, type FeedItem } from "@/lib/feed";
 import { computeBreakdown } from "@/lib/ranking";
-import { mergeLearnedWeights } from "@/lib/relevanceLearning";
+import { mergeStoredFeedSettings, toRankingWeights, toPenaltyWeights } from "@/lib/brief/feedSettings";
+import type { ScoringOptions } from "@/lib/ranking";
 import {
   normalizeScoreTo100,
   parseSummaryBullets,
@@ -96,19 +97,12 @@ export async function getBriefItems(options?: {
   /** Skip OpenAI headline backfill (for side panels / ranking lists). */
   skipHeadlines?: boolean;
 }): Promise<BriefFeedResult> {
-  const daysBack = Math.min(
-    365,
-    Math.max(1, options?.daysBack ?? DEFAULT_BRIEF_DAYS_BACK)
-  );
-  const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
-
   const topicId = await getDefaultTopicId();
   if (!topicId) {
     throw new Error("Default topic not found");
   }
 
   const supabase = getSupabaseServerClient();
-  const since = isoDaysAgo(daysBack);
 
   const { data: topic, error: topicError } = await supabase
     .from("topics")
@@ -122,10 +116,26 @@ export async function getBriefItems(options?: {
     );
   }
 
-  const query_string = String(topic.query_string ?? "").trim();
-  const learnedWeights = mergeLearnedWeights(
+  const feedSettings = mergeStoredFeedSettings(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
   );
+  const learnedWeights = toRankingWeights(feedSettings);
+  const penaltyWeights = toPenaltyWeights(feedSettings);
+  const scoringOptions: ScoringOptions = {
+    ...penaltyWeights,
+    smallSampleMax: feedSettings.brief.smallSampleMax,
+    largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
+  };
+  const minPriority = feedSettings.brief.minPriority;
+
+  const daysBack = Math.min(
+    365,
+    Math.max(1, options?.daysBack ?? feedSettings.brief.daysBack)
+  );
+  const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
+  const since = isoDaysAgo(daysBack);
+
+  const query_string = String(topic.query_string ?? "").trim();
   const priorityModel = await loadPriorityModel(supabase, topicId);
 
   const settingFilter = options?.setting ?? "";
@@ -218,7 +228,8 @@ export async function getBriefItems(options?: {
       rec,
       learnedWeights,
       true,
-      jifIsHigh
+      jifIsHigh,
+      scoringOptions
     );
     const relevancePercent = normalizeScoreTo100(breakdown.finalScore);
 
@@ -238,7 +249,8 @@ export async function getBriefItems(options?: {
       prioritySource = prediction.source;
     }
 
-    if (!meetsBriefThreshold(row.admin_priority, predictedPriority)) continue;
+    if (!meetsBriefThreshold(row.admin_priority, predictedPriority, minPriority))
+      continue;
 
     const eff = effectivePriority(row.admin_priority, predictedPriority);
     const bullets = parseSummaryBullets(row.summary_text);
@@ -319,14 +331,22 @@ export async function getBriefItems(options?: {
   }
 
   candidates.sort((a, b) => {
-    const tA = new Date(a.createdAt).getTime();
-    const tB = new Date(b.createdAt).getTime();
-    if (tB !== tA) return tB - tA;
+    if (feedSettings.brief.sortByRecency) {
+      const tA = new Date(a.createdAt).getTime();
+      const tB = new Date(b.createdAt).getTime();
+      if (tB !== tA) return tB - tA;
+    }
 
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }
-    return b.relevancePercent - a.relevancePercent;
+    if (b.relevancePercent !== a.relevancePercent) {
+      return b.relevancePercent - a.relevancePercent;
+    }
+
+    const tA = new Date(a.createdAt).getTime();
+    const tB = new Date(b.createdAt).getTime();
+    return tB - tA;
   });
 
   const items = candidates.slice(0, maxItems);
@@ -357,7 +377,7 @@ export async function getBriefItems(options?: {
     source: "pubmed",
     query_string,
     daysBack,
-    minPriority: 5,
+    minPriority,
     priorityModelSamples: priorityModel?.sampleCount ?? 0,
     items,
   };

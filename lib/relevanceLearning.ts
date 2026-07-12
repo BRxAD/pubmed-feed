@@ -1,7 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RelevanceBreakdown, RankingWeights } from "@/lib/ranking";
-import { DEFAULT_WEIGHTS } from "@/lib/ranking";
+import {
+  mergeFeedSettings,
+  toRankingWeights,
+  toPenaltyWeights,
+  feedSettingsToStored,
+  type BriefFeedSettings,
+} from "@/lib/brief/feedSettings";
+import { DEFAULT_WEIGHTS, type RankingWeights } from "@/lib/ranking";
 import { relearnPriorityModel } from "@/lib/brief/priorityModel";
 
 export type FeatureSnapshot = {
@@ -35,28 +41,13 @@ type FeedbackRow = {
 export function mergeLearnedWeights(
   stored: Record<string, unknown> | null | undefined
 ): RankingWeights {
-  if (!stored || typeof stored !== "object") return { ...DEFAULT_WEIGHTS };
+  return toRankingWeights(mergeFeedSettings(stored));
+}
 
-  const clamp = (v: unknown, fallback: number, max: number) => {
-    const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
-    return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : fallback;
-  };
-
-  return {
-    stewardshipTitle: clamp(
-      stored.stewardshipTitle,
-      DEFAULT_WEIGHTS.stewardshipTitle,
-      120
-    ),
-    stewardshipAbstract: clamp(
-      stored.stewardshipAbstract,
-      DEFAULT_WEIGHTS.stewardshipAbstract,
-      50
-    ),
-    largeStudy: clamp(stored.largeStudy, DEFAULT_WEIGHTS.largeStudy, 60),
-    studyTypeBoost: stored.studyTypeBoost !== false,
-    jifMultiplier: stored.jifMultiplier !== false,
-  };
+export function mergeStoredFeedSettings(
+  stored: Record<string, unknown> | null | undefined
+): BriefFeedSettings {
+  return mergeFeedSettings(stored);
 }
 
 function avgFeature(rows: FeedbackRow[], key: keyof FeatureSnapshot): number {
@@ -131,9 +122,31 @@ export async function relearnTopicWeights(
     (feedback ?? []) as FeedbackRow[]
   );
 
+  const { data: topicRow } = await supabase
+    .from("topics")
+    .select("ranking_weights")
+    .eq("id", topicId)
+    .maybeSingle();
+
+  const existing = mergeFeedSettings(
+    (topicRow as { ranking_weights?: Record<string, unknown> | null } | null)
+      ?.ranking_weights
+  );
+  const merged = {
+    ...feedSettingsToStored({
+      ...existing,
+      ...weights,
+      brief: existing.brief,
+      veterinary: existing.veterinary,
+      singleCenterSmall: existing.singleCenterSmall,
+      descriptiveAmr: existing.descriptiveAmr,
+      minFactor: existing.minFactor,
+    }),
+  };
+
   await supabase
     .from("topics")
-    .update({ ranking_weights: weights })
+    .update({ ranking_weights: merged })
     .eq("id", topicId);
 
   return weights;

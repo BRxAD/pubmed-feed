@@ -1,6 +1,12 @@
 import "server-only";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { computeRelevancePenalty } from "@/lib/relevancePenalties";
+import type { PenaltyWeights } from "@/lib/brief/feedSettings";
+
+export type ScoringOptions = Partial<PenaltyWeights> & {
+  smallSampleMax?: number;
+  largeStudyThreshold?: number;
+};
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
 
@@ -78,8 +84,8 @@ function extractSampleSizes(abstract: string): number[] {
   return sizes;
 }
 
-function detectLargeStudy(abstract: string): boolean {
-  return extractSampleSizes(abstract).some((n) => n > LARGE_STUDY_THRESHOLD);
+function detectLargeStudy(abstract: string, threshold = LARGE_STUDY_THRESHOLD): boolean {
+  return extractSampleSizes(abstract).some((n) => n > threshold);
 }
 
 // ── Ranking weights ───────────────────────────────────────────────────────────
@@ -187,20 +193,24 @@ export function computeBreakdown(
   rec: PubMedRecord,
   weights: RankingWeights,
   includeBoosts: true,
-  jifIsHigh?: boolean
+  jifIsHigh?: boolean,
+  scoringOptions?: ScoringOptions
 ): RelevanceBreakdown;
 export function computeBreakdown(
   topicQuery: string,
   rec: PubMedRecord,
   weights: RankingWeights,
-  includeBoosts: false
+  includeBoosts: false,
+  jifIsHigh?: boolean,
+  scoringOptions?: ScoringOptions
 ): Omit<RelevanceBreakdown, "studyBoostFactor" | "jifBoostFactor" | "finalScore"> & { baseScore: number };
 export function computeBreakdown(
   topicQuery: string,
   rec: PubMedRecord,
   weights: RankingWeights = DEFAULT_WEIGHTS,
   includeBoosts = false,
-  jifIsHigh = false
+  jifIsHigh = false,
+  scoringOptions?: ScoringOptions
 ): RelevanceBreakdown {
   const title = rec.title ?? "";
   const abstract = rec.abstract ?? "";
@@ -221,9 +231,14 @@ export function computeBreakdown(
     stewardshipAbstract = Math.round(weights.stewardshipAbstract / 3);
   }
 
+  const largeStudyThreshold =
+    scoringOptions?.largeStudyThreshold ?? LARGE_STUDY_THRESHOLD;
+
   // 3. Large study
   const largeStudy =
-    abstract && detectLargeStudy(abstract) ? weights.largeStudy : 0;
+    abstract && detectLargeStudy(abstract, largeStudyThreshold)
+      ? weights.largeStudy
+      : 0;
 
   // 4. Extra topic-query terms (non-stewardship)
   let extraTerms = 0;
@@ -245,7 +260,7 @@ export function computeBreakdown(
   }
 
   const baseScore = stewardshipTitle + stewardshipAbstract + largeStudy + extraTerms;
-  const penalty = computeRelevancePenalty(rec);
+  const penalty = computeRelevancePenalty(rec, scoringOptions);
 
   if (!includeBoosts) {
     const finalScore = baseScore * penalty.factor;

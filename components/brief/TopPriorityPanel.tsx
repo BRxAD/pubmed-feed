@@ -12,13 +12,10 @@ export default function TopPriorityPanel({
     <section aria-labelledby="top10-heading">
       <h2
         id="top10-heading"
-        className={`${brief.kicker} mb-1 pb-2 border-b ${brief.hairline}`}
+        className={`${brief.kicker} mb-4 pb-2 border-b ${brief.hairline}`}
       >
         Top 10 · past year
       </h2>
-      <p className={`${brief.sans} text-xs ${brief.muted} mb-4`}>
-        Highest priority rankings
-      </p>
       {items.length === 0 ? (
         <p className={`${brief.sans} text-sm ${brief.muted}`}>
           No high-priority studies in the past 12 months yet.

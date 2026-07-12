@@ -1,5 +1,6 @@
 import type { FeedSource } from "@/lib/feedSource";
 import type { DigestItem } from "@/lib/digest/items";
+import { pluralizeStudies } from "@/lib/digest/briefEmailFormat";
 
 const SOURCE_LABELS: Record<FeedSource, string> = {
   pubmed: "PubMed",
@@ -42,7 +43,7 @@ export function buildDigestEmail(options: {
 
   const subject =
     items.length > 0
-      ? `[${sourceLabel}] ASP digest: ${items.length} study${items.length === 1 ? "" : "ies"} ≥${minRelevancePercent}% relevance`
+      ? `[${sourceLabel}] ASP digest: ${pluralizeStudies(items.length)} ≥${minRelevancePercent}% relevance`
       : `[${sourceLabel}] ASP digest: no new studies ≥${minRelevancePercent}% relevance`;
 
   const intro = `${sourceLabel} feed — antimicrobial stewardship digest for ${periodLabel}. Studies at or above ${minRelevancePercent}% relevance.`;

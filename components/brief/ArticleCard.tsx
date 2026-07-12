@@ -184,8 +184,12 @@ export function LeadStory({
   const showImage = Boolean(image);
 
   return (
-    <article className={`pb-10 mb-10 border-b-2 ${brief.rule}`}>
-      <p className={`${brief.kicker} mb-4`}>Lead story</p>
+    <article className="pb-10 mb-10 border-b-2 border-[#2A79A7]/30">
+      <p className={`${brief.kicker} mb-4`}>
+        <span className="inline-block border-b-2 border-[#FFA69E] pb-0.5">
+          Lead story
+        </span>
+      </p>
       <div
         className={
           showImage

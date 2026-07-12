@@ -19,7 +19,8 @@ export function effectivePriority(
 
 export function meetsBriefThreshold(
   adminPriority: number | null | undefined,
-  predictedPriority: number
+  predictedPriority: number,
+  minPriority: number = BRIEF_MIN_PRIORITY
 ): boolean {
-  return effectivePriority(adminPriority, predictedPriority) >= BRIEF_MIN_PRIORITY;
+  return effectivePriority(adminPriority, predictedPriority) >= minPriority;
 }

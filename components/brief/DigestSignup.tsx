@@ -21,7 +21,7 @@ export default function DigestSignup() {
         body: JSON.stringify({ email: email.trim() }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Subscribe failed");
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Subscribe failed");
       setStatus("ok");
       setMessage("You are on the list. Look for the 7am brief.");
       setEmail("");

@@ -210,7 +210,7 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     id: "pediatric-care",
-    url: "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&w=1200&q=80",
+    url: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=1200&q=80",
     label: "pediatric clinical care",
     requireAny: ["pediatric", "paediatric", "child", "children", "kids", "infant", "otitis"],
     tags: [
@@ -267,18 +267,19 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     id: "petri-culture",
-    url: "https://images.unsplash.com/photo-1582719471384-894fbb16e074?auto=format&fit=crop&w=1200&q=80",
-    label: "culture plates",
+    url: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=1200&q=80",
+    label: "bacterial culture plates",
     requireAny: [
-      "culture",
-      "bacteria",
+      "microbiology",
+      "culture plate",
+      "petri",
       "antibiogram",
       "susceptibility",
-      "resistance",
-      "amr",
       "colony",
+      "bacterial culture",
     ],
     tags: [
+      "microbiology",
       "culture",
       "bacteria",
       "antibiogram",
@@ -286,7 +287,8 @@ const CATALOG: CatalogEntry[] = [
       "resistance",
       "amr",
       "colony",
-      "microbiology",
+      "bacterial culture",
+      "pathogen",
     ],
   },
   {

@@ -49,6 +49,17 @@ export function getDigestFromAddress(): string {
   return "ASP Literature Feed <onboarding@resend.dev>";
 }
 
+/** From address for The Stewardship Brief subscriber emails. */
+export function getBriefDigestFromAddress(): string {
+  const explicit = process.env.BRIEF_FROM_EMAIL?.trim();
+  if (explicit) return explicit;
+
+  const digestFrom = process.env.DIGEST_FROM_EMAIL?.trim();
+  if (digestFrom) return digestFrom.replace(/^[^<]*/, "The Stewardship Brief ");
+
+  return "The Stewardship Brief <onboarding@resend.dev>";
+}
+
 export function getDigestReplyTo(): string | undefined {
   return (
     process.env.DIGEST_REPLY_TO?.trim() ??
