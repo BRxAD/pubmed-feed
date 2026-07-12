@@ -1,7 +1,7 @@
 import "server-only";
 import { getDefaultTopicId, type FeedItem } from "@/lib/feed";
 import { computeBreakdown } from "@/lib/ranking";
-import { mergeStoredFeedSettings, toRankingWeights, toPenaltyWeights } from "@/lib/brief/feedSettings";
+import { mergeFeedSettings, toRankingWeights, toPenaltyWeights } from "@/lib/brief/feedSettings";
 import type { ScoringOptions } from "@/lib/ranking";
 import {
   normalizeScoreTo100,
@@ -116,7 +116,7 @@ export async function getBriefItems(options?: {
     );
   }
 
-  const feedSettings = mergeStoredFeedSettings(
+  const feedSettings = mergeFeedSettings(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
   );
   const learnedWeights = toRankingWeights(feedSettings);
