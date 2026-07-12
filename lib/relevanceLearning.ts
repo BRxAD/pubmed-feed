@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   mergeFeedSettings,
   toRankingWeights,
-  toPenaltyWeights,
   feedSettingsToStored,
   type BriefFeedSettings,
 } from "@/lib/brief/feedSettings";
