@@ -10,7 +10,7 @@ type Props = {
 export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
-      <div className="mx-auto max-w-6xl px-4 pt-8 pb-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 pt-6 pb-5 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center text-center">
           <Image
             src="/stewardship-brief-logo.png"
@@ -18,15 +18,15 @@ export default function Masthead({ dateLabel }: Props) {
             width={1403}
             height={631}
             priority
-            className="h-auto w-[min(100%,300px)] sm:w-[min(100%,440px)] lg:w-[min(100%,520px)]"
+            className="h-auto w-full max-w-[920px]"
           />
-          <div className="mt-5 flex items-center justify-center gap-3">
+          <div className="mt-4 flex items-center justify-center gap-3">
             <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />
             <p className={`${brief.sans} text-sm ${brief.muted}`}>{dateLabel}</p>
             <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />
           </div>
           <nav
-            className={`mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 ${brief.sans} text-xs uppercase tracking-[0.12em]`}
+            className={`mt-5 flex flex-wrap justify-center gap-x-6 gap-y-2 ${brief.sans} text-xs uppercase tracking-[0.12em]`}
             aria-label="Section"
           >
             <a

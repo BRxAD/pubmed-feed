@@ -1,5 +1,6 @@
 import { getBriefItems } from "@/lib/brief/items";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
+import { assignStoryImages } from "@/lib/brief/storyImages";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
 import BriefPage from "@/components/brief/BriefPage";
 
@@ -24,12 +25,14 @@ export default async function StewardshipBriefPage({
       getBriefItems({ setting }),
       getTopPriorityYearItems(),
     ]);
+    const images = await assignStoryImages(brief.items);
 
     return (
       <BriefPage
         items={brief.items}
         topPriority={topPriority}
         setting={setting}
+        images={images}
       />
     );
   } catch (err) {

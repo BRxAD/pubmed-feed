@@ -1,68 +1,83 @@
+import "server-only";
 import type { ArticleSetting } from "@/lib/classifySetting";
 import type { BriefItem } from "@/lib/brief/items";
+import {
+  IMAGE_MATCH_THRESHOLD,
+  type StoryImageMatch,
+} from "@/lib/brief/storyImageTypes";
 
-export const IMAGE_MATCH_THRESHOLD = 0.5;
-
-export type StoryImageMatch = {
-  id: string;
-  url: string;
-  confidence: number;
-  label: string;
-};
+export type { StoryImageMatch };
+export { IMAGE_MATCH_THRESHOLD };
 
 type CatalogEntry = {
   id: string;
   url: string;
   label: string;
-  /** Weighted topic tags used for matching against headline/keywords. */
+  /** Specific topic tags — prefer distinctive clinical terms over generic ones. */
   tags: string[];
+  /** Tags that must appear for this image to be eligible (any one). */
+  requireAny?: string[];
   settings?: ArticleSetting[];
 };
 
 /**
- * Curated free Unsplash medical / stewardship-adjacent photos.
- * Prefer free (non-Plus) images from https://unsplash.com/s/photos/medical
- * and related stewardship themes.
+ * Curated free Unsplash medical photos.
+ * Source: https://unsplash.com/s/photos/medical and related stewardship themes.
+ * URLs are validated at request time; broken ones are skipped.
  */
 const CATALOG: CatalogEntry[] = [
-  // Antibiotics / pills / pharmacy
   {
     id: "pills-capsule",
     url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1200&q=80",
     label: "capsules and pills",
+    requireAny: [
+      "pill",
+      "pills",
+      "capsule",
+      "oral",
+      "prescribing",
+      "prescription",
+      "pharmacy",
+      "macrolide",
+      "cefdinir",
+      "outpatient antibiotic",
+    ],
     tags: [
-      "antibiotic",
-      "antibiotics",
-      "antimicrobial",
+      "oral antibiotic",
       "pill",
       "pills",
       "capsule",
       "prescribing",
       "prescription",
       "pharmacy",
-      "medication",
       "macrolide",
       "cefdinir",
-      "beta-lactam",
-      "oral",
+      "outpatient",
+      "community prescribing",
     ],
   },
   {
     id: "antibiotic-vials",
     url: "https://images.unsplash.com/photo-1763142842705-78621f9c0414?auto=format&fit=crop&w=1200&q=80",
     label: "antibiotic vials",
+    requireAny: [
+      "vial",
+      "intravenous",
+      "infusion",
+      "injection",
+      "iv",
+      "broad-spectrum",
+      "cefepime",
+      "parenteral",
+    ],
     tags: [
-      "antibiotic",
-      "antibiotics",
       "vial",
       "injection",
       "intravenous",
-      "iv",
-      "cefepime",
-      "broad-spectrum",
-      "hospital",
-      "inpatient",
       "infusion",
+      "broad-spectrum",
+      "parenteral",
+      "inpatient antibiotic",
     ],
     settings: ["hospital"],
   },
@@ -70,16 +85,14 @@ const CATALOG: CatalogEntry[] = [
     id: "medicine-bottles",
     url: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=1200&q=80",
     label: "medicine bottles",
+    requireAny: ["pharmacy", "dispensing", "medication", "outpatient", "community"],
     tags: [
       "pharmacy",
       "medication",
-      "prescribing",
+      "dispensing",
       "outpatient",
       "community",
-      "dispensing",
-      "oral",
-      "antibiotic",
-      "stewardship",
+      "retail pharmacy",
     ],
     settings: ["community"],
   },
@@ -87,34 +100,30 @@ const CATALOG: CatalogEntry[] = [
     id: "syringe-ampoules",
     url: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&w=1200&q=80",
     label: "syringe and ampoules",
-    tags: [
-      "injection",
-      "syringe",
-      "ampoule",
-      "vaccine",
-      "parenteral",
-      "dose",
-      "antibiotic",
-      "iv",
-    ],
+    requireAny: ["injection", "syringe", "ampoule", "vaccine", "parenteral"],
+    tags: ["injection", "syringe", "ampoule", "vaccine", "parenteral", "dose"],
   },
-
-  // Hospital / ICU / inpatient
   {
     id: "hospital-corridor",
     url: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80",
     label: "hospital corridor",
+    requireAny: [
+      "hospital",
+      "inpatient",
+      "ward",
+      "nosocomial",
+      "healthcare-associated",
+      "facility",
+      "admission",
+    ],
     tags: [
       "hospital",
       "inpatient",
       "ward",
-      "icu",
-      "intensive",
-      "acute",
-      "admission",
       "nosocomial",
       "healthcare-associated",
-      "facility",
+      "admission",
+      "acute care",
     ],
     settings: ["hospital"],
   },
@@ -122,16 +131,15 @@ const CATALOG: CatalogEntry[] = [
     id: "hospital-staff",
     url: "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=1200&q=80",
     label: "hospital clinicians",
+    requireAny: ["clinician", "physician", "doctor", "rounds", "stewardship team", "guideline"],
     tags: [
-      "hospital",
       "clinician",
       "physician",
       "doctor",
-      "team",
       "rounds",
-      "inpatient",
-      "stewardship",
       "guideline",
+      "stewardship program",
+      "inpatient team",
     ],
     settings: ["hospital"],
   },
@@ -139,75 +147,72 @@ const CATALOG: CatalogEntry[] = [
     id: "icu-monitor",
     url: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1200&q=80",
     label: "critical care monitors",
+    requireAny: ["icu", "intensive", "critical", "ventilator", "sepsis", "shock"],
     tags: [
       "icu",
-      "intensive",
-      "critical",
+      "intensive care",
+      "critical care",
       "ventilator",
       "sepsis",
       "shock",
-      "hospital",
-      "inpatient",
       "monitor",
     ],
     settings: ["hospital"],
   },
   {
     id: "surgeon-or",
-    url: "https://images.unsplash.com/photo-1551076805-e1869033fa91?auto=format&fit=crop&w=1200&q=80",
+    url: "https://images.unsplash.com/photo-1551190822-a9333d879b1f?auto=format&fit=crop&w=1200&q=80",
     label: "operating room",
+    requireAny: ["surgery", "surgical", "perioperative", "prophylaxis", "operating"],
     tags: [
       "surgery",
       "surgical",
       "perioperative",
       "prophylaxis",
-      "operating",
+      "operating room",
       "procedure",
-      "hospital",
     ],
     settings: ["hospital"],
   },
-
-  // ED / outpatient / primary care
   {
     id: "clinic-stethoscope",
     url: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80",
     label: "clinic stethoscope",
-    tags: [
+    requireAny: [
       "clinic",
       "outpatient",
       "primary",
-      "community",
       "ambulatory",
-      "visit",
-      "consultation",
-      "physician",
       "sinusitis",
       "uri",
       "respiratory",
+      "community",
+    ],
+    tags: [
+      "clinic",
+      "outpatient",
+      "primary care",
+      "ambulatory",
+      "sinusitis",
+      "uri",
+      "respiratory",
+      "visit",
     ],
     settings: ["community"],
   },
   {
     id: "emergency-care",
-    url: "https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=1200&q=80",
-    label: "emergency care",
-    tags: [
-      "emergency",
-      "ed",
-      "er",
-      "acute",
-      "triage",
-      "hospital",
-      "urgent",
-      "encounter",
-    ],
+    url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1200&q=80",
+    label: "emergency department",
+    requireAny: ["emergency", "ed", "er", "triage", "urgent"],
+    tags: ["emergency", "emergency department", "triage", "urgent", "ed visit"],
     settings: ["hospital", "community"],
   },
   {
     id: "pediatric-care",
-    url: "https://images.unsplash.com/photo-1631217868660-4aaec14bd4e0?auto=format&fit=crop&w=1200&q=80",
-    label: "pediatric care",
+    url: "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&w=1200&q=80",
+    label: "pediatric clinical care",
+    requireAny: ["pediatric", "paediatric", "child", "children", "kids", "infant", "otitis"],
     tags: [
       "pediatric",
       "paediatric",
@@ -216,94 +221,93 @@ const CATALOG: CatalogEntry[] = [
       "kids",
       "infant",
       "otitis",
-      "sinusitis",
-      "outpatient",
+      "pediatric prescribing",
     ],
     settings: ["community", "hospital"],
   },
-
-  // Lab / microbiology / diagnostics
   {
     id: "lab-microscope",
     url: "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=1200&q=80",
     label: "laboratory microscope",
-    tags: [
+    requireAny: [
       "laboratory",
       "lab",
       "microbiology",
       "culture",
       "diagnostic",
       "pathogen",
-      "bacteria",
-      "assay",
-      "test",
-      "sensitivity",
+      "susceptibility",
       "mic",
+    ],
+    tags: [
+      "laboratory",
+      "microbiology",
+      "culture",
+      "diagnostic",
+      "pathogen",
+      "susceptibility",
+      "mic",
+      "assay",
     ],
   },
   {
     id: "lab-pipette",
     url: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&w=1200&q=80",
     label: "lab pipette work",
+    requireAny: ["molecular", "pcr", "genomic", "sequencing", "pipette", "assay", "sample"],
     tags: [
-      "laboratory",
-      "research",
-      "assay",
-      "sample",
-      "testing",
       "molecular",
       "pcr",
       "genomic",
       "sequencing",
-      "diagnostic",
+      "assay",
+      "sample",
+      "laboratory research",
     ],
   },
   {
     id: "petri-culture",
     url: "https://images.unsplash.com/photo-1582719471384-894fbb16e074?auto=format&fit=crop&w=1200&q=80",
     label: "culture plates",
+    requireAny: [
+      "culture",
+      "bacteria",
+      "antibiogram",
+      "susceptibility",
+      "resistance",
+      "amr",
+      "colony",
+    ],
     tags: [
       "culture",
       "bacteria",
-      "microbiology",
-      "resistance",
-      "amr",
-      "pathogen",
-      "colony",
       "antibiogram",
       "susceptibility",
+      "resistance",
+      "amr",
+      "colony",
+      "microbiology",
     ],
   },
   {
     id: "blood-draw",
     url: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=1200&q=80",
     label: "blood sample draw",
-    tags: [
-      "blood",
-      "culture",
-      "bacteremia",
-      "sepsis",
-      "sample",
-      "lab",
-      "diagnostic",
-      "phlebotomy",
-    ],
+    requireAny: ["blood", "bacteremia", "sepsis", "phlebotomy", "blood culture"],
+    tags: ["blood", "blood culture", "bacteremia", "sepsis", "phlebotomy", "sample"],
     settings: ["hospital"],
   },
-
-  // Long-term care / elderly
   {
     id: "elder-care",
     url: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80",
     label: "elder care",
+    requireAny: ["elderly", "aging", "nursing", "long-term", "ltc", "geriatric", "care home"],
     tags: [
       "elderly",
-      "aging",
-      "nursing",
-      "long-term",
+      "nursing home",
+      "long-term care",
       "ltc",
       "geriatric",
-      "facility",
       "resident",
       "care home",
     ],
@@ -313,106 +317,104 @@ const CATALOG: CatalogEntry[] = [
     id: "nurse-patient",
     url: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=1200&q=80",
     label: "nurse with patient",
-    tags: [
-      "nurse",
-      "nursing",
-      "patient",
-      "care",
-      "ward",
-      "long-term",
-      "hospital",
-      "bedside",
-    ],
+    requireAny: ["nurse", "nursing", "bedside", "patient care"],
+    tags: ["nurse", "nursing", "bedside", "patient care", "ward care"],
     settings: ["long-term care", "hospital"],
   },
-
-  // Public health / data / surveillance
   {
     id: "data-dashboard",
     url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
     label: "data analytics",
+    requireAny: [
+      "surveillance",
+      "audit",
+      "dashboard",
+      "metric",
+      "benchmark",
+      "scorecard",
+      "utilization",
+      "nationwide",
+    ],
     tags: [
       "surveillance",
       "audit",
       "dashboard",
       "metric",
-      "data",
       "benchmark",
-      "score",
-      "report",
-      "tracking",
+      "scorecard",
       "utilization",
       "nationwide",
-      "va",
-      "network",
+      "tracking",
     ],
   },
   {
     id: "public-health",
-    url: "https://images.unsplash.com/photo-1584036561566-b437342e7c22?auto=format&fit=crop&w=1200&q=80",
-    label: "public health map",
-    tags: [
-      "surveillance",
-      "outbreak",
+    url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
+    label: "public health planning",
+    requireAny: [
       "epidemiology",
-      "public",
+      "outbreak",
+      "public health",
       "population",
       "national",
-      "global",
+      "policy",
+      "health system",
+    ],
+    tags: [
+      "epidemiology",
+      "outbreak",
+      "public health",
+      "population",
+      "national",
       "policy",
       "health system",
     ],
   },
-
-  // Animal / One Health
   {
     id: "vet-care",
     url: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1200&q=80",
     label: "veterinary care",
-    tags: [
-      "veterinary",
-      "animal",
-      "dog",
-      "pet",
-      "companion",
-      "one health",
-      "zoonotic",
-    ],
+    requireAny: ["veterinary", "animal", "pet", "companion", "one health", "zoonotic"],
+    tags: ["veterinary", "animal", "companion animal", "one health", "zoonotic", "pet"],
     settings: ["animal"],
   },
   {
     id: "livestock",
     url: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=1200&q=80",
     label: "livestock",
-    tags: [
-      "livestock",
-      "cattle",
-      "farm",
-      "agriculture",
-      "veterinary",
-      "animal",
-      "one health",
-      "food animal",
-    ],
+    requireAny: ["livestock", "cattle", "farm", "agriculture", "food animal"],
+    tags: ["livestock", "cattle", "farm", "agriculture", "food animal", "veterinary"],
     settings: ["animal"],
   },
-
-  // Environment / wastewater
   {
     id: "wastewater",
     url: "https://images.unsplash.com/photo-1581093588401-fbb62a02f120?auto=format&fit=crop&w=1200&q=80",
     label: "water treatment",
+    requireAny: ["wastewater", "effluent", "resistome", "environmental", "sewage", "water"],
     tags: [
       "wastewater",
-      "water",
-      "environment",
       "effluent",
       "resistome",
       "environmental",
       "sewage",
-      "surveillance",
+      "water treatment",
     ],
     settings: ["environment"],
+  },
+  {
+    id: "doctor-exam",
+    url: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=1200&q=80",
+    label: "physician consultation",
+    requireAny: ["consultation", "physician exam", "clinical visit", "diagnosis"],
+    tags: ["consultation", "physician", "clinical visit", "diagnosis", "exam"],
+  },
+  {
+    id: "mri-diagnostics",
+    url: "https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=1200&q=80",
+    label: "hospital diagnostics",
+    requireAny: ["diagnostic imaging", "radiology", "ct", "mri", "imaging"],
+    tags: ["diagnostic imaging", "radiology", "hospital diagnostics", "imaging"],
+    settings: ["hospital"],
   },
 ];
 
@@ -424,10 +426,12 @@ function normalize(text: string): string {
     .trim();
 }
 
-function storyCorpus(item: Pick<
-  BriefItem,
-  "headline" | "title" | "bottomLine" | "keywords" | "setting" | "methods"
->): string {
+function storyCorpus(
+  item: Pick<
+    BriefItem,
+    "headline" | "title" | "bottomLine" | "keywords" | "setting" | "methods"
+  >
+): string {
   return normalize(
     [
       item.headline,
@@ -440,91 +444,149 @@ function storyCorpus(item: Pick<
   );
 }
 
-function scoreEntry(corpus: string, setting: ArticleSetting | null, entry: CatalogEntry): number {
+function hasRequiredGate(corpus: string, entry: CatalogEntry): boolean {
+  if (!entry.requireAny?.length) return true;
+  return entry.requireAny.some((req) => corpus.includes(req.toLowerCase()));
+}
+
+function scoreEntry(
+  corpus: string,
+  setting: ArticleSetting | null,
+  entry: CatalogEntry
+): number {
+  if (!hasRequiredGate(corpus, entry)) return 0;
+
   let matchedWeight = 0;
   let matchedCount = 0;
 
   for (const tag of entry.tags) {
     const t = tag.toLowerCase();
     if (!corpus.includes(t)) continue;
-    const tagWeight = t.length >= 8 ? 1.4 : t.length >= 5 ? 1.15 : 1;
+    // Multi-word tags are more specific → higher weight
+    const words = t.split(/\s+/).length;
+    const tagWeight = words >= 2 ? 1.6 : t.length >= 8 ? 1.35 : t.length >= 5 ? 1.1 : 0.85;
     matchedWeight += tagWeight;
     matchedCount += 1;
   }
 
-  if (matchedCount === 0) return 0;
+  // Need at least two tag hits (or one strong multi-word hit) for credibility
+  if (matchedCount < 2 && matchedWeight < 1.6) return 0;
 
-  // ~2.5–3 matched tag-weight ≈ mid confidence; more hits raise toward 1.0
-  let score = Math.min(1, matchedWeight / 3);
+  // Harder curve: ~3.6 tag-weight ≈ 60% confidence
+  let score = Math.min(1, matchedWeight / 3.6);
 
-  if (setting && entry.settings?.includes(setting)) {
-    score = Math.min(1, score + 0.1);
-  }
-
-  const boosts: Array<[RegExp, number]> = [
-    [/\b(icu|intensive care)\b/, 0.08],
-    [/\b(pediatric|paediatric|children|kids)\b/, 0.1],
-    [/\b(emergency|\bed\b|\ber\b)\b/, 0.08],
-    [/\b(sepsis|bacteremia)\b/, 0.08],
-    [/\b(surveillance|audit|benchmark|dashboard|metric)\b/, 0.1],
-    [/\b(microbiology|culture|antibiogram|susceptibility)\b/, 0.1],
-    [/\b(veterinary|livestock|one health|zoonotic)\b/, 0.12],
-    [/\b(wastewater|resistome|environmental)\b/, 0.12],
-    [/\b(antibiotic|antimicrobial|prescribing)\b/, 0.06],
-  ];
-  for (const [re, boost] of boosts) {
-    if (re.test(corpus) && entry.tags.some((t) => re.test(t) || corpus.includes(t))) {
-      // Only boost if this entry is thematically related
-      const entryText = entry.tags.join(" ");
-      if (re.test(entryText) || entry.tags.some((t) => corpus.includes(t) && re.test(corpus))) {
-        score = Math.min(1, score + boost);
-      }
-    }
+  if (setting && entry.settings?.includes(setting) && matchedCount >= 2) {
+    score = Math.min(1, score + 0.06);
   }
 
   return score;
 }
 
+/** Rank catalog candidates for a story (highest confidence first). */
+function rankCandidates(
+  item: Pick<
+    BriefItem,
+    "pmid" | "headline" | "title" | "bottomLine" | "keywords" | "setting" | "methods"
+  >,
+  usedIds: Set<string>
+): Array<{ entry: CatalogEntry; confidence: number }> {
+  const corpus = storyCorpus(item);
+  const ranked: Array<{ entry: CatalogEntry; confidence: number }> = [];
+
+  for (const entry of CATALOG) {
+    if (usedIds.has(entry.id)) continue;
+    const confidence = scoreEntry(corpus, item.setting, entry);
+    if (confidence > IMAGE_MATCH_THRESHOLD) {
+      ranked.push({ entry, confidence });
+    }
+  }
+
+  ranked.sort((a, b) => b.confidence - a.confidence);
+  return ranked;
+}
+
+const urlHealthCache = new Map<string, boolean>();
+
+/** HEAD/GET probe — returns false for 404s and network failures. */
+export async function isImageUrlReachable(url: string): Promise<boolean> {
+  const cached = urlHealthCache.get(url);
+  if (cached != null) return cached;
+
+  try {
+    const head = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(4000),
+    });
+    if (head.ok) {
+      urlHealthCache.set(url, true);
+      return true;
+    }
+    // Some CDNs reject HEAD — try a tiny ranged GET
+    if (head.status === 405 || head.status === 403) {
+      const get = await fetch(url, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(4000),
+      });
+      const ok = get.ok || get.status === 206;
+      urlHealthCache.set(url, ok);
+      return ok;
+    }
+    urlHealthCache.set(url, false);
+    return false;
+  } catch {
+    urlHealthCache.set(url, false);
+    return false;
+  }
+}
+
 /**
- * Pick the best catalog image for a story.
- * Returns null when confidence is at or below IMAGE_MATCH_THRESHOLD.
- * Pass `usedIds` to avoid repeating the same photo on one page.
+ * Pick the best reachable image for a story (confidence > 60%).
+ * Tries next candidates if the top URL is broken.
  */
-export function matchStoryImage(
+export async function matchStoryImage(
   item: Pick<
     BriefItem,
     "pmid" | "headline" | "title" | "bottomLine" | "keywords" | "setting" | "methods"
   >,
   usedIds: Set<string> = new Set()
-): StoryImageMatch | null {
-  const corpus = storyCorpus(item);
-  let best: { entry: CatalogEntry; confidence: number } | null = null;
+): Promise<StoryImageMatch | null> {
+  const ranked = rankCandidates(item, usedIds);
 
-  for (const entry of CATALOG) {
-    if (usedIds.has(entry.id)) continue;
-    const confidence = scoreEntry(corpus, item.setting, entry);
-    if (!best || confidence > best.confidence) {
-      best = { entry, confidence };
+  for (const { entry, confidence } of ranked) {
+    const ok = await isImageUrlReachable(entry.url);
+    if (!ok) {
+      console.warn(`[storyImages] broken image skipped: ${entry.id} ${entry.url}`);
+      continue;
     }
+    return {
+      id: entry.id,
+      url: entry.url,
+      confidence,
+      label: entry.label,
+    };
   }
 
-  if (!best || best.confidence <= IMAGE_MATCH_THRESHOLD) return null;
-
-  return {
-    id: best.entry.id,
-    url: best.entry.url,
-    confidence: best.confidence,
-    label: best.entry.label,
-  };
+  return null;
 }
 
-/** Whether a story should render with an image (>50% match confidence). */
-export function storyHasImageMatch(
-  item: Pick<
-    BriefItem,
-    "pmid" | "headline" | "title" | "bottomLine" | "keywords" | "setting" | "methods"
-  >,
-  usedIds?: Set<string>
-): boolean {
-  return matchStoryImage(item, usedIds) != null;
+/**
+ * Assign unique reachable images across a brief page.
+ * Stories below 60% confidence (or with only broken URLs) get null.
+ */
+export async function assignStoryImages(
+  items: BriefItem[]
+): Promise<Record<string, StoryImageMatch | null>> {
+  const usedIds = new Set<string>();
+  const out: Record<string, StoryImageMatch | null> = {};
+
+  for (const item of items) {
+    const match = await matchStoryImage(item, usedIds);
+    if (match) usedIds.add(match.id);
+    out[item.pmid] = match;
+  }
+
+  return out;
 }

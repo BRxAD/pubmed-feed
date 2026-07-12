@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
-import type { StoryImageMatch } from "@/lib/brief/storyImages";
+import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
 
 function formatDate(iso: string | null): string {
@@ -23,6 +23,8 @@ type StoryProps = {
   saved: boolean;
   onToggleSave: (pmid: string) => void;
   image?: StoryImageMatch | null;
+  /** Called when a photo fails to load — parent can demote to text-only. */
+  onImageError?: () => void;
 };
 
 function MetaLine({ item }: { item: BriefItem }) {
@@ -149,11 +151,13 @@ function StoryImage({
   sizes,
   className,
   priority,
+  onError,
 }: {
   image: StoryImageMatch;
   sizes: string;
   className?: string;
   priority?: boolean;
+  onError?: () => void;
 }) {
   return (
     <div className={`relative overflow-hidden bg-[#EFECE4] ${className ?? ""}`}>
@@ -164,13 +168,19 @@ function StoryImage({
         sizes={sizes}
         priority={priority}
         className="object-cover"
+        onError={() => onError?.()}
       />
     </div>
   );
 }
 
-/** Full-width lead: image only when match confidence > 50%. */
-export function LeadStory({ item, saved, onToggleSave, image }: StoryProps) {
+export function LeadStory({
+  item,
+  saved,
+  onToggleSave,
+  image,
+  onImageError,
+}: StoryProps) {
   const showImage = Boolean(image);
 
   return (
@@ -189,6 +199,7 @@ export function LeadStory({ item, saved, onToggleSave, image }: StoryProps) {
             priority
             sizes="(max-width: 1024px) 100vw, 520px"
             className="aspect-[16/10] w-full lg:aspect-[5/4]"
+            onError={onImageError}
           />
         )}
         <div>
@@ -219,22 +230,29 @@ export function LeadStory({ item, saved, onToggleSave, image }: StoryProps) {
   );
 }
 
-/** Featured story with side image (requires a confident match). */
 export function FeaturedStory({
   item,
   saved,
   onToggleSave,
   image,
+  onImageError,
   bare = false,
 }: StoryProps & { bare?: boolean }) {
   return (
     <article className={`py-6 ${bare ? "" : `border-b ${brief.hairline}`}`}>
-      <div className="grid gap-4 sm:grid-cols-[140px_1fr] sm:gap-5 items-start">
+      <div
+        className={
+          image
+            ? "grid gap-4 sm:grid-cols-[140px_1fr] sm:gap-5 items-start"
+            : ""
+        }
+      >
         {image && (
           <StoryImage
             image={image}
             sizes="140px"
             className="aspect-[4/3] w-full sm:aspect-square"
+            onError={onImageError}
           />
         )}
         <div className="min-w-0">
@@ -265,7 +283,6 @@ export function FeaturedStory({
   );
 }
 
-/** Compact text-only card for denser columns / weak image matches. */
 export function CompactStory({
   item,
   saved,

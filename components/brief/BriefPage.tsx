@@ -1,12 +1,10 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
-import {
-  matchStoryImage,
-  type StoryImageMatch,
-} from "@/lib/brief/storyImages";
+import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import Masthead from "@/components/brief/Masthead";
 import SettingBar from "@/components/brief/SettingBar";
 import {
@@ -33,22 +31,10 @@ type RankedStory = {
   image: StoryImageMatch | null;
 };
 
-/**
- * Assign unique images with >50% confidence; weak matches stay text-only.
- * Pack as: one featured (with image) + up to two compact (no image) per row.
- * Image-less leftovers fill compact columns; remaining image stories get solo featured rows.
- */
-function buildLayoutRows(items: BriefItem[]): {
+function buildLayoutRows(ranked: RankedStory[]): {
   lead: RankedStory | null;
   rows: Array<{ featured: RankedStory | null; compacts: RankedStory[] }>;
 } {
-  const usedIds = new Set<string>();
-  const ranked: RankedStory[] = items.map((item) => {
-    const image = matchStoryImage(item, usedIds);
-    if (image) usedIds.add(image.id);
-    return { item, image };
-  });
-
   const [lead, ...rest] = ranked;
   const withImage = rest.filter((s) => s.image);
   const withoutImage = rest.filter((s) => !s.image);
@@ -68,12 +54,9 @@ function buildLayoutRows(items: BriefItem[]): {
       iComp += 1;
     }
 
-    // If no featured left but compact remain, dump remaining as compact-only rows
     if (!featured && compacts.length === 0) break;
-
     rows.push({ featured, compacts });
 
-    // Flush leftover compact-only if we ran out of featured mid-batch
     if (!featured && iComp < withoutImage.length) {
       while (iComp < withoutImage.length) {
         const batch: RankedStory[] = [];
@@ -93,13 +76,34 @@ export default function BriefPage({
   items,
   topPriority,
   setting,
+  images,
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
   setting: BriefSettingFilter;
+  /** Server-assigned images (null = text-only). */
+  images: Record<string, StoryImageMatch | null>;
 }) {
   const { saved, toggleSave } = useBriefSaved();
-  const { lead, rows } = buildLayoutRows(items);
+  const [brokenPmids, setBrokenPmids] = useState<Set<string>>(() => new Set());
+
+  const ranked = useMemo(() => {
+    return items.map((item) => ({
+      item,
+      image: brokenPmids.has(item.pmid) ? null : (images[item.pmid] ?? null),
+    }));
+  }, [items, images, brokenPmids]);
+
+  const { lead, rows } = useMemo(() => buildLayoutRows(ranked), [ranked]);
+
+  function markBroken(pmid: string) {
+    setBrokenPmids((prev) => {
+      if (prev.has(pmid)) return prev;
+      const next = new Set(prev);
+      next.add(pmid);
+      return next;
+    });
+  }
 
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
@@ -133,6 +137,7 @@ export default function BriefPage({
                       image={lead.image}
                       saved={saved.has(lead.item.pmid)}
                       onToggleSave={toggleSave}
+                      onImageError={() => markBroken(lead.item.pmid)}
                     />
                   </div>
                 )}
@@ -163,6 +168,9 @@ export default function BriefPage({
                               bare
                               saved={saved.has(row.featured.item.pmid)}
                               onToggleSave={toggleSave}
+                              onImageError={() =>
+                                markBroken(row.featured!.item.pmid)
+                              }
                             />
                             <div className="lg:border-l lg:border-[#D8D4C8] lg:pl-8 divide-y divide-[#D8D4C8]">
                               {row.compacts.map((s) => (
@@ -187,6 +195,9 @@ export default function BriefPage({
                             image={row.featured.image}
                             saved={saved.has(row.featured.item.pmid)}
                             onToggleSave={toggleSave}
+                            onImageError={() =>
+                              markBroken(row.featured!.item.pmid)
+                            }
                           />
                         );
                       }
@@ -197,7 +208,10 @@ export default function BriefPage({
                           className="grid gap-0 sm:grid-cols-2 lg:grid-cols-3 border-b border-[#D8D4C8] divide-y sm:divide-y-0 sm:divide-x divide-[#D8D4C8]"
                         >
                           {row.compacts.map((s) => (
-                            <div key={s.item.pmid} className="sm:px-4 first:sm:pl-0 last:sm:pr-0">
+                            <div
+                              key={s.item.pmid}
+                              className="sm:px-4 first:sm:pl-0 last:sm:pr-0"
+                            >
                               <CompactStory
                                 item={s.item}
                                 bare
