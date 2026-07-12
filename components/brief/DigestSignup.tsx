@@ -53,7 +53,7 @@ export default function DigestSignup() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className={`w-full ${brief.sans} text-sm bg-transparent border-0 border-b ${brief.rule} py-2 focus:outline-none focus:border-[#b0672e] ${brief.ink}`}
+          className={`w-full ${brief.sans} text-sm bg-transparent border-0 border-b ${brief.rule} py-2 focus:outline-none focus:border-[#2A79A7] ${brief.ink}`}
         />
         <button
           type="submit"

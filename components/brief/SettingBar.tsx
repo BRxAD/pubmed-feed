@@ -8,10 +8,7 @@ import {
 
 export default function SettingBar({ active }: { active: BriefSettingFilter }) {
   return (
-    <nav
-      className="flex flex-wrap gap-2 py-5"
-      aria-label="Filter by setting"
-    >
+    <nav className="flex flex-wrap gap-2 py-5" aria-label="Filter by setting">
       {BRIEF_SETTING_OPTIONS.map((opt) => {
         const href =
           opt.value === ""
@@ -24,8 +21,8 @@ export default function SettingBar({ active }: { active: BriefSettingFilter }) {
             href={href}
             className={`${brief.sans} rounded-full px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.08em] transition-colors ${
               isActive
-                ? "bg-[#1c1a16] text-[#f4f1ea]"
-                : `bg-[#ebe6dc] ${brief.muted} hover:bg-[#e0dbd0] hover:text-[#1c1a16]`
+                ? "bg-[#1C0B19] text-[#F6F4EF]"
+                : "bg-[#EFECE4] text-[#72705B] hover:bg-[#7BC1D4]/35 hover:text-[#1C0B19]"
             }`}
             aria-current={isActive ? "true" : undefined}
           >

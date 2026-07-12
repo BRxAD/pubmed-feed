@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
+import { briefStoryImageUrl } from "@/lib/brief/storyImages";
 import { brief } from "@/components/brief/briefTheme";
 
 function formatDate(iso: string | null): string {
@@ -18,7 +20,6 @@ function formatDate(iso: string | null): string {
 
 type StoryProps = {
   item: BriefItem;
-  lead?: boolean;
   saved: boolean;
   onToggleSave: (pmid: string) => void;
 };
@@ -36,7 +37,7 @@ function MetaLine({ item }: { item: BriefItem }) {
       {item.isNew && (
         <span>
           {parts.length > 0 ? " · " : ""}
-          <span className={brief.accent}>New</span>
+          <span className="text-[#FFA69E]">New</span>
         </span>
       )}
     </p>
@@ -44,12 +45,7 @@ function MetaLine({ item }: { item: BriefItem }) {
 }
 
 function hasDetailContent(item: BriefItem): boolean {
-  return Boolean(
-    item.methods ||
-      item.results ||
-      item.title ||
-      item.journal
-  );
+  return Boolean(item.methods || item.results || item.title || item.journal);
 }
 
 function DetailPanel({ item }: { item: BriefItem }) {
@@ -70,7 +66,9 @@ function DetailPanel({ item }: { item: BriefItem }) {
         </div>
       )}
       {(item.title || item.journal || item.jif != null) && (
-        <div className={`${item.methods || item.results ? `pt-4 border-t ${brief.hairline}` : ""}`}>
+        <div
+          className={`${item.methods || item.results ? `pt-4 border-t ${brief.hairline}` : ""}`}
+        >
           <p className={brief.meta}>Original title</p>
           {item.title && (
             <p className={`mt-1.5 leading-relaxed ${brief.muted}`}>{item.title}</p>
@@ -106,8 +104,8 @@ function StoryActions({
   const showDetail = hasDetailContent(item);
 
   return (
-    <div className="mt-5">
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2`}>
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         {showDetail && (
           <button
             type="button"
@@ -145,20 +143,129 @@ function StoryActions({
   );
 }
 
-function StoryBody({
+function StoryImage({
   item,
-  lead,
+  sizes,
+  className,
+  priority,
+}: {
+  item: BriefItem;
+  sizes: string;
+  className?: string;
+  priority?: boolean;
+}) {
+  const src = briefStoryImageUrl(item.pmid, item.setting);
+  return (
+    <div className={`relative overflow-hidden bg-[#EFECE4] ${className ?? ""}`}>
+      <Image
+        src={src}
+        alt=""
+        fill
+        sizes={sizes}
+        priority={priority}
+        className="object-cover"
+      />
+    </div>
+  );
+}
+
+/** Full-width lead: large image left, story right (stacks on mobile). */
+export function LeadStory({ item, saved, onToggleSave }: StoryProps) {
+  return (
+    <article className={`pb-10 mb-10 border-b-2 ${brief.rule}`}>
+      <p className={`${brief.kicker} mb-4`}>Lead story</p>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8 lg:items-start">
+        <StoryImage
+          item={item}
+          priority
+          sizes="(max-width: 1024px) 100vw, 520px"
+          className="aspect-[16/10] w-full lg:aspect-[5/4]"
+        />
+        <div>
+          <MetaLine item={item} />
+          <h2
+            className={`${brief.serif} mt-3 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
+          >
+            <a
+              href={item.pubmedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
+            >
+              {item.headline}
+            </a>
+          </h2>
+          {item.bottomLine && (
+            <p
+              className={`mt-4 ${brief.deck} italic leading-relaxed text-lg sm:text-xl`}
+            >
+              {item.bottomLine}
+            </p>
+          )}
+          <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Featured story with side image (Toronto Star style). */
+export function FeaturedStory({
+  item,
   saved,
   onToggleSave,
-}: StoryProps & { lead: boolean }) {
+  bare = false,
+}: StoryProps & { bare?: boolean }) {
   return (
-    <>
-      {lead && <p className={`${brief.kicker} mb-3`}>Lead story</p>}
+    <article className={`py-6 ${bare ? "" : `border-b ${brief.hairline}`}`}>
+      <div className="grid gap-4 sm:grid-cols-[140px_1fr] sm:gap-5 items-start">
+        <StoryImage
+          item={item}
+          sizes="140px"
+          className="aspect-[4/3] w-full sm:aspect-square"
+        />
+        <div className="min-w-0">
+          <MetaLine item={item} />
+          <h2
+            className={`${brief.serif} mt-2 text-xl sm:text-[1.375rem] font-bold leading-snug tracking-[-0.01em]`}
+          >
+            <a
+              href={item.pubmedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
+            >
+              {item.headline}
+            </a>
+          </h2>
+          {item.bottomLine && (
+            <p
+              className={`mt-2.5 ${brief.deck} italic text-[0.9375rem] leading-relaxed line-clamp-3`}
+            >
+              {item.bottomLine}
+            </p>
+          )}
+          <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Compact text-only card for denser columns. */
+export function CompactStory({
+  item,
+  saved,
+  onToggleSave,
+  bare = false,
+}: StoryProps & { bare?: boolean }) {
+  return (
+    <article
+      className={`py-5 ${bare ? "" : `border-b ${brief.hairline} last:border-0`}`}
+    >
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} font-bold leading-[1.15] tracking-[-0.01em] ${
-          lead ? "mt-3 text-[1.75rem] sm:text-[2.25rem]" : "mt-2 text-xl sm:text-[1.625rem]"
-        }`}
+        className={`${brief.serif} mt-2 text-base sm:text-lg font-bold leading-snug`}
       >
         <a
           href={item.pubmedUrl}
@@ -171,41 +278,17 @@ function StoryBody({
       </h2>
       {item.bottomLine && (
         <p
-          className={`mt-4 pl-4 border-l-2 border-[#b0672e]/60 ${brief.deck} italic leading-relaxed ${
-            lead ? "text-lg sm:text-xl" : "text-base sm:text-lg"
-          }`}
+          className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted} line-clamp-2`}
         >
           {item.bottomLine}
         </p>
       )}
       <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
-    </>
-  );
-}
-
-export function LeadStory({ item, saved, onToggleSave }: StoryProps) {
-  return (
-    <article
-      className={`relative pb-12 mb-12 border-b-2 ${brief.rule} pl-5 sm:pl-6 before:absolute before:left-0 before:top-0 before:bottom-12 before:w-[3px] before:bg-[#b0672e]`}
-    >
-      <StoryBody item={item} lead saved={saved} onToggleSave={onToggleSave} />
     </article>
   );
 }
 
-export default function BriefArticleCard({
-  item,
-  saved,
-  onToggleSave,
-}: Omit<StoryProps, "lead">) {
-  return (
-    <article className={`py-9 border-b ${brief.hairline} last:border-0`}>
-      <StoryBody
-        item={item}
-        lead={false}
-        saved={saved}
-        onToggleSave={onToggleSave}
-      />
-    </article>
-  );
+/** @deprecated Prefer FeaturedStory / CompactStory for the magazine layout. */
+export default function BriefArticleCard(props: StoryProps) {
+  return <FeaturedStory {...props} />;
 }

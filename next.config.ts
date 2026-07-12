@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
     "/feed/ai-stewardship": ["./data/jcr.csv"],
     "/api/**": ["./data/jcr.csv"],
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

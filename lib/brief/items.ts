@@ -93,9 +93,11 @@ export async function getBriefItems(options?: {
   daysBack?: number;
   maxItems?: number;
   setting?: BriefSettingFilter;
+  /** Skip OpenAI headline backfill (for side panels / ranking lists). */
+  skipHeadlines?: boolean;
 }): Promise<BriefFeedResult> {
   const daysBack = Math.min(
-    30,
+    365,
     Math.max(1, options?.daysBack ?? DEFAULT_BRIEF_DAYS_BACK)
   );
   const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
@@ -140,7 +142,7 @@ export async function getBriefItems(options?: {
     .eq("articles.source", "pubmed")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(1000);
+    .limit(daysBack > 60 ? 3000 : 1000);
 
   if (withHeadline.error?.message?.toLowerCase().includes("headline")) {
     const fallback = await supabase
@@ -152,7 +154,7 @@ export async function getBriefItems(options?: {
       .eq("articles.source", "pubmed")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(1000);
+      .limit(daysBack > 60 ? 3000 : 1000);
     rows = fallback.data;
     error = fallback.error;
   } else {
@@ -329,23 +331,25 @@ export async function getBriefItems(options?: {
 
   const items = candidates.slice(0, maxItems);
 
-  const headlineJobs = items.map((item) => {
-    const meta = headlineMetaByPmid.get(item.pmid)!;
-    return {
-      pmid: item.pmid,
-      title: item.title,
-      abstract: abstractByPmid.get(item.pmid) ?? null,
-      summaryText: meta.summaryText,
-      bottomLine: meta.bottomLine,
-      storedHeadline: meta.storedHeadline,
-      headline: item.headline,
-    };
-  });
+  if (!options?.skipHeadlines) {
+    const headlineJobs = items.map((item) => {
+      const meta = headlineMetaByPmid.get(item.pmid)!;
+      return {
+        pmid: item.pmid,
+        title: item.title,
+        abstract: abstractByPmid.get(item.pmid) ?? null,
+        summaryText: meta.summaryText,
+        bottomLine: meta.bottomLine,
+        storedHeadline: meta.storedHeadline,
+        headline: item.headline,
+      };
+    });
 
-  await ensureBriefHeadlines(topicId, supabase, headlineJobs);
+    await ensureBriefHeadlines(topicId, supabase, headlineJobs);
 
-  for (let i = 0; i < items.length; i++) {
-    items[i].headline = headlineJobs[i].headline;
+    for (let i = 0; i < items.length; i++) {
+      items[i].headline = headlineJobs[i].headline;
+    }
   }
 
   return {
