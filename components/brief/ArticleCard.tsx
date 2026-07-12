@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
-import { briefStoryImageUrl } from "@/lib/brief/storyImages";
+import type { StoryImageMatch } from "@/lib/brief/storyImages";
 import { brief } from "@/components/brief/briefTheme";
 
 function formatDate(iso: string | null): string {
@@ -22,6 +22,7 @@ type StoryProps = {
   item: BriefItem;
   saved: boolean;
   onToggleSave: (pmid: string) => void;
+  image?: StoryImageMatch | null;
 };
 
 function MetaLine({ item }: { item: BriefItem }) {
@@ -144,22 +145,21 @@ function StoryActions({
 }
 
 function StoryImage({
-  item,
+  image,
   sizes,
   className,
   priority,
 }: {
-  item: BriefItem;
+  image: StoryImageMatch;
   sizes: string;
   className?: string;
   priority?: boolean;
 }) {
-  const src = briefStoryImageUrl(item.pmid, item.setting);
   return (
     <div className={`relative overflow-hidden bg-[#EFECE4] ${className ?? ""}`}>
       <Image
-        src={src}
-        alt=""
+        src={image.url}
+        alt={image.label}
         fill
         sizes={sizes}
         priority={priority}
@@ -169,18 +169,28 @@ function StoryImage({
   );
 }
 
-/** Full-width lead: large image left, story right (stacks on mobile). */
-export function LeadStory({ item, saved, onToggleSave }: StoryProps) {
+/** Full-width lead: image only when match confidence > 50%. */
+export function LeadStory({ item, saved, onToggleSave, image }: StoryProps) {
+  const showImage = Boolean(image);
+
   return (
     <article className={`pb-10 mb-10 border-b-2 ${brief.rule}`}>
       <p className={`${brief.kicker} mb-4`}>Lead story</p>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8 lg:items-start">
-        <StoryImage
-          item={item}
-          priority
-          sizes="(max-width: 1024px) 100vw, 520px"
-          className="aspect-[16/10] w-full lg:aspect-[5/4]"
-        />
+      <div
+        className={
+          showImage
+            ? "grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8 lg:items-start"
+            : ""
+        }
+      >
+        {showImage && image && (
+          <StoryImage
+            image={image}
+            priority
+            sizes="(max-width: 1024px) 100vw, 520px"
+            className="aspect-[16/10] w-full lg:aspect-[5/4]"
+          />
+        )}
         <div>
           <MetaLine item={item} />
           <h2
@@ -209,21 +219,24 @@ export function LeadStory({ item, saved, onToggleSave }: StoryProps) {
   );
 }
 
-/** Featured story with side image (Toronto Star style). */
+/** Featured story with side image (requires a confident match). */
 export function FeaturedStory({
   item,
   saved,
   onToggleSave,
+  image,
   bare = false,
 }: StoryProps & { bare?: boolean }) {
   return (
     <article className={`py-6 ${bare ? "" : `border-b ${brief.hairline}`}`}>
       <div className="grid gap-4 sm:grid-cols-[140px_1fr] sm:gap-5 items-start">
-        <StoryImage
-          item={item}
-          sizes="140px"
-          className="aspect-[4/3] w-full sm:aspect-square"
-        />
+        {image && (
+          <StoryImage
+            image={image}
+            sizes="140px"
+            className="aspect-[4/3] w-full sm:aspect-square"
+          />
+        )}
         <div className="min-w-0">
           <MetaLine item={item} />
           <h2
@@ -252,7 +265,7 @@ export function FeaturedStory({
   );
 }
 
-/** Compact text-only card for denser columns. */
+/** Compact text-only card for denser columns / weak image matches. */
 export function CompactStory({
   item,
   saved,
@@ -288,7 +301,10 @@ export function CompactStory({
   );
 }
 
-/** @deprecated Prefer FeaturedStory / CompactStory for the magazine layout. */
 export default function BriefArticleCard(props: StoryProps) {
-  return <FeaturedStory {...props} />;
+  return props.image ? (
+    <FeaturedStory {...props} />
+  ) : (
+    <CompactStory {...props} />
+  );
 }
