@@ -3,7 +3,10 @@ import { classifyArticleSetting } from "@/lib/classifySetting";
 import {
   DEFAULT_PENALTY_WEIGHTS,
   type PenaltyWeights,
-} from "@/lib/brief/feedSettings";
+} from "@/lib/brief/penaltyWeights";
+
+export type { PenaltyWeights };
+export { DEFAULT_PENALTY_WEIGHTS };
 
 const DEFAULT_SMALL_SAMPLE_MAX = 100;
 

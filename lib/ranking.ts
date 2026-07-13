@@ -1,7 +1,7 @@
 import "server-only";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { computeRelevancePenalty } from "@/lib/relevancePenalties";
-import type { PenaltyWeights } from "@/lib/brief/feedSettings";
+import type { PenaltyWeights } from "@/lib/brief/penaltyWeights";
 
 export type ScoringOptions = Partial<PenaltyWeights> & {
   smallSampleMax?: number;

@@ -1,12 +1,19 @@
 import type { RankingWeights } from "@/lib/ranking";
-import { DEFAULT_WEIGHTS } from "@/lib/ranking";
+import {
+  DEFAULT_PENALTY_WEIGHTS,
+  type PenaltyWeights,
+} from "@/lib/brief/penaltyWeights";
 
-/** Multiplicative down-rate factors for relevance penalties (0–1). */
-export type PenaltyWeights = {
-  veterinary: number;
-  singleCenterSmall: number;
-  descriptiveAmr: number;
-  minFactor: number;
+export type { PenaltyWeights };
+export { DEFAULT_PENALTY_WEIGHTS };
+
+/** Local copy of ranking defaults — avoids circular import with lib/ranking. */
+const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
+  stewardshipTitle: 60,
+  stewardshipAbstract: 15,
+  largeStudy: 20,
+  studyTypeBoost: true,
+  jifMultiplier: true,
 };
 
 export type BriefFeedConfig = {
@@ -24,13 +31,6 @@ export type BriefFeedSettings = RankingWeights &
     brief: BriefFeedConfig;
   };
 
-export const DEFAULT_PENALTY_WEIGHTS: PenaltyWeights = {
-  veterinary: 0.55,
-  singleCenterSmall: 0.65,
-  descriptiveAmr: 0.7,
-  minFactor: 0.28,
-};
-
 export const DEFAULT_BRIEF_CONFIG: BriefFeedConfig = {
   minPriority: 5,
   daysBack: 7,
@@ -40,7 +40,7 @@ export const DEFAULT_BRIEF_CONFIG: BriefFeedConfig = {
 };
 
 export const DEFAULT_FEED_SETTINGS: BriefFeedSettings = {
-  ...DEFAULT_WEIGHTS,
+  ...DEFAULT_RANKING_WEIGHTS,
   ...DEFAULT_PENALTY_WEIGHTS,
   brief: { ...DEFAULT_BRIEF_CONFIG },
 };
@@ -70,17 +70,17 @@ export function mergeFeedSettings(
   return {
     stewardshipTitle: num(
       stored.stewardshipTitle,
-      DEFAULT_WEIGHTS.stewardshipTitle,
+      DEFAULT_RANKING_WEIGHTS.stewardshipTitle,
       0,
       120
     ),
     stewardshipAbstract: num(
       stored.stewardshipAbstract,
-      DEFAULT_WEIGHTS.stewardshipAbstract,
+      DEFAULT_RANKING_WEIGHTS.stewardshipAbstract,
       0,
       50
     ),
-    largeStudy: num(stored.largeStudy, DEFAULT_WEIGHTS.largeStudy, 0, 60),
+    largeStudy: num(stored.largeStudy, DEFAULT_RANKING_WEIGHTS.largeStudy, 0, 60),
     studyTypeBoost: stored.studyTypeBoost !== false,
     jifMultiplier: stored.jifMultiplier !== false,
     veterinary: num(stored.veterinary, DEFAULT_PENALTY_WEIGHTS.veterinary, 0.1, 1),
