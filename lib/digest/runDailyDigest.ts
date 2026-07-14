@@ -8,7 +8,7 @@ import {
   getDigestRecipients,
 } from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
-import type { BriefDigestResult } from "@/lib/digest/runBriefDigest";
+import { runBriefDigest, type BriefDigestResult } from "@/lib/digest/runBriefDigest";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { GET as runPubmedIngest } from "@/app/api/ingest/route";
@@ -215,18 +215,13 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
       })
     : { items: [] as Awaited<ReturnType<typeof getDigestItems>>["items"] };
 
-  const emailPubmed = await sendSourceDigest({
-    source: "pubmed",
-    topicId,
-    since,
-    minRelevancePercent,
-    hoursBack,
-    recipients,
-  });
+  // Legacy ASP-format emails stay off unless DIGEST_SEND_LEGACY=1.
+  // The morning subscriber email is The Stewardship Brief (runBriefDigest below).
+  const sendLegacy = process.env.DIGEST_SEND_LEGACY === "1";
 
-  const emailOpenAlex = isOpenAlexIngestEnabled()
+  const emailPubmed = sendLegacy
     ? await sendSourceDigest({
-        source: "openalex",
+        source: "pubmed",
         topicId,
         since,
         minRelevancePercent,
@@ -234,20 +229,45 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
         recipients,
       })
     : {
-        source: "openalex" as const,
+        source: "pubmed" as const,
         sent: false,
         recipients,
-        skippedReason: "OpenAlex ingest paused",
-        itemCount: 0,
+        skippedReason: "Replaced by Stewardship Brief email",
+        itemCount: pubmedItems.items.length,
       };
 
-  // Brief email is sent by /api/cron/brief-digest (5 min later) so ingest can finish first.
-  const briefEmail: BriefDigestResult = {
-    sent: false,
-    recipients: [],
-    itemCount: 0,
-    skippedReason: "Sent by /api/cron/brief-digest cron",
-  };
+  const emailOpenAlex =
+    sendLegacy && isOpenAlexIngestEnabled()
+      ? await sendSourceDigest({
+          source: "openalex",
+          topicId,
+          since,
+          minRelevancePercent,
+          hoursBack,
+          recipients,
+        })
+      : {
+          source: "openalex" as const,
+          sent: false,
+          recipients,
+          skippedReason: isOpenAlexIngestEnabled()
+            ? "Replaced by Stewardship Brief email"
+            : "OpenAlex ingest paused",
+          itemCount: openalexItems.items.length,
+        };
+
+  let briefEmail: BriefDigestResult;
+  try {
+    briefEmail = await runBriefDigest();
+  } catch (err) {
+    briefEmail = {
+      sent: false,
+      recipients: [],
+      itemCount: 0,
+      skippedReason:
+        err instanceof Error ? err.message : "Brief digest failed",
+    };
+  }
 
   return {
     ok: true,

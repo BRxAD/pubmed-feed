@@ -2,7 +2,10 @@ import "server-only";
 import { getBriefItems } from "@/lib/brief/items";
 import { buildBriefDigestEmail } from "@/lib/digest/briefEmailFormat";
 import { getBriefSubscribers } from "@/lib/digest/briefSubscribers";
-import { getBriefDigestFromAddress } from "@/lib/digest/config";
+import {
+  getBriefDigestFromAddress,
+  getDigestRecipients,
+} from "@/lib/digest/config";
 import { sendDigestEmailToEach } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 
@@ -20,6 +23,15 @@ function isBriefDigestEnabled(): boolean {
   const raw = process.env.BRIEF_DIGEST_ENABLED?.trim().toLowerCase();
   if (raw === "0" || raw === "false" || raw === "no") return false;
   return true;
+}
+
+/** Subscribers + configured digest recipients (deduped). */
+export async function getBriefDigestRecipients(): Promise<string[]> {
+  const [subscribers, admins] = await Promise.all([
+    getBriefSubscribers(),
+    Promise.resolve(getDigestRecipients()),
+  ]);
+  return [...new Set([...subscribers, ...admins])];
 }
 
 export async function runBriefDigest(): Promise<BriefDigestResult> {
@@ -44,7 +56,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
   });
 
   const { items } = await getBriefItems({ maxItems: 12, skipHeadlines: false });
-  const subscribers = await getBriefSubscribers();
+  const recipients = await getBriefDigestRecipients();
 
   const { subject, html, text } = buildBriefDigestEmail({
     items,
@@ -53,12 +65,12 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     logoUrl,
   });
 
-  if (subscribers.length === 0) {
+  if (recipients.length === 0) {
     return {
       sent: false,
       recipients: [],
       itemCount: items.length,
-      skippedReason: "No brief subscribers yet",
+      skippedReason: "No brief subscribers or digest recipients configured",
     };
   }
 
@@ -69,14 +81,14 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
   if (items.length === 0 && !sendEmpty) {
     return {
       sent: false,
-      recipients: subscribers,
+      recipients,
       itemCount: 0,
       skippedReason: "No brief items today",
     };
   }
 
   const result = await sendDigestEmailToEach({
-    recipients: subscribers,
+    recipients,
     subject,
     html,
     text,
@@ -85,7 +97,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
 
   return {
     sent: result.sent > 0,
-    recipients: subscribers,
+    recipients,
     itemCount: items.length,
     messageId: result.lastId,
     sentCount: result.sent,

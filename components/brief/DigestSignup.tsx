@@ -20,10 +20,21 @@ export default function DigestSignup() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        welcomeSent?: boolean;
+        warning?: string;
+      };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Subscribe failed");
       setStatus("ok");
-      setMessage("You are on the list. Look for the 7am brief.");
+      setMessage(
+        data.warning
+          ? data.warning
+          : data.welcomeSent
+            ? "You’re on the list — check your inbox for a confirmation, and look for the 7am brief."
+            : "You are on the list. Look for the 7am brief."
+      );
       setEmail("");
     } catch (err) {
       setStatus("error");

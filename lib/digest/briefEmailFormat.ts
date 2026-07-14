@@ -42,13 +42,13 @@ export function buildBriefDigestEmail(options: {
     "THE STEWARDSHIP BRIEF",
     dateLabel,
     "",
-    items.length > 0
-      ? `${pluralCount(items.length, "study", "studies")} in today's brief.`
-      : "No new high-priority studies today.",
-    "",
     `Read online: ${briefUrl}`,
     "",
   ];
+
+  if (items.length === 0) {
+    textParts.push("No new high-priority studies today.", "");
+  }
 
   const logoBlock = logoUrl
     ? `<img src="${escapeHtml(logoUrl)}" alt="The Stewardship Brief" width="560" style="display:block;max-width:100%;height:auto;margin:0 auto 12px" />`
@@ -59,13 +59,14 @@ export function buildBriefDigestEmail(options: {
     logoBlock,
     `<p style="margin:0;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:${olive}">${escapeHtml(dateLabel)}</p>`,
     `</div>`,
-    `<p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;color:${plum};margin:20px 0 8px">`,
-    items.length > 0
-      ? `${pluralCount(items.length, "study", "studies")} worth your attention this morning.`
-      : "A quiet morning in the stewardship literature.",
-    `</p>`,
-    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:0 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open today's brief →</a></p>`,
+    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:20px 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open today's brief →</a></p>`,
   ];
+
+  if (items.length === 0) {
+    htmlParts.push(
+      `<p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;color:${plum};margin:0 0 24px">A quiet morning in the stewardship literature.</p>`
+    );
+  }
 
   for (const item of items) {
     const meta = [formatDateLabel(item.date), item.studyLabel]

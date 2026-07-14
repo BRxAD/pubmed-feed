@@ -1,7 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { getBriefDigestFromAddress } from "@/lib/digest/config";
+import { sendDigestEmail } from "@/lib/digest/sendEmail";
+import { publicAppBaseUrl } from "@/lib/internalFetch";
+import { briefPalette } from "@/components/brief/briefTheme";
 
 export const runtime = "nodejs";
+
+function buildWelcomeEmail(email: string): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { plum, olive, steel, paper } = briefPalette;
+  const briefUrl = `${publicAppBaseUrl()}/stewardshipbrief`;
+  const subject = "You're subscribed to The Stewardship Brief";
+  const text = [
+    "You're on The Stewardship Brief list.",
+    "You'll get the morning email around 7am Eastern with today's top headlines.",
+    "",
+    `Read online anytime: ${briefUrl}`,
+  ].join("\n");
+
+  const html = `<!DOCTYPE html><html><body style="max-width:560px;margin:0 auto;padding:28px 20px;background:${paper};color:${plum};font-family:system-ui,-apple-system,sans-serif">
+    <p style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:600;color:${plum}">The Stewardship Brief</p>
+    <p style="margin:0 0 20px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Morning email confirmed</p>
+    <p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;margin:0 0 16px">
+      You’re on the list. Look for the daily brief around 7am Eastern — headlines and one bottom line each.
+    </p>
+    <p style="margin:0 0 24px;font-size:14px">
+      <a href="${briefUrl}" style="color:${steel};text-decoration:none;font-weight:500">Open today’s brief →</a>
+    </p>
+    <p style="margin:0;font-size:11px;color:${olive}">Signed up as ${email}</p>
+  </body></html>`;
+
+  return { subject, html, text };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +70,31 @@ export async function POST(request: NextRequest) {
       throw new Error(error.message);
     }
 
-    return NextResponse.json({ ok: true });
+    let welcomeSent = false;
+    let welcomeWarning: string | undefined;
+    try {
+      const welcome = buildWelcomeEmail(email);
+      await sendDigestEmail({
+        to: [email],
+        subject: welcome.subject,
+        html: welcome.html,
+        text: welcome.text,
+        from: getBriefDigestFromAddress(),
+      });
+      welcomeSent = true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[brief/subscribe] welcome email failed:", msg);
+      welcomeWarning =
+        "Saved your signup, but the confirmation email could not be sent. " +
+        "If you use Resend’s onboarding address, it can only deliver to your Resend account email until a domain is verified.";
+    }
+
+    return NextResponse.json({
+      ok: true,
+      welcomeSent,
+      ...(welcomeWarning ? { warning: welcomeWarning } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     if (message.includes("SUPABASE")) {
