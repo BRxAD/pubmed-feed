@@ -100,6 +100,12 @@ export async function getBriefItems(options?: {
   minItems?: number;
   /** Cap for lookback expansion (default 365, max 730). */
   maxLookbackDays?: number;
+  /**
+   * When set, keep only items whose article date (release/pub) falls within
+   * this many days — for “past 12 months” Top 10. Falls back to created_at
+   * when article date is missing.
+   */
+  articleDateWithinDays?: number;
 }): Promise<BriefFeedResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -362,7 +368,21 @@ export async function getBriefItems(options?: {
     return tB - tA;
   });
 
-  const items = candidates.slice(0, maxItems);
+  let filtered = candidates;
+  const articleWindow = options?.articleDateWithinDays;
+  if (articleWindow != null && articleWindow > 0) {
+    const cutoff = Date.now() - articleWindow * 24 * 60 * 60 * 1000;
+    filtered = candidates.filter((item) => {
+      const raw = item.date ?? item.createdAt;
+      const t = new Date(
+        raw.includes("T") ? raw : `${raw.slice(0, 10)}T12:00:00`
+      ).getTime();
+      if (Number.isNaN(t)) return true;
+      return t >= cutoff;
+    });
+  }
+
+  const items = filtered.slice(0, maxItems);
 
   if (
     minItems > 0 &&

@@ -47,7 +47,8 @@ const HARD_MAX_ARTICLES = 500;
  * instead of sequential processing (~4 s per article).
  */
 const DEFAULT_MAX_SUMMARIES = 5;
-const HARD_MAX_SUMMARIES = 100;
+/** Raised so a year backfill can summarize in fewer passes. */
+const HARD_MAX_SUMMARIES = 250;
 
 /** How many articles to summarize in parallel. */
 const SUMMARIZE_CONCURRENCY = 5;
@@ -114,7 +115,8 @@ async function getParams(request: NextRequest): Promise<IngestParams> {
     const topicId = source.topicId?.trim() || null;
     const topicName = source.topicName?.trim() || null;
     const daysBackRaw = source.daysBack ? parseInteger(source.daysBack, 0) : null;
-    const daysBack = daysBackRaw && daysBackRaw > 0 ? Math.min(365, daysBackRaw) : null;
+    const daysBack =
+      daysBackRaw && daysBackRaw > 0 ? Math.min(400, daysBackRaw) : null;
     const maxArticles = Math.min(
       HARD_MAX_ARTICLES,
       Math.max(1, parseInteger(source.maxArticles ?? source.limit, DEFAULT_MAX_ARTICLES))

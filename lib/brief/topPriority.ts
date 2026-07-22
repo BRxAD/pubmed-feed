@@ -19,20 +19,21 @@ export type TopPriorityItem = Pick<
 >;
 
 /**
- * Top 10 PubMed brief-eligible studies from the past 12 months.
- * Honors the active setting capsule (All / Hospital / Community / …).
- * Ranked by effective priority (admin when set), then relevance.
+ * Top 10 PubMed brief-eligible studies from the past 12 months (article date).
+ * Honors the active setting capsule. Loads a wide created_at window so late
+ * ingest of older publications still qualifies when the paper date is in-range.
  */
 export async function getTopPriorityYearItems(
   setting: BriefSettingFilter = ""
 ): Promise<TopPriorityItem[]> {
   const result = await getBriefItems({
-    daysBack: 365,
-    maxItems: 200,
+    daysBack: 400,
+    maxItems: 300,
     setting,
     skipHeadlines: true,
     minItems: 10,
     maxLookbackDays: 730,
+    articleDateWithinDays: 365,
   });
 
   const ranked = [...result.items].sort((a, b) => {

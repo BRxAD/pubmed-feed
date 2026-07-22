@@ -79,9 +79,9 @@ export async function setTopicWatermark(
 
 /**
  * How many days back to search when there is no prior watermark (first run).
- * 30 days gives a reasonable cold-start coverage without hitting rate limits.
+ * 365 days so The Stewardship Brief “past 12 months” has a full year of intake.
  */
-const DEFAULT_INITIAL_DAYS_BACK = 30;
+export const DEFAULT_INITIAL_DAYS_BACK = 365;
 
 /**
  * Overlap before the last watermark to catch any records that arrived late
@@ -92,7 +92,7 @@ const OVERLAP_DAYS = 1;
 /**
  * Compute the CRDT date window for this ingest run.
  *
- * - Cold start (no watermark): mindate = 30 days ago, maxdate = today
+ * - Cold start (no watermark): mindate = 365 days ago, maxdate = today
  * - Warm run (watermark exists): mindate = watermark − 1 day, maxdate = today
  *
  * The 1-day overlap handles PubMed's occasional late-arriving records.
