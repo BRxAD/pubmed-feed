@@ -300,40 +300,32 @@ async function runDailyRun(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Main feed: stewardship WITHOUT "artificial intelligence"
+  // Main feed only — AI stewardship topic consolidated into The Stewardship Brief
   const mainTopic = allTopics.find(
     (r: { name?: string | null }) =>
       !String(r.name ?? "").toLowerCase().includes("artificial intelligence")
   ) as TopicRow | undefined;
 
-  // AI feed: stewardship WITH "artificial intelligence"
-  const aiTopic = allTopics.find(
-    (r: { name?: string | null }) =>
-      String(r.name ?? "").toLowerCase().includes("artificial intelligence")
-  ) as TopicRow | undefined;
-
   const startedAt = new Date().toISOString();
   const results: RunResult[] = [];
 
-  if (mainTopic) {
-    console.log("[daily-run] Starting main feed:", mainTopic.name);
-    const mainResult = await runOneTopic(supabase, mainTopic, daysBack, limit, maxSummaries);
-    results.push(mainResult);
-    console.log("[daily-run] Main feed done:", mainResult);
-    // Delay between feeds to respect NCBI rate limits
-    if (aiTopic) await delay(EFETCH_CHUNK_DELAY_MS);
+  if (!mainTopic) {
+    return NextResponse.json(
+      { ok: false, error: "Main stewardship topic not found" },
+      { status: 404 }
+    );
   }
 
-  if (aiTopic) {
-    console.log("[daily-run] Starting AI feed:", aiTopic.name);
-    const aiResult = await runOneTopic(supabase, aiTopic, daysBack, limit, maxSummaries);
-    results.push(aiResult);
-    console.log("[daily-run] AI feed done:", aiResult);
-  }
-
-  if (!mainTopic && !aiTopic) {
-    return NextResponse.json({ ok: false, error: "Neither main nor AI topic found" }, { status: 404 });
-  }
+  console.log("[daily-run] Starting main feed:", mainTopic.name);
+  const mainResult = await runOneTopic(
+    supabase,
+    mainTopic,
+    daysBack,
+    limit,
+    maxSummaries
+  );
+  results.push(mainResult);
+  console.log("[daily-run] Main feed done:", mainResult);
 
   const totalErrors = results.flatMap((r) => r.errors);
 
@@ -342,6 +334,7 @@ async function runDailyRun(request: NextRequest): Promise<NextResponse> {
     startedAt,
     completedAt: new Date().toISOString(),
     params: { daysBack, limit, maxSummaries },
+    note: "AI stewardship feed consolidated into main topic",
     results,
     totalErrors: totalErrors.length > 0 ? totalErrors : undefined,
   });

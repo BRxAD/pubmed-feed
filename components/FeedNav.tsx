@@ -1,6 +1,6 @@
 /**
- * Tab navigation bar shared across all feed pages.
- * Add new tabs to FEED_TABS as new feeds are created.
+ * Tab navigation bar shared across feed pages.
+ * The Stewardship Brief is the primary product surface.
  */
 
 type FeedTab = {
@@ -15,19 +15,13 @@ const FEED_TABS: FeedTab[] = [
     id: "brief",
     label: "The Brief",
     href: "/",
-    description: "Daily priority briefing — PubMed only",
+    description: "Daily priority briefing — PubMed",
   },
   {
     id: "main",
-    label: "StewardFeed",
+    label: "Full feed",
     href: "/feed",
-    description: "Antimicrobial stewardship",
-  },
-  {
-    id: "ai",
-    label: "StewardAI",
-    href: "/feed/ai-stewardship",
-    description: "Stewardship + AI",
+    description: "Antimicrobial stewardship (all summaries)",
   },
 ];
 
@@ -40,8 +34,6 @@ export default function FeedNav({ activeId }: { activeId: string }) {
       {FEED_TABS.map((tab) => {
         const isActive = tab.id === activeId;
         return (
-          // Use <a> (not Next.js Link) so navigating to the active tab forces a full reload,
-          // which acts as a page refresh.
           <a
             key={tab.id}
             href={tab.href}

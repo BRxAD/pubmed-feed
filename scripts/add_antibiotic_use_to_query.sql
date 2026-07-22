@@ -1,5 +1,7 @@
 -- Add "antibiotic use" to the main PubMed + OpenAlex topic queries.
--- Run in Supabase SQL Editor.
+-- AI papers still appear when they match these stewardship / antibiotic-use terms.
+-- For full AI-feed consolidation (copy old summaries + retire AI topic), also run:
+--   scripts/consolidate_ai_into_main.sql
 
 update public.topics
 set
