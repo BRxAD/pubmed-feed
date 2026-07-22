@@ -338,7 +338,7 @@ export default function SettingsDashboard({ initialSecret }: Props) {
           {status === "saving" ? "Saving…" : "Save settings"}
         </button>
         <Link
-          href="/stewardshipbrief"
+          href="/"
           className={`${brief.sans} text-sm ${brief.accent} ${brief.accentHover}`}
         >
           ← Back to brief

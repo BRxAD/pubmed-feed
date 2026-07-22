@@ -14,7 +14,7 @@ const FEED_TABS: FeedTab[] = [
   {
     id: "brief",
     label: "The Brief",
-    href: "/stewardshipbrief",
+    href: "/",
     description: "Daily priority briefing — PubMed only",
   },
   {

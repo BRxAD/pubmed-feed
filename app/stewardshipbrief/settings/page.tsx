@@ -32,7 +32,7 @@ export default async function BriefSettingsPage({
             daily brief.
           </p>
           <Link
-            href="/stewardshipbrief"
+            href="/"
             className={`mt-4 inline-block ${brief.sans} text-sm ${brief.accent}`}
           >
             ← The Stewardship Brief

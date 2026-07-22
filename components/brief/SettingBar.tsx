@@ -12,8 +12,8 @@ export default function SettingBar({ active }: { active: BriefSettingFilter }) {
       {BRIEF_SETTING_OPTIONS.map((opt) => {
         const href =
           opt.value === ""
-            ? "/stewardshipbrief"
-            : `/stewardshipbrief?setting=${encodeURIComponent(opt.value)}`;
+            ? "/"
+            : `/?setting=${encodeURIComponent(opt.value)}`;
         const isActive = active === opt.value;
         return (
           <a

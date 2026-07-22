@@ -45,7 +45,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
   }
 
   const base = publicAppBaseUrl();
-  const briefUrl = `${base}/stewardshipbrief`;
+  const briefUrl = base;
   const logoUrl = `${base}/stewardship-brief-logo.png`;
 
   const dateLabel = new Date().toLocaleDateString("en-US", {

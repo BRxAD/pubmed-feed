@@ -30,7 +30,7 @@ export default function Masthead({ dateLabel }: Props) {
             aria-label="Section"
           >
             <a
-              href="/stewardshipbrief"
+              href="/"
               className={`${brief.accent} underline underline-offset-4 decoration-[#2A79A7]/40`}
             >
               Today&apos;s brief

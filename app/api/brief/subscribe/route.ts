@@ -13,7 +13,7 @@ function buildWelcomeEmail(email: string): {
   text: string;
 } {
   const { plum, olive, steel, paper } = briefPalette;
-  const briefUrl = `${publicAppBaseUrl()}/stewardshipbrief`;
+  const briefUrl = publicAppBaseUrl();
   const subject = "You're subscribed to The Stewardship Brief";
   const text = [
     "You're on The Stewardship Brief list.",
