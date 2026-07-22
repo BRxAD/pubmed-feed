@@ -120,6 +120,7 @@ export default function BriefPage({
               >
                 No studies matched this filter yet. Try another setting, or check
                 back after the next ingest.
+              </p>
             ) : (
               <>
                 {lead && (
