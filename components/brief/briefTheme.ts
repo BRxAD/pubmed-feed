@@ -25,7 +25,7 @@ export const brief = {
     "brief-sans text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-[#72705B]",
   serif: "brief-serif",
   sans: "brief-sans",
-  deck: "brief-serif text-[#1C0B19]/85",
+  deck: "brief-sans text-[#1C0B19]/90",
   action:
     "brief-sans text-[0.8125rem] font-medium tracking-wide text-[#2A79A7] hover:text-[#1C0B19] transition-colors",
   detailPanel: "rounded-sm bg-[#EFECE4]/90 border border-[#D8D4C8]",

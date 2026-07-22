@@ -28,6 +28,9 @@ export const metadata: Metadata = {
   title: "The Stewardship Brief",
   description:
     "Daily briefing of high-priority antimicrobial stewardship research.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

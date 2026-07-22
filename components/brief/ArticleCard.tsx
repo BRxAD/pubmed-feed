@@ -222,7 +222,7 @@ export function LeadStory({
           </h2>
           {item.bottomLine && (
             <p
-              className={`mt-4 ${brief.deck} italic leading-relaxed text-lg sm:text-xl`}
+              className={`mt-4 ${brief.deck} text-base sm:text-[1.0625rem] leading-relaxed`}
             >
               {item.bottomLine}
             </p>
@@ -262,7 +262,7 @@ export function FeaturedStory({
         <div className="min-w-0">
           <MetaLine item={item} />
           <h2
-            className={`${brief.serif} mt-2 text-xl sm:text-[1.375rem] font-bold leading-snug tracking-[-0.01em]`}
+            className={`${brief.serif} mt-2 text-xl font-bold leading-snug tracking-[-0.01em]`}
           >
             <a
               href={item.pubmedUrl}
@@ -275,7 +275,7 @@ export function FeaturedStory({
           </h2>
           {item.bottomLine && (
             <p
-              className={`mt-2.5 ${brief.deck} italic text-[0.9375rem] leading-relaxed`}
+              className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}
             >
               {item.bottomLine}
             </p>
@@ -299,7 +299,7 @@ export function CompactStory({
     >
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-2 text-base sm:text-lg font-bold leading-snug`}
+        className={`${brief.serif} mt-2 text-xl font-bold leading-snug tracking-[-0.01em]`}
       >
         <a
           href={item.pubmedUrl}
@@ -311,9 +311,7 @@ export function CompactStory({
         </a>
       </h2>
       {item.bottomLine && (
-        <p
-          className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
-        >
+        <p className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
           {item.bottomLine}
         </p>
       )}
