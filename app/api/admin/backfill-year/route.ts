@@ -21,8 +21,26 @@ export async function GET(request: NextRequest) {
     authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const secret = secretParam ?? bearer;
 
-  if (!expected?.trim() || secret !== expected) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!expected?.trim()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "CRON_SECRET is not set on this deployment. Add it in Vercel → Environment Variables, then Redeploy.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!secret || secret !== expected) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Unauthorized — secret does not match CRON_SECRET on this deployment. In Vercel → Settings → Environment Variables, edit CRON_SECRET, save, Redeploy, then use that exact value in the URL.",
+      },
+      { status: 401 }
+    );
   }
 
   const maxSummaries = Math.min(
