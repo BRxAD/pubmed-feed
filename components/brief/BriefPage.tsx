@@ -118,16 +118,8 @@ export default function BriefPage({
               <p
                 className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
               >
-                No studies matched this filter in the last week. Try another
-                setting or check the{" "}
-                <a
-                  href="/feed?source=pubmed"
-                  className={`${brief.accent} underline`}
-                >
-                  PubMed feed
-                </a>
-                .
-              </p>
+                No studies matched this filter yet. Try another setting, or check
+                back after the next ingest.
             ) : (
               <>
                 {lead && (

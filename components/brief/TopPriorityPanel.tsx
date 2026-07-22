@@ -14,7 +14,7 @@ export default function TopPriorityPanel({
         id="top10-heading"
         className={`${brief.kicker} mb-4 pb-2 border-b ${brief.hairline}`}
       >
-        Top 10 · past year
+        Top 10 · past 12 months
       </h2>
       {items.length === 0 ? (
         <p className={`${brief.sans} text-sm ${brief.muted}`}>

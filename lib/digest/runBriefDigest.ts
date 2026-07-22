@@ -1,6 +1,10 @@
 import "server-only";
 import { getBriefItems } from "@/lib/brief/items";
 import { buildBriefDigestEmail } from "@/lib/digest/briefEmailFormat";
+import {
+  getPreviouslyEmailedPmids,
+  recordBriefEmailSends,
+} from "@/lib/digest/briefEmailSends";
 import { getBriefSubscribers } from "@/lib/digest/briefSubscribers";
 import {
   getBriefDigestFromAddress,
@@ -17,6 +21,7 @@ export type BriefDigestResult = {
   skippedReason?: string;
   sentCount?: number;
   failedRecipients?: string[];
+  skippedDuplicates?: number;
 };
 
 function isBriefDigestEnabled(): boolean {
@@ -55,7 +60,19 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     year: "numeric",
   });
 
-  const { items } = await getBriefItems({ maxItems: 12, skipHeadlines: false });
+  const { items: rawItems } = await getBriefItems({
+    maxItems: 40,
+    skipHeadlines: false,
+    daysBack: 14,
+  });
+  const previouslySent = await getPreviouslyEmailedPmids();
+  const skippedDuplicates = rawItems.filter((i) =>
+    previouslySent.has(i.pmid)
+  ).length;
+  const items = rawItems
+    .filter((i) => !previouslySent.has(i.pmid))
+    .slice(0, 12);
+
   const recipients = await getBriefDigestRecipients();
 
   const { subject, html, text } = buildBriefDigestEmail({
@@ -71,6 +88,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       recipients: [],
       itemCount: items.length,
       skippedReason: "No brief subscribers or digest recipients configured",
+      skippedDuplicates,
     };
   }
 
@@ -83,7 +101,11 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       sent: false,
       recipients,
       itemCount: 0,
-      skippedReason: "No brief items today",
+      skippedReason:
+        skippedDuplicates > 0
+          ? "No new brief items (all recent items already emailed)"
+          : "No brief items today",
+      skippedDuplicates,
     };
   }
 
@@ -95,6 +117,10 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     from: getBriefDigestFromAddress(),
   });
 
+  if (result.sent > 0 && items.length > 0) {
+    await recordBriefEmailSends(items.map((i) => i.pmid));
+  }
+
   return {
     sent: result.sent > 0,
     recipients,
@@ -102,5 +128,6 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     messageId: result.lastId,
     sentCount: result.sent,
     failedRecipients: result.failed.length > 0 ? result.failed : undefined,
+    skippedDuplicates,
   };
 }

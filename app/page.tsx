@@ -16,8 +16,13 @@ export default async function HomePage({
 
   try {
     const [brief, topPriority] = await Promise.all([
-      getBriefItems({ setting }),
-      getTopPriorityYearItems(),
+      getBriefItems({
+        setting,
+        minItems: 10,
+        maxLookbackDays: 730,
+        maxItems: 50,
+      }),
+      getTopPriorityYearItems(setting),
     ]);
     const images = await assignStoryImages(brief.items);
 

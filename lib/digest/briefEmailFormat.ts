@@ -35,7 +35,7 @@ export function buildBriefDigestEmail(options: {
 
   const subject =
     items.length > 0
-      ? `The Stewardship Brief — ${pluralCount(items.length, "headline", "headlines")} for ${dateLabel}`
+      ? `The Stewardship Brief — ${pluralCount(items.length, "headline", "headlines")} · ${dateLabel}`
       : `The Stewardship Brief — ${dateLabel}`;
 
   const textParts = [
@@ -47,7 +47,7 @@ export function buildBriefDigestEmail(options: {
   ];
 
   if (items.length === 0) {
-    textParts.push("No new high-priority studies today.", "");
+    textParts.push("No new high-priority studies in this brief.", "");
   }
 
   const logoBlock = logoUrl
@@ -59,19 +59,18 @@ export function buildBriefDigestEmail(options: {
     logoBlock,
     `<p style="margin:0;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:${olive}">${escapeHtml(dateLabel)}</p>`,
     `</div>`,
-    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:20px 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open today's brief →</a></p>`,
+    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:20px 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open the daily brief →</a></p>`,
   ];
 
   if (items.length === 0) {
     htmlParts.push(
-      `<p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;color:${plum};margin:0 0 24px">A quiet morning in the stewardship literature.</p>`
+      `<p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;color:${plum};margin:0 0 24px">A quiet stretch in the stewardship literature.</p>`
     );
   }
 
   for (const item of items) {
-    const meta = [formatDateLabel(item.date), item.studyLabel]
-      .filter(Boolean)
-      .join(" · ");
+    // Date only — no study taxonomy / classification labels in email
+    const meta = formatDateLabel(item.date);
 
     textParts.push(
       item.headline,
@@ -97,7 +96,7 @@ export function buildBriefDigestEmail(options: {
     `<div style="margin-top:32px;padding:16px;background:${paperWarm};border:1px solid ${hairline};text-align:center">
       <a href="${escapeHtml(briefUrl)}" style="font-family:system-ui,sans-serif;font-size:14px;font-weight:500;color:${steel};text-decoration:none">View full brief with images →</a>
     </div>`,
-    `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center">The Stewardship Brief · PubMed antimicrobial stewardship · Automated morning digest</p>`
+    `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center">The Stewardship Brief · Daily antimicrobial stewardship digest</p>`
   );
 
   return {

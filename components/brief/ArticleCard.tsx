@@ -116,7 +116,7 @@ function StoryActions({
             className={`${brief.action} inline-flex items-center gap-1.5`}
             aria-expanded={expanded}
           >
-            {expanded ? "Hide detail" : "Methods & results"}
+            {expanded ? "Hide detail" : "More detail"}
             <span
               className={`inline-block text-[0.65rem] transition-transform ${expanded ? "rotate-180" : ""}`}
               aria-hidden
@@ -138,7 +138,7 @@ function StoryActions({
           rel="noopener noreferrer"
           className={brief.action}
         >
-          PubMed →
+          Read article
         </a>
       </div>
       {expanded && showDetail && <DetailPanel item={item} />}
@@ -275,7 +275,7 @@ export function FeaturedStory({
           </h2>
           {item.bottomLine && (
             <p
-              className={`mt-2.5 ${brief.deck} italic text-[0.9375rem] leading-relaxed line-clamp-3`}
+              className={`mt-2.5 ${brief.deck} italic text-[0.9375rem] leading-relaxed`}
             >
               {item.bottomLine}
             </p>
@@ -312,7 +312,7 @@ export function CompactStory({
       </h2>
       {item.bottomLine && (
         <p
-          className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted} line-clamp-2`}
+          className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
         >
           {item.bottomLine}
         </p>

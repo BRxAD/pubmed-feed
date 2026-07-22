@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 import { brief } from "@/components/brief/briefTheme";
 
@@ -25,23 +23,6 @@ export default function Masthead({ dateLabel }: Props) {
             <p className={`${brief.sans} text-sm ${brief.muted}`}>{dateLabel}</p>
             <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />
           </div>
-          <nav
-            className={`mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 ${brief.sans} text-xs uppercase tracking-[0.12em]`}
-            aria-label="Section"
-          >
-            <a
-              href="/"
-              className={`${brief.accent} underline underline-offset-4 decoration-[#2A79A7]/40`}
-            >
-              Today&apos;s brief
-            </a>
-            <a
-              href="/feed?source=pubmed"
-              className={`${brief.muted} ${brief.accentHover}`}
-            >
-              Full feed
-            </a>
-          </nav>
         </div>
       </div>
       <div className={`mx-auto max-w-6xl border-b-2 ${brief.rule}`} />

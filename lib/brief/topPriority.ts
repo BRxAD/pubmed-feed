@@ -1,5 +1,9 @@
 import "server-only";
-import { getBriefItems, type BriefItem } from "@/lib/brief/items";
+import {
+  getBriefItems,
+  type BriefItem,
+} from "@/lib/brief/items";
+import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
 
 export type TopPriorityItem = Pick<
   BriefItem,
@@ -16,18 +20,22 @@ export type TopPriorityItem = Pick<
 
 /**
  * Top 10 PubMed brief-eligible studies from the past 12 months.
+ * Honors the active setting capsule (All / Hospital / Community / …).
  * Ranked by effective priority (admin when set), then relevance.
  */
-export async function getTopPriorityYearItems(): Promise<TopPriorityItem[]> {
+export async function getTopPriorityYearItems(
+  setting: BriefSettingFilter = ""
+): Promise<TopPriorityItem[]> {
   const result = await getBriefItems({
     daysBack: 365,
     maxItems: 200,
-    setting: "",
+    setting,
     skipHeadlines: true,
+    minItems: 10,
+    maxLookbackDays: 730,
   });
 
   const ranked = [...result.items].sort((a, b) => {
-    // Admin-rated items sort ahead of predicted-only when priorities equal
     const adminA = a.adminPriority != null ? 1 : 0;
     const adminB = b.adminPriority != null ? 1 : 0;
     if (adminB !== adminA) return adminB - adminA;

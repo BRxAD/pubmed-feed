@@ -32,8 +32,8 @@ export default function DigestSignup() {
         data.warning
           ? data.warning
           : data.welcomeSent
-            ? "You’re on the list — check your inbox for a confirmation, and look for the 7am brief."
-            : "You are on the list. Look for the 7am brief."
+            ? "You’re on the list — check your inbox for a confirmation, and look for the daily brief."
+            : "You are on the list. Look for the daily brief."
       );
       setEmail("");
     } catch (err) {
@@ -51,7 +51,7 @@ export default function DigestSignup() {
         Morning email
       </h2>
       <p className={`${brief.sans} text-sm leading-[1.55] ${brief.ink} mb-4`}>
-        Get the 7am email — top headlines, one bottom line each.
+        Get the daily email — top headlines, one bottom line each.
       </p>
       <form onSubmit={onSubmit} className="space-y-3">
         <label htmlFor="brief-email" className="sr-only">

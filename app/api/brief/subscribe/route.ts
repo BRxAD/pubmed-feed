@@ -17,7 +17,7 @@ function buildWelcomeEmail(email: string): {
   const subject = "You're subscribed to The Stewardship Brief";
   const text = [
     "You're on The Stewardship Brief list.",
-    "You'll get the morning email around 7am Eastern with today's top headlines.",
+    "You'll get the daily email with top headlines and one bottom line each.",
     "",
     `Read online anytime: ${briefUrl}`,
   ].join("\n");
@@ -26,7 +26,7 @@ function buildWelcomeEmail(email: string): {
     <p style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:600;color:${plum}">The Stewardship Brief</p>
     <p style="margin:0 0 20px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Morning email confirmed</p>
     <p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;margin:0 0 16px">
-      You’re on the list. Look for the daily brief around 7am Eastern — headlines and one bottom line each.
+      You’re on the list. Look for the daily brief — headlines and one bottom line each.
     </p>
     <p style="margin:0 0 24px;font-size:14px">
       <a href="${briefUrl}" style="color:${steel};text-decoration:none;font-weight:500">Open today’s brief →</a>

@@ -7,7 +7,9 @@ export const maxDuration = 120;
 /**
  * Send The Stewardship Brief to all brief_subscribers.
  *
- * Scheduled daily at 7am US Eastern (11:00 UTC) via Vercel Cron.
+ * Sends The Stewardship Brief to all brief_subscribers.
+ * Runs after daily ingest (same cron schedule as daily-digest, ~11:00 UTC).
+ *
  * Can also be triggered manually:
  *   GET /api/cron/brief-digest?secret=YOUR_CRON_SECRET
  *   Authorization: Bearer YOUR_CRON_SECRET

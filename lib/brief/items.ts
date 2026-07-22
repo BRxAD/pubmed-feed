@@ -96,6 +96,10 @@ export async function getBriefItems(options?: {
   setting?: BriefSettingFilter;
   /** Skip OpenAI headline backfill (for side panels / ranking lists). */
   skipHeadlines?: boolean;
+  /** Expand lookback until at least this many setting-matched items (or maxLookbackDays). */
+  minItems?: number;
+  /** Cap for lookback expansion (default 365, max 730). */
+  maxLookbackDays?: number;
 }): Promise<BriefFeedResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -127,11 +131,20 @@ export async function getBriefItems(options?: {
     largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
   };
   const minPriority = feedSettings.brief.minPriority;
+  const minItems = Math.max(0, options?.minItems ?? 0);
+  const maxLookbackDays = Math.min(
+    730,
+    Math.max(1, options?.maxLookbackDays ?? 365)
+  );
 
-  const daysBack = Math.min(
-    365,
+  let daysBack = Math.min(
+    maxLookbackDays,
     Math.max(1, options?.daysBack ?? feedSettings.brief.daysBack)
   );
+  // Capsule pages: start with a wider window when we need a floor count
+  if (minItems > 0) {
+    daysBack = Math.max(daysBack, Math.min(maxLookbackDays, 90));
+  }
   const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
   const since = isoDaysAgo(daysBack);
 
@@ -350,6 +363,29 @@ export async function getBriefItems(options?: {
   });
 
   const items = candidates.slice(0, maxItems);
+
+  if (
+    minItems > 0 &&
+    items.length < minItems &&
+    daysBack < maxLookbackDays
+  ) {
+    const nextDays =
+      daysBack < 90
+        ? 90
+        : daysBack < 180
+          ? 180
+          : daysBack < 365
+            ? 365
+            : 730;
+    if (nextDays > daysBack) {
+      return getBriefItems({
+        ...options,
+        daysBack: Math.min(maxLookbackDays, nextDays),
+        minItems,
+        maxLookbackDays,
+      });
+    }
+  }
 
   if (!options?.skipHeadlines) {
     const headlineJobs = items.map((item) => {
