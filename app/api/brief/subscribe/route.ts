@@ -85,9 +85,12 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[brief/subscribe] welcome email failed:", msg);
-      welcomeWarning =
-        "Saved your signup, but the confirmation email could not be sent. " +
-        "If you use Resend’s onboarding address, it can only deliver to your Resend account email until a domain is verified.";
+      const usingOnboarding =
+        !process.env.BRIEF_FROM_EMAIL?.trim() &&
+        !process.env.DIGEST_FROM_EMAIL?.trim();
+      welcomeWarning = usingOnboarding
+        ? "Saved your signup, but confirmation could not be sent. Set BRIEF_FROM_EMAIL in Vercel to an address on your verified Resend domain (e.g. The Stewardship Brief <brief@yourdomain.com>), then redeploy."
+        : `Saved your signup, but confirmation could not be sent (${msg}). Check that BRIEF_FROM_EMAIL uses your verified Resend domain and that the domain status is Verified.`;
     }
 
     return NextResponse.json({

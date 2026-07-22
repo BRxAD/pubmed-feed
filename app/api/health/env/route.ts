@@ -19,6 +19,9 @@ export async function GET() {
       OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY?.trim()),
       OPENALEX_MAILTO: Boolean(process.env.OPENALEX_MAILTO?.trim()),
       NCBI_EMAIL: Boolean(process.env.NCBI_EMAIL?.trim()),
+      BRIEF_FROM_EMAIL: Boolean(process.env.BRIEF_FROM_EMAIL?.trim()),
+      DIGEST_FROM_EMAIL: Boolean(process.env.DIGEST_FROM_EMAIL?.trim()),
+      DIGEST_REPLY_TO: Boolean(process.env.DIGEST_REPLY_TO?.trim()),
       SUPABASE_URL: Boolean(
         (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim()
       ),
@@ -26,6 +29,10 @@ export async function GET() {
         process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
       ),
     },
+    /** True when From still falls back to Resend's shared onboarding sender. */
+    briefFromUsesOnboarding:
+      !process.env.BRIEF_FROM_EMAIL?.trim() &&
+      !process.env.DIGEST_FROM_EMAIL?.trim(),
     digestRecipientUses:
       process.env.DIGEST_RECIPIENT_EMAILS?.trim()
         ? "DIGEST_RECIPIENT_EMAILS"
