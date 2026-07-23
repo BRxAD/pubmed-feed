@@ -21,7 +21,7 @@ export type BriefFeedConfig = {
   daysBack: number;
   largeStudyThreshold: number;
   smallSampleMax: number;
-  /** When true, brief sorts by created_at then priority; when false, priority first. */
+  /** When true, brief sorts by article date then priority; when false, priority first. */
   sortByRecency: boolean;
 };
 

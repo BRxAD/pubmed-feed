@@ -2,6 +2,7 @@ import { getBriefItems } from "@/lib/brief/items";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import { assignStoryImages } from "@/lib/brief/storyImages";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
+import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
 import BriefPage from "@/components/brief/BriefPage";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,11 @@ export default async function HomePage({
     const [brief, topPriority] = await Promise.all([
       getBriefItems({
         setting,
-        minItems: 10,
-        maxLookbackDays: 730,
+        // created_at lookback for late ingest; display gated by article date.
+        daysBack: 60,
+        maxLookbackDays: 90,
         maxItems: 50,
+        articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
       }),
       getTopPriorityYearItems(setting),
     ]);

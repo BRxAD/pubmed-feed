@@ -15,6 +15,7 @@ import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { articleExternalUrl } from "@/lib/feedSource";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
+  BRIEF_ARTICLE_WINDOW_DAYS,
   effectivePriority,
   meetsBriefThreshold,
 } from "@/lib/brief/priority";
@@ -90,6 +91,19 @@ function isPubMedArticle(pmid: string, source: string | null | undefined): boole
   return /^\d+$/.test(id);
 }
 
+/** Prefer article/release date; fall back to summary created_at. */
+function articleTimestamp(item: {
+  date: string | null;
+  createdAt: string;
+}): number {
+  const raw = item.date ?? item.createdAt;
+  if (!raw) return 0;
+  const t = new Date(
+    raw.includes("T") ? raw : `${String(raw).slice(0, 10)}T12:00:00`
+  ).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 export async function getBriefItems(options?: {
   daysBack?: number;
   maxItems?: number;
@@ -101,9 +115,9 @@ export async function getBriefItems(options?: {
   /** Cap for lookback expansion (default 365, max 730). */
   maxLookbackDays?: number;
   /**
-   * When set, keep only items whose article date (release/pub) falls within
-   * this many days — for “past 12 months” Top 10. Falls back to created_at
-   * when article date is missing.
+   * Keep only items whose article date (release/pub) falls within this many
+   * days. Defaults to BRIEF_ARTICLE_WINDOW_DAYS (28). Falls back to created_at
+   * when article date is missing. Pass a larger value only for special views.
    */
   articleDateWithinDays?: number;
 }): Promise<BriefFeedResult> {
@@ -327,7 +341,6 @@ export async function getBriefItems(options?: {
       date:
         row.articles.release_date ??
         row.articles.pub_date ??
-        row.articles.fetched_at?.slice(0, 10) ??
         null,
       createdAt: row.created_at,
       isNew: isWithinHours(row.created_at, 24),
@@ -351,8 +364,10 @@ export async function getBriefItems(options?: {
 
   candidates.sort((a, b) => {
     if (feedSettings.brief.sortByRecency) {
-      const tA = new Date(a.createdAt).getTime();
-      const tB = new Date(b.createdAt).getTime();
+      // Article/publication date — not summary created_at — so backfill ingest
+      // of older papers does not push them to the top of the brief.
+      const tA = articleTimestamp(a);
+      const tB = articleTimestamp(b);
       if (tB !== tA) return tB - tA;
     }
 
@@ -363,21 +378,20 @@ export async function getBriefItems(options?: {
       return b.relevancePercent - a.relevancePercent;
     }
 
-    const tA = new Date(a.createdAt).getTime();
-    const tB = new Date(b.createdAt).getTime();
-    return tB - tA;
+    return articleTimestamp(b) - articleTimestamp(a);
   });
 
   let filtered = candidates;
-  const articleWindow = options?.articleDateWithinDays;
-  if (articleWindow != null && articleWindow > 0) {
+  const articleWindow =
+    options?.articleDateWithinDays ?? BRIEF_ARTICLE_WINDOW_DAYS;
+  if (articleWindow > 0) {
     const cutoff = Date.now() - articleWindow * 24 * 60 * 60 * 1000;
     filtered = candidates.filter((item) => {
-      const raw = item.date ?? item.createdAt;
-      const t = new Date(
-        raw.includes("T") ? raw : `${raw.slice(0, 10)}T12:00:00`
-      ).getTime();
-      if (Number.isNaN(t)) return true;
+      // Require a real article/pub date — do not use summary created_at /
+      // fetched_at, or backfill ingest would dominate the brief.
+      if (!item.date) return false;
+      const t = articleTimestamp(item);
+      if (t <= 0) return false;
       return t >= cutoff;
     });
   }

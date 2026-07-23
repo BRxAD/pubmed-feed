@@ -1,5 +1,6 @@
 import "server-only";
-import { getBriefItems } from "@/lib/brief/items";
+import { getBriefItems, type BriefItem } from "@/lib/brief/items";
+import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
 import { buildBriefDigestEmail } from "@/lib/digest/briefEmailFormat";
 import {
   getPreviouslyEmailedPmids,
@@ -22,12 +23,35 @@ export type BriefDigestResult = {
   sentCount?: number;
   failedRecipients?: string[];
   skippedDuplicates?: number;
+  skippedStaleArticle?: number;
+  skippedOldSummary?: number;
 };
 
 function isBriefDigestEnabled(): boolean {
   const raw = process.env.BRIEF_DIGEST_ENABLED?.trim().toLowerCase();
   if (raw === "0" || raw === "false" || raw === "no") return false;
   return true;
+}
+
+/** How far back to look for newly summarized items for the email (created_at). */
+const DIGEST_SUMMARY_LOOKBACK_DAYS = 2;
+
+/** Prefer article/pub date; exclude undated items from email. */
+function isPublishedWithinDays(item: BriefItem, days: number): boolean {
+  if (!item.date) return false;
+  const t = new Date(
+    item.date.includes("T")
+      ? item.date
+      : `${item.date.slice(0, 10)}T12:00:00`
+  ).getTime();
+  if (Number.isNaN(t)) return false;
+  return t >= Date.now() - days * 24 * 60 * 60 * 1000;
+}
+
+function isSummaryRecent(item: BriefItem, days: number): boolean {
+  const t = new Date(item.createdAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return t >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
 /** Subscribers + configured digest recipients (deduped). */
@@ -60,17 +84,39 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     year: "numeric",
   });
 
+  // Email only: newly summarized rows (created_at), published in the last 28
+  // days, and never previously emailed. Do not expand lookback — that would
+  // pull in older backfill batches that already appeared on the web brief.
   const { items: rawItems } = await getBriefItems({
     maxItems: 40,
     skipHeadlines: false,
-    daysBack: 14,
+    daysBack: DIGEST_SUMMARY_LOOKBACK_DAYS,
+    maxLookbackDays: DIGEST_SUMMARY_LOOKBACK_DAYS,
+    articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
   });
+
   const previouslySent = await getPreviouslyEmailedPmids();
-  const skippedDuplicates = rawItems.filter((i) =>
-    previouslySent.has(i.pmid)
-  ).length;
+
+  let skippedDuplicates = 0;
+  let skippedStaleArticle = 0;
+  let skippedOldSummary = 0;
+
   const items = rawItems
-    .filter((i) => !previouslySent.has(i.pmid))
+    .filter((i) => {
+      if (previouslySent.has(i.pmid)) {
+        skippedDuplicates++;
+        return false;
+      }
+      if (!isPublishedWithinDays(i, BRIEF_ARTICLE_WINDOW_DAYS)) {
+        skippedStaleArticle++;
+        return false;
+      }
+      if (!isSummaryRecent(i, DIGEST_SUMMARY_LOOKBACK_DAYS)) {
+        skippedOldSummary++;
+        return false;
+      }
+      return true;
+    })
     .slice(0, 12);
 
   const recipients = await getBriefDigestRecipients();
@@ -89,6 +135,8 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       itemCount: items.length,
       skippedReason: "No brief subscribers or digest recipients configured",
       skippedDuplicates,
+      skippedStaleArticle,
+      skippedOldSummary,
     };
   }
 
@@ -104,8 +152,12 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       skippedReason:
         skippedDuplicates > 0
           ? "No new brief items (all recent items already emailed)"
-          : "No brief items today",
+          : skippedStaleArticle > 0
+            ? "No newly published articles in the last 28 days"
+            : "No new brief items today",
       skippedDuplicates,
+      skippedStaleArticle,
+      skippedOldSummary,
     };
   }
 
@@ -129,5 +181,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     sentCount: result.sent,
     failedRecipients: result.failed.length > 0 ? result.failed : undefined,
     skippedDuplicates,
+    skippedStaleArticle,
+    skippedOldSummary,
   };
 }

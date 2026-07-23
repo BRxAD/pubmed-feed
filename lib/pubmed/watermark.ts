@@ -79,7 +79,8 @@ export async function setTopicWatermark(
 
 /**
  * How many days back to search when there is no prior watermark (first run).
- * 365 days so The Stewardship Brief “past 12 months” has a full year of intake.
+ * 365 days so year backfill / cold start can fill the archive; the brief
+ * itself only surfaces the last 28 days of article dates.
  */
 export const DEFAULT_INITIAL_DAYS_BACK = 365;
 
