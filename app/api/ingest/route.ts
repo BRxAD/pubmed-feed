@@ -37,9 +37,15 @@ export const maxDuration = 300;
 
 // ── Limits ────────────────────────────────────────────────────────────────────
 
-/** Max PMIDs to ingest per call. Keeps runtime predictable on Vercel. */
+/** Max PMIDs to EFetch / upsert per call. Keeps runtime predictable on Vercel. */
 const DEFAULT_MAX_ARTICLES = 200;
 const HARD_MAX_ARTICLES = 500;
+
+/**
+ * When summarizing, scan more PubMed IDs than we fetch so we can skip PMIDs
+ * that already have summaries and prioritize older gaps (year backfill).
+ */
+const HARD_MAX_PMID_SCAN = 5000;
 
 /**
  * Max summaries to generate per call.
@@ -95,6 +101,60 @@ function clampToToday(dateStr: string | null): string | null {
 }
 
 type TopicRow = { id: string; name: string; query_string: string };
+
+type SupabaseClient = ReturnType<typeof getSupabase>;
+
+/** Look up which PMIDs already have a summary for this topic (chunked .in()). */
+async function fetchAlreadySummarizedPmids(
+  supabase: SupabaseClient,
+  topicId: string,
+  pmids: string[]
+): Promise<Set<string>> {
+  const already = new Set<string>();
+  const CHUNK = 200;
+  for (let i = 0; i < pmids.length; i += CHUNK) {
+    const chunk = pmids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("summaries")
+      .select("pmid")
+      .eq("topic_id", topicId)
+      .in("pmid", chunk);
+    if (error) {
+      console.warn("[ingest] existing summaries lookup failed:", error.message);
+      continue;
+    }
+    for (const row of data ?? []) {
+      if (row?.pmid) already.add(String(row.pmid));
+    }
+  }
+  return already;
+}
+
+/**
+ * Prefer PMIDs that still need a summary; fill remaining fetch slots with
+ * already-summarized IDs so article rows stay fresh.
+ */
+function prioritizeUnsummarizedPmids(
+  pmids: string[],
+  alreadySummarized: Set<string>,
+  maxFetch: number
+): { toFetch: string[]; needingSummary: number; alreadyHaveSummary: number } {
+  const need: string[] = [];
+  const have: string[] = [];
+  for (const pmid of pmids) {
+    if (alreadySummarized.has(pmid)) have.push(pmid);
+    else need.push(pmid);
+  }
+  const toFetch = need.slice(0, maxFetch);
+  if (toFetch.length < maxFetch) {
+    toFetch.push(...have.slice(0, maxFetch - toFetch.length));
+  }
+  return {
+    toFetch,
+    needingSummary: need.length,
+    alreadyHaveSummary: have.length,
+  };
+}
 
 // ── Request params ────────────────────────────────────────────────────────────
 
@@ -250,23 +310,64 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       console.log("[ingest] Watermark window", { watermarkUsed, mindate, maxdate, isFirstRun });
     }
 
-    // ── 3. Page through all PubMed results ────────────────────────────────────
+    // ── 3. Page through PubMed results ─────────────────────────────────────────
+    // When summarizing, scan far more IDs than we EFetch so we can skip PMIDs
+    // that already have summaries (otherwise year backfill only hits the newest
+    // 500 — which are usually already summarized — and stores 0 new summaries).
 
-    console.log("[ingest] Searching PubMed (crdt)", { mindate, maxdate, maxArticles });
+    const pmidScanCap =
+      summarize && maxSummaries > 0
+        ? // Year / manual windows: scan as many IDs as Vercel time allows so we
+          // can pick unsummarized gaps instead of re-hitting the newest 500.
+          daysBack != null
+            ? HARD_MAX_PMID_SCAN
+            : Math.min(HARD_MAX_PMID_SCAN, Math.max(maxArticles, maxSummaries * 15))
+        : maxArticles;
+
+    console.log("[ingest] Searching PubMed (crdt)", {
+      mindate,
+      maxdate,
+      maxArticles,
+      pmidScanCap,
+      summarize,
+      maxSummaries,
+    });
 
     const searchResult = await searchPubMedAllPages({
       query: queryString,
       mindate,
       maxdate,
-      maxTotal: maxArticles,
+      maxTotal: pmidScanCap,
     });
 
-    const totalPmidsFound = searchResult.count;      // total matching on PubMed
-    const pmids = searchResult.pmids;                // deduplicated, capped at maxArticles
+    const totalPmidsFound = searchResult.count;
+    let pmids = searchResult.pmids;
+    const totalPmidsScanned = pmids.length;
+
+    let needingSummaryAmongScanned = 0;
+    let alreadyHaveSummaryAmongScanned = 0;
+
+    if (summarize && maxSummaries > 0 && pmids.length > 0) {
+      const already = await fetchAlreadySummarizedPmids(supabase, topic.id, pmids);
+      const prioritized = prioritizeUnsummarizedPmids(pmids, already, maxArticles);
+      pmids = prioritized.toFetch;
+      needingSummaryAmongScanned = prioritized.needingSummary;
+      alreadyHaveSummaryAmongScanned = prioritized.alreadyHaveSummary;
+      console.log("[ingest] Prioritized unsummarized PMIDs", {
+        scanned: totalPmidsScanned,
+        needingSummary: needingSummaryAmongScanned,
+        alreadyHaveSummary: alreadyHaveSummaryAmongScanned,
+        fetching: pmids.length,
+      });
+    } else {
+      pmids = pmids.slice(0, maxArticles);
+    }
+
     const totalPmidsAfterDedupe = pmids.length;
 
     console.log("[ingest] Search complete", {
       totalPmidsFound,
+      totalPmidsScanned,
       totalPmidsAfterDedupe,
       pages: searchResult.pages,
     });
@@ -282,10 +383,15 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         maxdate,
         isFirstRun,
         totalPmidsFound,
+        totalPmidsScanned,
         totalPmidsAfterDedupe: 0,
+        needingSummaryAmongScanned,
+        alreadyHaveSummaryAmongScanned,
         recordsParsed: 0,
         storedArticles: 0,
         storedSummaries: 0,
+        summarize,
+        maxSummaries,
         watermarkAdvanced: true,
       });
     }
@@ -364,6 +470,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     // ── 8. Optional summarization ─────────────────────────────────────────────
 
     let storedSummaries = 0;
+    let summarizeAttempted = 0;
+    let summarizeFailed = 0;
+    const summarizeErrors: string[] = [];
 
     if (summarize && maxSummaries > 0) {
       // Only attempt articles that have an abstract
@@ -371,22 +480,23 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
 
       // Skip PMIDs that already have a summary for this topic
       const candidatePmids = withAbstract.map((r) => r.pmid);
-      const { data: existingRows } = await supabase
-        .from("summaries")
-        .select("pmid")
-        .eq("topic_id", topic.id)
-        .in("pmid", candidatePmids.slice(0, 1000));
-
-      const alreadySummarized = new Set(
-        (existingRows ?? []).map((row: { pmid: string }) => row.pmid)
+      const alreadySummarized = await fetchAlreadySummarizedPmids(
+        supabase,
+        topic.id,
+        candidatePmids
       );
 
       const toSummarize = withAbstract
         .filter((r) => !alreadySummarized.has(r.pmid))
         .slice(0, maxSummaries);
 
-      console.log("[ingest] Summarizing", toSummarize.length, "new records",
-        `(skipping ${alreadySummarized.size} already done)`);
+      summarizeAttempted = toSummarize.length;
+      console.log(
+        "[ingest] Summarizing",
+        toSummarize.length,
+        "new records",
+        `(skipping ${alreadySummarized.size} already done; ${withAbstract.length} with abstract)`
+      );
 
       // ── Parallel batches ──────────────────────────────────────────────────
       // Process SUMMARIZE_CONCURRENCY articles at a time to stay well within
@@ -440,12 +550,20 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
           if (res.status === "fulfilled") {
             storedSummaries++;
           } else {
-            console.warn("[ingest] Summary batch error:", res.reason);
+            summarizeFailed++;
+            const reason =
+              res.reason instanceof Error
+                ? res.reason.message
+                : String(res.reason);
+            console.warn("[ingest] Summary batch error:", reason);
+            if (summarizeErrors.length < 5) summarizeErrors.push(reason);
           }
         }
 
-        console.log(`[ingest] Summaries: batch ${Math.floor(i / SUMMARIZE_CONCURRENCY) + 1} done`,
-          `(${storedSummaries} / ${toSummarize.length} so far)`);
+        console.log(
+          `[ingest] Summaries: batch ${Math.floor(i / SUMMARIZE_CONCURRENCY) + 1} done`,
+          `(${storedSummaries} / ${toSummarize.length} so far)`
+        );
       }
     }
 
@@ -465,10 +583,18 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       watermarkAfter: maxdate,
       // Counts
       totalPmidsFound,
+      totalPmidsScanned,
       totalPmidsAfterDedupe,
+      needingSummaryAmongScanned,
+      alreadyHaveSummaryAmongScanned,
       recordsParsed,
       storedArticles,
       storedSummaries,
+      summarize,
+      maxSummaries,
+      summarizeAttempted,
+      summarizeFailed,
+      summarizeErrors: summarizeErrors.length ? summarizeErrors : undefined,
       // Flags
       watermarkAdvanced: true,
       pages: searchResult.pages,

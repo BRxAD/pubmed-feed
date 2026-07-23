@@ -6,12 +6,14 @@ export const maxDuration = 300;
 
 /**
  * One-time (or periodic) year backfill for The Stewardship Brief.
- * Pulls PubMed records from the last ~365 days and summarizes new ones.
+ * Pulls PubMed IDs from the last ~365 days, prioritizes PMIDs missing
+ * summaries, then summarizes up to maxSummaries per pass.
  *
- *   GET /api/admin/backfill-year?secret=CRON_SECRET&maxSummaries=100
+ *   GET /api/admin/backfill-year?secret=CRON_SECRET&maxSummaries=200
  *
- * Run multiple times if needed until found/summarized stabilize — each pass
- * fills more of the year under Vercel time/summary caps.
+ * Re-run until ingest.needingSummaryAmongScanned approaches 0 (or
+ * storedSummaries stays 0 with summarizeAttempted 0). Each pass fills
+ * more of the year under Vercel time/summary caps (~250 max per call).
  */
 export async function GET(request: NextRequest) {
   const expected = process.env.CRON_SECRET;
@@ -47,8 +49,8 @@ export async function GET(request: NextRequest) {
     250,
     Math.max(
       1,
-      parseInt(request.nextUrl.searchParams.get("maxSummaries") ?? "100", 10) ||
-        100
+      parseInt(request.nextUrl.searchParams.get("maxSummaries") ?? "200", 10) ||
+        200
     )
   );
   const daysBack = Math.min(
@@ -70,12 +72,17 @@ export async function GET(request: NextRequest) {
     unknown
   >;
 
+  const needing = Number(data.needingSummaryAmongScanned ?? 0);
+  const stored = Number(data.storedSummaries ?? 0);
+
   return NextResponse.json({
     ok: response.ok,
     backfill: { daysBack, maxSummaries },
     ingest: data,
     tip:
-      "Re-run until summarized approaches zero new rows. Top 10 uses article dates within the past 12 months.",
+      needing > 0 || stored > 0
+        ? `Re-run until needingSummaryAmongScanned is near 0. This pass stored ${stored} summaries; ~${needing} still needed among scanned IDs.`
+        : "No unsummarized PMIDs left in the scanned window (or OpenAI failed — check ingest.summarizeErrors).",
   });
 }
 
