@@ -19,8 +19,9 @@ export default async function HomePage({
     const [brief, topPriority] = await Promise.all([
       getBriefItems({
         setting,
-        // created_at lookback for late ingest; display gated by article date.
-        daysBack: 60,
+        // Article-date window is authoritative; created_at is not used as a
+        // gate here (backfill would crowd out recent pubs).
+        daysBack: 90,
         maxLookbackDays: 90,
         maxItems: 50,
         articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,

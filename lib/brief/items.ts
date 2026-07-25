@@ -77,6 +77,13 @@ function isoDaysAgo(days: number): string {
   return d.toISOString();
 }
 
+/** Calendar date (YYYY-MM-DD) for article release/pub filters. */
+function dateDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 function isWithinHours(iso: string, hours: number): boolean {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return false;
@@ -167,6 +174,13 @@ export async function getBriefItems(options?: {
   }
   const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
   const since = isoDaysAgo(daysBack);
+  const articleWindow =
+    options?.articleDateWithinDays ?? BRIEF_ARTICLE_WINDOW_DAYS;
+  // Email uses a short daysBack (≤7) to mean "newly summarized only".
+  // The main brief / Top 10 must NOT gate on created_at when an article-date
+  // window is set — year backfill otherwise crowds recent pubs out of the
+  // created_at-ordered result page.
+  const gateByCreatedAt = articleWindow <= 0 || daysBack <= 7;
 
   const query_string = String(topic.query_string ?? "").trim();
   const priorityModel = await loadPriorityModel(supabase, topicId);
@@ -176,28 +190,45 @@ export async function getBriefItems(options?: {
   let rows: unknown[] | null = null;
   let error: { message: string } | null = null;
 
-  const withHeadline = await supabase
-    .from("summaries")
-    .select(
-      "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
-    )
-    .eq("topic_id", topicId)
-    .eq("articles.source", "pubmed")
-    .gte("created_at", since)
-    .order("created_at", { ascending: false })
-    .limit(daysBack > 60 ? 3000 : 1000);
+  const selectWithHeadline =
+    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+  const selectWithoutHeadline =
+    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
 
-  if (withHeadline.error?.message?.toLowerCase().includes("headline")) {
-    const fallback = await supabase
+  const applyBriefFilters = <T extends { or: Function; gte: Function; order: Function; limit: Function }>(
+    q: T
+  ): T => {
+    let next = q;
+    if (articleWindow > 0) {
+      const articleSince = dateDaysAgo(articleWindow);
+      next = next.or(
+        `release_date.gte.${articleSince},pub_date.gte.${articleSince}`,
+        { foreignTable: "articles" }
+      ) as T;
+    }
+    if (gateByCreatedAt) {
+      next = next.gte("created_at", since) as T;
+    }
+    const rowLimit = articleWindow > 0 || daysBack > 60 ? 3000 : 1000;
+    return next.order("created_at", { ascending: false }).limit(rowLimit) as T;
+  };
+
+  const withHeadline = await applyBriefFilters(
+    supabase
       .from("summaries")
-      .select(
-        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
-      )
+      .select(selectWithHeadline)
       .eq("topic_id", topicId)
       .eq("articles.source", "pubmed")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(daysBack > 60 ? 3000 : 1000);
+  );
+
+  if (withHeadline.error?.message?.toLowerCase().includes("headline")) {
+    const fallback = await applyBriefFilters(
+      supabase
+        .from("summaries")
+        .select(selectWithoutHeadline)
+        .eq("topic_id", topicId)
+        .eq("articles.source", "pubmed")
+    );
     rows = fallback.data;
     error = fallback.error;
   } else {
@@ -382,8 +413,6 @@ export async function getBriefItems(options?: {
   });
 
   let filtered = candidates;
-  const articleWindow =
-    options?.articleDateWithinDays ?? BRIEF_ARTICLE_WINDOW_DAYS;
   if (articleWindow > 0) {
     const cutoff = Date.now() - articleWindow * 24 * 60 * 60 * 1000;
     filtered = candidates.filter((item) => {
