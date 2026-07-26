@@ -13,5 +13,8 @@ export type StoryImageMatch = {
 /** Minimum confidence for lead / featured photos (0–1). */
 export const IMAGE_MATCH_THRESHOLD = 0.65;
 
-/** Lower bar for compact-card / thematic fallback photos. */
-export const IMAGE_MATCH_THRESHOLD_THEMATIC = 0.48;
+/**
+ * Compact / thematic floor. Higher than before so weak keyword hits
+ * (and organ-unrelated stock) do not fill the page — prefer null instead.
+ */
+export const IMAGE_MATCH_THRESHOLD_THEMATIC = 0.55;

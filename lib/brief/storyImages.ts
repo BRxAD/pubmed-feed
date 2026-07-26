@@ -30,26 +30,34 @@ type StoryImageFields = Pick<
   | "abstractSnippet"
 >;
 
-/** Setting → catalog ids used only as thematic (tier B) fallbacks. */
-const SETTING_FALLBACK_IDS: Partial<Record<ArticleSetting, string[]>> = {
-  hospital: [
-    "hospital-corridor",
-    "hospital-staff",
-    "icu-monitor",
-    "stewardship-meeting",
-    "hand-hygiene",
-  ],
-  community: [
-    "clinic-stethoscope",
-    "medicine-bottles",
-    "pharmacy-shelves",
-    "pharmacist-counsel",
-    "doctor-exam",
-  ],
-  "long-term care": ["elder-care", "nurse-patient", "pexels-elderly-hands"],
-  animal: ["vet-care", "livestock", "wikimedia-one-health"],
-  environment: ["wastewater", "globe-network", "wikimedia-one-health"],
+type UsageTracker = {
+  ids: Set<string>;
+  urls: Set<string>;
 };
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Phrase / token match with word boundaries for short tokens.
+ * Prevents "ct" matching inside "practical" / "impact", etc.
+ */
+function corpusHas(corpus: string, raw: string): boolean {
+  const needle = raw.toLowerCase().trim();
+  if (!needle) return false;
+  if (needle.includes(" ") || needle.includes("-") || needle.includes(".")) {
+    return corpus.includes(needle);
+  }
+  if (needle.length <= 3) {
+    const re = new RegExp(
+      `(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`,
+      "i"
+    );
+    return re.test(corpus);
+  }
+  return corpus.includes(needle);
+}
 
 function normalize(text: string): string {
   return text
@@ -79,7 +87,7 @@ function storyCorpus(item: StoryImageFields): string {
 
 function hasRequiredGate(corpus: string, entry: CatalogEntry): boolean {
   if (!entry.requireAny?.length) return true;
-  return entry.requireAny.some((req) => corpus.includes(req.toLowerCase()));
+  return entry.requireAny.some((req) => corpusHas(corpus, req));
 }
 
 type ScoreMode = "strict" | "thematic";
@@ -98,7 +106,7 @@ function scoreEntry(
 
   for (const tag of entry.tags) {
     const t = tag.toLowerCase();
-    if (!corpus.includes(t)) continue;
+    if (!corpusHas(corpus, t)) continue;
     const words = t.split(/\s+/).length;
     const tagWeight =
       words >= 2 ? 1.85 : t.length >= 10 ? 1.45 : t.length >= 6 ? 1.15 : 0.8;
@@ -111,14 +119,16 @@ function scoreEntry(
     if (matchedCount < 2 && strongHits < 1) return 0;
     if (matchedWeight < 1.7) return 0;
   } else {
-    if (matchedCount < 1 && strongHits < 1) return 0;
-    if (matchedWeight < 1.1) return 0;
+    // Thematic still needs a real topical hit — setting alone is not enough.
+    if (matchedCount < 1) return 0;
+    if (matchedWeight < 1.25) return 0;
+    if (strongHits < 1 && matchedCount < 2) return 0;
   }
 
   let score = Math.min(1, matchedWeight / 4.0);
 
-  if (setting && entry.settings?.includes(setting) && matchedCount >= 1) {
-    score = Math.min(1, score + (mode === "strict" ? 0.08 : 0.1));
+  if (setting && entry.settings?.includes(setting) && matchedCount >= 2) {
+    score = Math.min(1, score + (mode === "strict" ? 0.08 : 0.06));
   }
 
   if (entry.source === "wikimedia") score = Math.min(1, score + 0.02);
@@ -145,9 +155,18 @@ function diversifyTop(
   return [...mixed, ...rest];
 }
 
+function isUnused(entry: CatalogEntry, used: UsageTracker): boolean {
+  return !used.ids.has(entry.id) && !used.urls.has(entry.url);
+}
+
+function markUsed(entry: CatalogEntry, used: UsageTracker): void {
+  used.ids.add(entry.id);
+  used.urls.add(entry.url);
+}
+
 function rankCandidates(
   item: StoryImageFields,
-  usedIds: Set<string>,
+  used: UsageTracker,
   mode: ScoreMode,
   threshold: number
 ): Array<{ entry: CatalogEntry; confidence: number }> {
@@ -155,7 +174,7 @@ function rankCandidates(
   const ranked: Array<{ entry: CatalogEntry; confidence: number }> = [];
 
   for (const entry of STORY_IMAGE_CATALOG) {
-    if (usedIds.has(entry.id)) continue;
+    if (!isUnused(entry, used)) continue;
     const confidence = scoreEntry(corpus, item.setting, entry, mode);
     if (confidence > threshold) {
       ranked.push({ entry, confidence });
@@ -166,21 +185,31 @@ function rankCandidates(
   return diversifyTop(ranked, item.pmid + item.headline + mode);
 }
 
-function thematicFallbackCandidates(
+/** Generic stewardship photos only — never organ-specific scenes. */
+function genericFallbackCandidates(
   item: StoryImageFields,
-  usedIds: Set<string>
+  used: UsageTracker
 ): Array<{ entry: CatalogEntry; confidence: number }> {
-  const setting = item.setting;
-  if (!setting) return [];
-  const ids = SETTING_FALLBACK_IDS[setting] ?? [];
+  const corpus = storyCorpus(item);
+  const stewardshipCue =
+    corpusHas(corpus, "antibiotic") ||
+    corpusHas(corpus, "stewardship") ||
+    corpusHas(corpus, "antimicrobial") ||
+    corpusHas(corpus, "prescribing") ||
+    Boolean(item.setting);
+
+  if (!stewardshipCue) return [];
+
   const out: Array<{ entry: CatalogEntry; confidence: number }> = [];
-  for (const id of ids) {
-    if (usedIds.has(id)) continue;
-    const entry = STORY_IMAGE_CATALOG.find((e) => e.id === id);
-    if (!entry) continue;
-    out.push({ entry, confidence: IMAGE_MATCH_THRESHOLD_THEMATIC + 0.01 });
+  for (const entry of STORY_IMAGE_CATALOG) {
+    if (!entry.generic) continue;
+    if (!isUnused(entry, used)) continue;
+    out.push({
+      entry,
+      confidence: IMAGE_MATCH_THRESHOLD_THEMATIC,
+    });
   }
-  return diversifyTop(out, item.pmid + "fallback");
+  return diversifyTop(out, item.pmid + "generic");
 }
 
 const urlHealthCache = new Map<string, boolean>();
@@ -220,14 +249,17 @@ export async function isImageUrlReachable(url: string): Promise<boolean> {
 
 async function firstReachableMatch(
   ranked: Array<{ entry: CatalogEntry; confidence: number }>,
-  tier: StoryImageMatch["tier"]
+  tier: StoryImageMatch["tier"],
+  used: UsageTracker
 ): Promise<StoryImageMatch | null> {
   for (const { entry, confidence } of ranked) {
+    if (!isUnused(entry, used)) continue;
     const ok = await isImageUrlReachable(entry.url);
     if (!ok) {
       console.warn(`[storyImages] broken image skipped: ${entry.id} ${entry.url}`);
       continue;
     }
+    markUsed(entry, used);
     return {
       id: entry.id,
       url: entry.url,
@@ -241,46 +273,62 @@ async function firstReachableMatch(
 
 export async function matchStoryImage(
   item: StoryImageFields,
-  usedIds: Set<string> = new Set(),
+  used: UsageTracker = { ids: new Set(), urls: new Set() },
   mode: ScoreMode = "strict"
 ): Promise<StoryImageMatch | null> {
   const threshold =
     mode === "strict" ? IMAGE_MATCH_THRESHOLD : IMAGE_MATCH_THRESHOLD_THEMATIC;
-  const ranked = rankCandidates(item, usedIds, mode, threshold);
+  const ranked = rankCandidates(item, used, mode, threshold);
   const matched = await firstReachableMatch(
     ranked,
-    mode === "strict" ? "strict" : "thematic"
+    mode === "strict" ? "strict" : "thematic",
+    used
   );
   if (matched) return matched;
 
   if (mode === "thematic") {
-    return firstReachableMatch(thematicFallbackCandidates(item, usedIds), "thematic");
+    // Prefer no image over an irrelevant organ/scene photo.
+    return firstReachableMatch(
+      genericFallbackCandidates(item, used),
+      "thematic",
+      used
+    );
   }
   return null;
 }
 
 /**
- * Two-tier assignment:
- * 1) Strict matches for every story (lead/featured quality).
- * 2) Thematic / setting-fallback matches for remaining stories (compact cards).
+ * Two-tier assignment with hard uniqueness on catalog id AND url.
+ * Prefer null over a weak / irrelevant match.
  */
 export async function assignStoryImages(
   items: BriefItem[]
 ): Promise<Record<string, StoryImageMatch | null>> {
-  const usedIds = new Set<string>();
+  const used: UsageTracker = { ids: new Set(), urls: new Set() };
   const out: Record<string, StoryImageMatch | null> = {};
 
   for (const item of items) {
-    const match = await matchStoryImage(item, usedIds, "strict");
-    if (match) usedIds.add(match.id);
-    out[item.pmid] = match;
+    out[item.pmid] = await matchStoryImage(item, used, "strict");
   }
 
   for (const item of items) {
     if (out[item.pmid]) continue;
-    const match = await matchStoryImage(item, usedIds, "thematic");
-    if (match) usedIds.add(match.id);
-    out[item.pmid] = match;
+    out[item.pmid] = await matchStoryImage(item, used, "thematic");
+  }
+
+  // Final safety: drop any accidental URL collisions (keep first).
+  const seenUrls = new Set<string>();
+  for (const item of items) {
+    const match = out[item.pmid];
+    if (!match) continue;
+    if (seenUrls.has(match.url)) {
+      console.warn(
+        `[storyImages] duplicate url dropped for pmid ${item.pmid}: ${match.id}`
+      );
+      out[item.pmid] = null;
+      continue;
+    }
+    seenUrls.add(match.url);
   }
 
   return out;
