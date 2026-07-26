@@ -371,4 +371,170 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     tags: ["diagnostic imaging", "radiology", "hospital diagnostics", "imaging"],
     settings: ["hospital"],
   },
+
+  // ── UTI / urine ──────────────────────────────────────────────────
+  {
+    id: "uti-lab-sample",
+    url: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=1200&q=80",
+    label: "clinical sample collection",
+    source: "unsplash",
+    requireAny: ["uti", "urinary", "cystitis", "pyelonephritis", "urine", "bacteriuria"],
+    tags: ["urinary tract infection", "uti", "cystitis", "pyelonephritis", "urine", "bacteriuria"],
+    settings: ["community", "hospital", "long-term care"],
+  },
+  {
+    id: "pexels-urine-dipstick",
+    url: "https://images.pexels.com/photos/8460157/pexels-photo-8460157.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    label: "point-of-care testing",
+    source: "pexels",
+    requireAny: ["uti", "urinary", "diagnostic stewardship", "point-of-care", "urine culture"],
+    tags: ["uti", "urinary", "diagnostic", "urine culture", "point-of-care", "stewardship"],
+    settings: ["community", "hospital"],
+  },
+
+  // ── C. difficile / GI ────────────────────────────────────────────
+  {
+    id: "hospital-isolation",
+    url: "https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=1200&q=80",
+    label: "infection control hygiene",
+    source: "unsplash",
+    requireAny: ["clostridioides", "c. difficile", "cdiff", "colitis", "diarrhea", "isolation"],
+    tags: ["clostridioides", "difficile", "colitis", "diarrhea", "infection control", "isolation"],
+    settings: ["hospital", "long-term care"],
+  },
+
+  // ── Respiratory / pneumonia ──────────────────────────────────────
+  {
+    id: "chest-xray-light",
+    url: "https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&w=1200&q=80",
+    label: "chest imaging review",
+    source: "unsplash",
+    requireAny: ["pneumonia", "respiratory", "cap", "hap", "vap", "lung", "pulmonary"],
+    tags: ["pneumonia", "respiratory", "lung", "community-acquired pneumonia", "hospital-acquired"],
+    settings: ["hospital", "community"],
+  },
+  {
+    id: "pexels-oxygen-mask",
+    url: "https://images.pexels.com/photos/263402/pexels-photo-263402.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    label: "acute respiratory care",
+    source: "pexels",
+    requireAny: ["pneumonia", "respiratory", "ventilator", "vap", "oxygen", "icu"],
+    tags: ["pneumonia", "respiratory", "ventilator", "icu", "critical care"],
+    settings: ["hospital"],
+  },
+
+  // ── Sepsis / bacteremia ──────────────────────────────────────────
+  {
+    id: "sepsis-urgent",
+    url: "https://images.unsplash.com/photo-1581595220892-b0739db3b8c5?auto=format&fit=crop&w=1200&q=80",
+    label: "urgent hospital care",
+    source: "unsplash",
+    requireAny: ["sepsis", "septic", "bacteremia", "bloodstream", "shock", "bsi"],
+    tags: ["sepsis", "bacteremia", "bloodstream infection", "shock", "critical care"],
+    settings: ["hospital"],
+  },
+
+  // ── Stewardship program / rounds ─────────────────────────────────
+  {
+    id: "stewardship-meeting",
+    url: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80",
+    label: "clinical team discussion",
+    source: "unsplash",
+    requireAny: ["stewardship", "asp", "rounds", "prospective audit", "feedback", "guideline adherence"],
+    tags: ["stewardship", "antimicrobial stewardship", "rounds", "audit", "feedback", "guideline"],
+    settings: ["hospital"],
+  },
+  {
+    id: "pexels-team-huddle",
+    url: "https://images.pexels.com/photos/7089020/pexels-photo-7089020.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    label: "care team huddle",
+    source: "pexels",
+    requireAny: ["stewardship", "multidisciplinary", "team", "pharmacist", "intervention"],
+    tags: ["stewardship", "multidisciplinary", "pharmacist", "team", "intervention"],
+    settings: ["hospital", "community"],
+  },
+
+  // ── Antibiogram / resistance ─────────────────────────────────────
+  {
+    id: "wikimedia-antibiogram",
+    url: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Agar_plates_with_bacterial_colonies.jpg/1280px-Agar_plates_with_bacterial_colonies.jpg",
+    label: "culture susceptibility plates",
+    source: "wikimedia",
+    requireAny: ["antibiogram", "susceptibility", "resistance", "mic", "ast", "resistant"],
+    tags: ["antibiogram", "susceptibility", "resistance", "microbiology", "mic"],
+  },
+  {
+    id: "pexels-lab-tubes",
+    url: "https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    label: "laboratory sample tubes",
+    source: "pexels",
+    requireAny: ["resistance", "mrsa", "vre", "cre", "esbl", "mdro", "pathogen"],
+    tags: ["resistance", "mrsa", "pathogen", "multidrug", "microbiology", "gram-positive"],
+  },
+
+  // ── Catheter / devices ───────────────────────────────────────────
+  {
+    id: "iv-catheter-care",
+    url: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=1200&q=80",
+    label: "vascular access care",
+    source: "unsplash",
+    requireAny: ["catheter", "central line", "clabsi", "cauti", "device-associated", "picc"],
+    tags: ["catheter", "central line", "clabsi", "cauti", "device", "infection prevention"],
+    settings: ["hospital"],
+  },
+
+  // ── Perioperative / SSI ──────────────────────────────────────────
+  {
+    id: "surgical-scrub",
+    url: "https://images.unsplash.com/photo-1551190822-a9333d879b1f?auto=format&fit=crop&w=1200&q=80",
+    label: "surgical suite",
+    source: "unsplash",
+    requireAny: ["surgical site", "ssi", "perioperative", "prophylaxis", "orthopedic surgery"],
+    tags: ["surgical site infection", "perioperative", "prophylaxis", "surgery", "ssi"],
+    settings: ["hospital"],
+  },
+
+  // ── Dental / outpatient specialty ────────────────────────────────
+  {
+    id: "dental-care",
+    url: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80",
+    label: "dental clinical care",
+    source: "unsplash",
+    requireAny: ["dental", "dentist", "odontogenic", "oral surgery", "prophylaxis dental"],
+    tags: ["dental", "dentist", "oral", "outpatient", "prophylaxis"],
+    settings: ["community"],
+  },
+
+  // ── Vaccination / prevention ─────────────────────────────────────
+  {
+    id: "vaccination",
+    url: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&w=1200&q=80",
+    label: "vaccination syringe",
+    source: "unsplash",
+    requireAny: ["vaccine", "vaccination", "immunization", "influenza vaccine", "pneumococcal"],
+    tags: ["vaccine", "vaccination", "immunization", "prevention", "influenza"],
+    settings: ["community", "hospital"],
+  },
+
+  // ── Pharmacist / prescribing ─────────────────────────────────────
+  {
+    id: "pharmacist-counsel",
+    url: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=1200&q=80",
+    label: "pharmacy medications",
+    source: "unsplash",
+    requireAny: ["pharmacist", "prescribing", "prescription", "outpatient antibiotic", "community pharmacy"],
+    tags: ["pharmacist", "prescribing", "prescription", "pharmacy", "outpatient"],
+    settings: ["community"],
+  },
+
+  // ── Neonates / maternity (niche) ─────────────────────────────────
+  {
+    id: "neonatal-care",
+    url: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=1200&q=80",
+    label: "pediatric clinical setting",
+    source: "unsplash",
+    requireAny: ["neonatal", "neonate", "nicu", "newborn", "maternal", "obstetric"],
+    tags: ["neonatal", "nicu", "newborn", "pediatric", "maternal"],
+    settings: ["hospital"],
+  },
 ];

@@ -36,32 +36,33 @@ function buildLayoutRows(ranked: RankedStory[]): {
   rows: Array<{ featured: RankedStory | null; compacts: RankedStory[] }>;
 } {
   const [lead, ...rest] = ranked;
-  const withImage = rest.filter((s) => s.image);
-  const withoutImage = rest.filter((s) => !s.image);
+  // Strict (tier A) images drive featured columns; thematic (tier B) stay compact.
+  const withStrictImage = rest.filter((s) => s.image?.tier === "strict");
+  const compactPool = rest.filter((s) => s.image?.tier !== "strict");
 
   const rows: Array<{ featured: RankedStory | null; compacts: RankedStory[] }> =
     [];
   let iFeat = 0;
   let iComp = 0;
 
-  while (iFeat < withImage.length || iComp < withoutImage.length) {
-    const featured = withImage[iFeat] ?? null;
+  while (iFeat < withStrictImage.length || iComp < compactPool.length) {
+    const featured = withStrictImage[iFeat] ?? null;
     if (featured) iFeat += 1;
 
     const compacts: RankedStory[] = [];
-    while (compacts.length < 2 && iComp < withoutImage.length) {
-      compacts.push(withoutImage[iComp]!);
+    while (compacts.length < 2 && iComp < compactPool.length) {
+      compacts.push(compactPool[iComp]!);
       iComp += 1;
     }
 
     if (!featured && compacts.length === 0) break;
     rows.push({ featured, compacts });
 
-    if (!featured && iComp < withoutImage.length) {
-      while (iComp < withoutImage.length) {
+    if (!featured && iComp < compactPool.length) {
+      while (iComp < compactPool.length) {
         const batch: RankedStory[] = [];
-        while (batch.length < 3 && iComp < withoutImage.length) {
-          batch.push(withoutImage[iComp]!);
+        while (batch.length < 3 && iComp < compactPool.length) {
+          batch.push(compactPool[iComp]!);
           iComp += 1;
         }
         rows.push({ featured: null, compacts: batch });
@@ -171,8 +172,10 @@ export default function BriefPage({
                                   key={s.item.pmid}
                                   item={s.item}
                                   bare
+                                  image={s.image}
                                   saved={saved.has(s.item.pmid)}
                                   onToggleSave={toggleSave}
+                                  onImageError={() => markBroken(s.item.pmid)}
                                 />
                               ))}
                             </div>
@@ -208,8 +211,10 @@ export default function BriefPage({
                               <CompactStory
                                 item={s.item}
                                 bare
+                                image={s.image}
                                 saved={saved.has(s.item.pmid)}
                                 onToggleSave={toggleSave}
+                                onImageError={() => markBroken(s.item.pmid)}
                               />
                             </div>
                           ))}

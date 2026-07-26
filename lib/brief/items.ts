@@ -59,6 +59,10 @@ export type BriefItem = {
   prioritySource: "admin" | PriorityPredictionSource;
   pubmedUrl: string;
   keywords: string[];
+  /** MeSH terms used for image matching (and optional display later). */
+  meshTerms: string[];
+  /** First ~400 chars of abstract for richer image matching. */
+  abstractSnippet: string | null;
 };
 
 export type BriefFeedResult = {
@@ -191,9 +195,9 @@ export async function getBriefItems(options?: {
   let error: { message: string } | null = null;
 
   const selectWithHeadline =
-    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
   const selectWithoutHeadline =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
 
   const applyBriefFilters = <T extends { or: Function; gte: Function; order: Function; limit: Function }>(
     q: T
@@ -221,11 +225,19 @@ export async function getBriefItems(options?: {
       .eq("articles.source", "pubmed")
   );
 
-  if (withHeadline.error?.message?.toLowerCase().includes("headline")) {
+  const errMsg = withHeadline.error?.message?.toLowerCase() ?? "";
+  if (errMsg.includes("headline") || errMsg.includes("mesh_terms")) {
+    let selectFallback = selectWithHeadline;
+    if (errMsg.includes("headline")) {
+      selectFallback = selectWithoutHeadline;
+    }
+    if (errMsg.includes("mesh_terms")) {
+      selectFallback = selectFallback.replace(", mesh_terms", "");
+    }
     const fallback = await applyBriefFilters(
       supabase
         .from("summaries")
-        .select(selectWithoutHeadline)
+        .select(selectFallback)
         .eq("topic_id", topicId)
         .eq("articles.source", "pubmed")
     );
@@ -267,6 +279,7 @@ export async function getBriefItems(options?: {
         fetched_at?: string | null;
         publication_types?: string[] | null;
         keywords?: string[] | null;
+        mesh_terms?: string[] | null;
         source?: string | null;
       } | null;
     };
@@ -281,7 +294,7 @@ export async function getBriefItems(options?: {
       journal: row.articles.journal ?? null,
       pubDate: row.articles.pub_date ?? null,
       publicationTypes: row.articles.publication_types ?? [],
-      meshTerms: [],
+      meshTerms: row.articles.mesh_terms ?? [],
       keywords: row.articles.keywords ?? [],
       authors: [],
     };
@@ -387,6 +400,12 @@ export async function getBriefItems(options?: {
       prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
       keywords: (row.articles.keywords ?? []).slice(0, 8),
+      meshTerms: (row.articles.mesh_terms ?? []).slice(0, 12),
+      abstractSnippet: (() => {
+        const a = row.articles.abstract?.trim() ?? "";
+        if (!a) return null;
+        return a.length > 400 ? `${a.slice(0, 400)}…` : a;
+      })(),
     };
 
     if (!matchesBriefSettingFilter(item, settingFilter)) continue;

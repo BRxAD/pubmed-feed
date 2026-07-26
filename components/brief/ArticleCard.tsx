@@ -292,11 +292,25 @@ export function CompactStory({
   saved,
   onToggleSave,
   bare = false,
+  image,
+  onImageError,
 }: StoryProps & { bare?: boolean }) {
+  const showThumb = Boolean(image);
+
   return (
     <article
       className={`py-5 ${bare ? "" : `border-b ${brief.hairline} last:border-0`}`}
     >
+      {showThumb && image && (
+        <div className="relative mb-3 aspect-[16/9] w-full overflow-hidden bg-[#E8E4D9]">
+          <StoryImage
+            image={image}
+            sizes="(max-width: 1024px) 100vw, 280px"
+            className="absolute inset-0 h-full w-full"
+            onError={onImageError}
+          />
+        </div>
+      )}
       <MetaLine item={item} />
       <h2
         className={`${brief.serif} mt-2 text-xl font-bold leading-snug tracking-[-0.01em]`}
