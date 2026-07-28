@@ -3,7 +3,10 @@ import {
   getBriefItems,
   type BriefItem,
 } from "@/lib/brief/items";
-import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
+import {
+  matchesBriefSettingFilter,
+  type BriefSettingFilter,
+} from "@/lib/brief/settingFilter";
 
 /** Top 10 sidebar uses a full year of article dates (main brief stays 28 days). */
 export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
@@ -35,23 +38,30 @@ function articleTimestamp(item: {
 
 /**
  * Top 10 PubMed brief-eligible studies from the past 12 months (article date),
- * priority ≥ 5 (admin rating supersedes predicted). Newest first among ties.
+ * priority ≥ 5. Soft setting match so capsules can fill to 10 when classifiers
+ * left many rows unclassified. Priority first, then newest.
  */
 export async function getTopPriorityYearItems(
   setting: BriefSettingFilter = ""
 ): Promise<TopPriorityItem[]> {
+  // Fetch without hard setting filter, then soft-filter — classified nulls that
+  // still score for the capsule would otherwise leave Top 10 underfilled.
   const result = await getBriefItems({
-    // Wide created_at lookback so late ingest of in-year papers still qualify.
     daysBack: 400,
-    maxItems: 300,
-    setting,
+    maxItems: 500,
+    setting: "",
     skipHeadlines: true,
-    minItems: 10,
     maxLookbackDays: 730,
     articleDateWithinDays: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
   });
 
-  const ranked = [...result.items].sort((a, b) => {
+  const filtered = setting
+    ? result.items.filter((item) =>
+        matchesBriefSettingFilter(item, setting, true)
+      )
+    : result.items;
+
+  const ranked = [...filtered].sort((a, b) => {
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }

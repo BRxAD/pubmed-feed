@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { computeBreakdown, type RankingWeights } from "@/lib/ranking";
 import { isHighImpactJournal } from "@/lib/jif";
+import { isQ1Journal } from "@/lib/scimago";
 import {
   extractPriorityFeatures,
   PRIORITY_FEATURE_NAMES,
@@ -249,7 +250,7 @@ export function predictArticlePriority(options: {
   weights: RankingWeights;
   model: PriorityModel | null;
 }): { priority: number; source: PriorityPredictionSource } {
-  const jifIsHigh = isHighImpactJournal(options.rec.journal);
+  const jifIsHigh = isQ1Journal(options.rec.journal) || isHighImpactJournal(options.rec.journal);
   const breakdown = computeBreakdown(
     options.queryString,
     options.rec,

@@ -9,6 +9,8 @@ export type { ArticleSetting };
 export type FeedFilterParams = {
   keyword?: string | null;
   minRelevance?: number | null;
+  /** Effective priority floor (admin or predicted). */
+  minPriority?: number | null;
   setting?: ArticleSetting | null;
 };
 
@@ -20,7 +22,8 @@ export type FeedFilterParams = {
  */
 export function normalizeScoreTo100(score: number): number {
   if (typeof score !== "number" || Number.isNaN(score) || score <= 0) return 0;
-  const capped = Math.min(100, (score / 210) * 100);
+  // Stewardship base (~95) + clinical rubric (~120) × boosts ≈ 400
+  const capped = Math.min(100, (score / 400) * 100);
   return Math.round(Math.max(0, capped));
 }
 
@@ -348,10 +351,19 @@ function matchesKeyword(item: FeedItem, keyword: string): boolean {
 }
 
 /**
- * Classify the setting for a feed item using deterministic term scoring.
- * Exposed so feed pages can compute it once and reuse for display + filtering.
+ * Effective setting for a feed item: manual override wins, else auto-classify.
  */
 export function getItemSetting(item: FeedItem): ArticleSetting | null {
+  if (item.admin_setting) return item.admin_setting;
+  return classifyArticleSetting({
+    title: item.articles?.title,
+    abstract: item.articles?.abstract,
+    keywords: item.articles?.keywords ?? [],
+  });
+}
+
+/** Auto-classification only (ignores admin_setting). */
+export function getAutoItemSetting(item: FeedItem): ArticleSetting | null {
   return classifyArticleSetting({
     title: item.articles?.title,
     abstract: item.articles?.abstract,

@@ -1,4 +1,5 @@
 import type { RankingWeights } from "@/lib/ranking";
+import { DEFAULT_WEIGHTS } from "@/lib/ranking";
 import {
   DEFAULT_PENALTY_WEIGHTS,
   type PenaltyWeights,
@@ -7,21 +8,15 @@ import {
 export type { PenaltyWeights };
 export { DEFAULT_PENALTY_WEIGHTS };
 
-/** Local copy of ranking defaults — avoids circular import with lib/ranking. */
-const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
-  stewardshipTitle: 60,
-  stewardshipAbstract: 15,
-  largeStudy: 20,
-  studyTypeBoost: true,
-  jifMultiplier: true,
-};
-
 export type BriefFeedConfig = {
   minPriority: number;
   daysBack: number;
   largeStudyThreshold: number;
   smallSampleMax: number;
-  /** When true, brief sorts by article date then priority; when false, priority first. */
+  /**
+   * Legacy toggle kept for settings UI compatibility.
+   * Brief list order is always priority first, then article date.
+   */
   sortByRecency: boolean;
 };
 
@@ -36,11 +31,11 @@ export const DEFAULT_BRIEF_CONFIG: BriefFeedConfig = {
   daysBack: 7,
   largeStudyThreshold: 100,
   smallSampleMax: 100,
-  sortByRecency: true,
+  sortByRecency: false,
 };
 
 export const DEFAULT_FEED_SETTINGS: BriefFeedSettings = {
-  ...DEFAULT_RANKING_WEIGHTS,
+  ...DEFAULT_WEIGHTS,
   ...DEFAULT_PENALTY_WEIGHTS,
   brief: { ...DEFAULT_BRIEF_CONFIG },
 };
@@ -67,22 +62,33 @@ export function mergeFeedSettings(
       ? (stored.brief as Record<string, unknown>)
       : {};
 
+  const d = DEFAULT_WEIGHTS;
+
   return {
-    stewardshipTitle: num(
-      stored.stewardshipTitle,
-      DEFAULT_RANKING_WEIGHTS.stewardshipTitle,
-      0,
-      120
-    ),
+    stewardshipTitle: num(stored.stewardshipTitle, d.stewardshipTitle, 0, 120),
     stewardshipAbstract: num(
       stored.stewardshipAbstract,
-      DEFAULT_RANKING_WEIGHTS.stewardshipAbstract,
+      d.stewardshipAbstract,
       0,
       50
     ),
-    largeStudy: num(stored.largeStudy, DEFAULT_RANKING_WEIGHTS.largeStudy, 0, 60),
+    largeStudy: num(stored.largeStudy, d.largeStudy, 0, 60),
     studyTypeBoost: stored.studyTypeBoost !== false,
     jifMultiplier: stored.jifMultiplier !== false,
+    q1Journal: num(stored.q1Journal, d.q1Journal, 0, 5),
+    rctOrSr: num(stored.rctOrSr, d.rctOrSr, 0, 5),
+    multicenter: num(stored.multicenter, d.multicenter, 0, 5),
+    clinicalStewardship: num(
+      stored.clinicalStewardship,
+      d.clinicalStewardship,
+      0,
+      5
+    ),
+    novelty: num(stored.novelty, d.novelty, 0, 5),
+    cohort: num(stored.cohort, d.cohort, 0, 5),
+    intervention: num(stored.intervention, d.intervention, 0, 5),
+    nonHumanPenalty: num(stored.nonHumanPenalty, d.nonHumanPenalty, -5, 0),
+    guideline: num(stored.guideline, d.guideline, 0, 5),
     veterinary: num(stored.veterinary, DEFAULT_PENALTY_WEIGHTS.veterinary, 0.1, 1),
     singleCenterSmall: num(
       stored.singleCenterSmall,
@@ -112,7 +118,7 @@ export function mergeFeedSettings(
         10,
         500
       ),
-      sortByRecency: briefRaw.sortByRecency !== false,
+      sortByRecency: briefRaw.sortByRecency === true,
     },
   };
 }
@@ -125,6 +131,15 @@ export function toRankingWeights(s: BriefFeedSettings): RankingWeights {
     largeStudy: s.largeStudy,
     studyTypeBoost: s.studyTypeBoost,
     jifMultiplier: s.jifMultiplier,
+    q1Journal: s.q1Journal,
+    rctOrSr: s.rctOrSr,
+    multicenter: s.multicenter,
+    clinicalStewardship: s.clinicalStewardship,
+    novelty: s.novelty,
+    cohort: s.cohort,
+    intervention: s.intervention,
+    nonHumanPenalty: s.nonHumanPenalty,
+    guideline: s.guideline,
   };
 }
 
@@ -152,6 +167,17 @@ export function feedSettingsToStored(
   if (s.largeStudy !== d.largeStudy) out.largeStudy = s.largeStudy;
   if (s.studyTypeBoost !== d.studyTypeBoost) out.studyTypeBoost = s.studyTypeBoost;
   if (s.jifMultiplier !== d.jifMultiplier) out.jifMultiplier = s.jifMultiplier;
+  if (s.q1Journal !== d.q1Journal) out.q1Journal = s.q1Journal;
+  if (s.rctOrSr !== d.rctOrSr) out.rctOrSr = s.rctOrSr;
+  if (s.multicenter !== d.multicenter) out.multicenter = s.multicenter;
+  if (s.clinicalStewardship !== d.clinicalStewardship)
+    out.clinicalStewardship = s.clinicalStewardship;
+  if (s.novelty !== d.novelty) out.novelty = s.novelty;
+  if (s.cohort !== d.cohort) out.cohort = s.cohort;
+  if (s.intervention !== d.intervention) out.intervention = s.intervention;
+  if (s.nonHumanPenalty !== d.nonHumanPenalty)
+    out.nonHumanPenalty = s.nonHumanPenalty;
+  if (s.guideline !== d.guideline) out.guideline = s.guideline;
 
   if (s.veterinary !== d.veterinary) out.veterinary = s.veterinary;
   if (s.singleCenterSmall !== d.singleCenterSmall)

@@ -7,6 +7,7 @@ import {
   computeBreakdown,
 } from "@/lib/ranking";
 import { isHighImpactJournal } from "@/lib/jif";
+import { isQ1Journal, lookupScimago } from "@/lib/scimago";
 import {
   mergeLearnedWeights,
   priorityScoreBoost,
@@ -18,12 +19,32 @@ import {
   isTrendingBlocklisted,
   type FeedFilterParams,
 } from "@/lib/filters";
+import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  loadPriorityModel,
+  predictArticlePriority,
+} from "@/lib/brief/priorityModel";
+import { effectivePriority } from "@/lib/brief/priority";
 
 function normalizeJournalName(name: string): string {
   return name
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
+}
+
+const VALID_ADMIN_SETTINGS = new Set<ArticleSetting>([
+  "hospital",
+  "community",
+  "long-term care",
+  "animal",
+  "environment",
+]);
+
+function parseAdminSetting(raw: string | null | undefined): ArticleSetting | null {
+  if (!raw?.trim()) return null;
+  const v = raw.trim() as ArticleSetting;
+  return VALID_ADMIN_SETTINGS.has(v) ? v : null;
 }
 
 const DEFAULT_TOPIC_NAME = "antimicrobial stewardship";
@@ -68,6 +89,12 @@ export type FeedItem = {
   jif_2024: number | null;
   source: FeedSource;
   admin_priority: number | null;
+  /** Manual setting override; wins over auto-classification when set. */
+  admin_setting: ArticleSetting | null;
+  /** SCImago 2025 Q1 flag. */
+  is_q1: boolean;
+  /** SCImago SJR when journal is Q1; otherwise null. */
+  sjr_scimago: number | null;
   articles: {
     title: string | null;
     abstract: string | null;
@@ -122,8 +149,13 @@ export async function getFeedItems(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
   );
 
-  const hasFilters = Boolean(filters?.keyword?.trim());
-  const fetchLimit = 500;
+  const hasFilters = Boolean(
+    filters?.keyword?.trim() ||
+      filters?.setting ||
+      (filters?.minPriority != null && filters.minPriority > 0) ||
+      (filters?.minRelevance != null && filters.minRelevance > 0)
+  );
+  const fetchLimit = 3000;
 
   // Main feed: include both default (stewardship) and AI topic summaries so we don't lose
   // high-relevance articles that were only ingested under the AI topic.
@@ -138,7 +170,7 @@ export async function getFeedItems(
     : [topicId];
 
   const selectColumns =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
 
   let query = supabase
     .from("summaries")
@@ -146,13 +178,27 @@ export async function getFeedItems(
     .in("topic_id", topicIdsToFetch)
     .eq("articles.source", source)
     .order("created_at", { ascending: false })
-    .limit(isMainFeed ? 1000 : fetchLimit);
+    .limit(fetchLimit);
 
   if (cursor?.trim() && sort === "recency") {
     query = query.lt("created_at", cursor.trim());
   }
 
-  const { data: rawItems, error } = await query;
+  let { data: rawItems, error } = await query;
+
+  if (error?.message?.toLowerCase().includes("admin_setting")) {
+    const fallback = await supabase
+      .from("summaries")
+      .select(
+        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
+      )
+      .in("topic_id", topicIdsToFetch)
+      .eq("articles.source", source)
+      .order("created_at", { ascending: false })
+      .limit(Math.max(fetchLimit, isMainFeed ? 3000 : fetchLimit));
+    rawItems = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) throw new Error(error.message);
 
@@ -213,6 +259,7 @@ export async function getFeedItems(
       label?: string | null;
       rank_score?: number | null;
       admin_priority?: number | null;
+      admin_setting?: string | null;
       articles?: {
         title?: string | null;
         abstract?: string | null;
@@ -249,6 +296,7 @@ export async function getFeedItems(
             source: row.articles.source ?? null,
           }
         : null;
+    const scimago = lookupScimago(row.articles?.journal);
     return {
       pmid: row.pmid,
       summary_text: row.summary_text,
@@ -257,13 +305,16 @@ export async function getFeedItems(
       label: row.label ?? null,
       rank_score: row.rank_score ?? null,
       admin_priority: row.admin_priority ?? null,
+      admin_setting: parseAdminSetting(row.admin_setting),
+      is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
+      sjr_scimago: scimago?.sjr ?? null,
       jif_2024,
       source: articleSource,
       articles,
     };
   });
 
-  if (hasFilters && filters) {
+  if (filters?.setting || filters?.keyword?.trim()) {
     itemsWithJif = applyFiltersToFeedItems(itemsWithJif, filters);
   }
 
@@ -282,7 +333,8 @@ export async function getFeedItems(
     itemsWithJif = itemsWithJif
       .map((item) => {
         const rec = recFromItem(item);
-        const jifIsHigh = isHighImpactJournal(item.articles?.journal);
+        const jifIsHigh =
+          item.is_q1 || isHighImpactJournal(item.articles?.journal);
         const breakdown = computeBreakdown(
           query_string,
           rec,
@@ -317,6 +369,34 @@ export async function getFeedItems(
         return db.localeCompare(da);
       }
       return fetchedAt(b).localeCompare(fetchedAt(a));
+    });
+  }
+
+  const minPriority = filters?.minPriority;
+  if (minPriority != null && minPriority > 0) {
+    const priorityModel = await loadPriorityModel(supabase, topicId);
+    itemsWithJif = itemsWithJif.filter((item) => {
+      if (item.admin_priority != null) {
+        return effectivePriority(item.admin_priority, item.admin_priority) >= minPriority;
+      }
+      const rec: PubMedRecord = {
+        pmid: item.pmid,
+        title: item.articles?.title ?? null,
+        abstract: item.articles?.abstract ?? null,
+        journal: item.articles?.journal ?? null,
+        pubDate: item.articles?.pub_date ?? null,
+        publicationTypes: item.articles?.publication_types ?? [],
+        meshTerms: [],
+        keywords: item.articles?.keywords ?? [],
+        authors: [],
+      };
+      const predicted = predictArticlePriority({
+        rec,
+        queryString: query_string,
+        weights: learnedWeights,
+        model: priorityModel,
+      });
+      return effectivePriority(null, predicted.priority) >= minPriority;
     });
   }
 

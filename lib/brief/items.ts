@@ -11,6 +11,7 @@ import {
 } from "@/lib/filters";
 import type { ArticleSetting } from "@/lib/classifySetting";
 import { isHighImpactJournal, lookupJif } from "@/lib/jif";
+import { isQ1Journal, lookupScimago } from "@/lib/scimago";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { articleExternalUrl } from "@/lib/feedSource";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
@@ -44,6 +45,10 @@ export type BriefItem = {
   journal: string | null;
   jif: number | null;
   jifIsHigh: boolean;
+  /** SCImago 2025 Q1. */
+  isQ1: boolean;
+  /** SCImago SJR when Q1. */
+  sjrScimago: number | null;
   date: string | null;
   createdAt: string;
   isNew: boolean;
@@ -195,9 +200,9 @@ export async function getBriefItems(options?: {
   let error: { message: string } | null = null;
 
   const selectWithHeadline =
-    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
   const selectWithoutHeadline =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
 
   const applyBriefFilters = <T extends { or: Function; gte: Function; order: Function; limit: Function }>(
     q: T
@@ -226,13 +231,20 @@ export async function getBriefItems(options?: {
   );
 
   const errMsg = withHeadline.error?.message?.toLowerCase() ?? "";
-  if (errMsg.includes("headline") || errMsg.includes("mesh_terms")) {
+  if (
+    errMsg.includes("headline") ||
+    errMsg.includes("mesh_terms") ||
+    errMsg.includes("admin_setting")
+  ) {
     let selectFallback = selectWithHeadline;
     if (errMsg.includes("headline")) {
       selectFallback = selectWithoutHeadline;
     }
     if (errMsg.includes("mesh_terms")) {
       selectFallback = selectFallback.replace(", mesh_terms", "");
+    }
+    if (errMsg.includes("admin_setting")) {
+      selectFallback = selectFallback.replace(", admin_setting", "");
     }
     const fallback = await applyBriefFilters(
       supabase
@@ -270,6 +282,7 @@ export async function getBriefItems(options?: {
       subheading?: string | null;
       label?: string | null;
       admin_priority?: number | null;
+      admin_setting?: string | null;
       articles?: {
         title?: string | null;
         abstract?: string | null;
@@ -299,7 +312,11 @@ export async function getBriefItems(options?: {
       authors: [],
     };
 
-    const jifIsHigh = isHighImpactJournal(row.articles.journal);
+    const scimago = lookupScimago(row.articles.journal);
+    const jifIsHigh =
+      Boolean(scimago) ||
+      isQ1Journal(row.articles.journal) ||
+      isHighImpactJournal(row.articles.journal);
     const breakdown = computeBreakdown(
       query_string,
       rec,
@@ -361,6 +378,21 @@ export async function getBriefItems(options?: {
       jif_2024: jifEntry?.jif ?? null,
       source: "pubmed",
       admin_priority: row.admin_priority ?? null,
+      admin_setting: (() => {
+        const s = row.admin_setting?.trim();
+        if (
+          s === "hospital" ||
+          s === "community" ||
+          s === "long-term care" ||
+          s === "animal" ||
+          s === "environment"
+        ) {
+          return s;
+        }
+        return null;
+      })(),
+      is_q1: Boolean(scimago) || isQ1Journal(row.articles.journal),
+      sjr_scimago: scimago?.sjr ?? null,
       articles: {
         title: row.articles.title ?? null,
         abstract: row.articles.abstract ?? null,
@@ -382,6 +414,8 @@ export async function getBriefItems(options?: {
       journal: row.articles.journal?.trim() ?? null,
       jif: jifEntry?.jif ?? null,
       jifIsHigh,
+      isQ1: Boolean(scimago) || isQ1Journal(row.articles.journal),
+      sjrScimago: scimago?.sjr ?? null,
       date:
         row.articles.release_date ??
         row.articles.pub_date ??
@@ -413,22 +447,16 @@ export async function getBriefItems(options?: {
   }
 
   candidates.sort((a, b) => {
-    if (feedSettings.brief.sortByRecency) {
-      // Article/publication date — not summary created_at — so backfill ingest
-      // of older papers does not push them to the top of the brief.
-      const tA = articleTimestamp(a);
-      const tB = articleTimestamp(b);
-      if (tB !== tA) return tB - tA;
-    }
-
+    // Lead story = highest effective priority, then most recent article date.
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }
+    const tDiff = articleTimestamp(b) - articleTimestamp(a);
+    if (tDiff !== 0) return tDiff;
     if (b.relevancePercent !== a.relevancePercent) {
       return b.relevancePercent - a.relevancePercent;
     }
-
-    return articleTimestamp(b) - articleTimestamp(a);
+    return 0;
   });
 
   let filtered = candidates;

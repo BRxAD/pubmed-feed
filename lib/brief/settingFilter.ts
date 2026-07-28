@@ -1,4 +1,5 @@
 import type { ArticleSetting } from "@/lib/classifySetting";
+import { scoreAllSettings } from "@/lib/classifySetting";
 import type { BriefItem } from "@/lib/brief/items";
 
 /** URL setting values for the brief pill bar. */
@@ -35,9 +36,11 @@ export function parseBriefSetting(raw: string | undefined): BriefSettingFilter {
 
 function matchesGlobalHealth(item: BriefItem): boolean {
   if (item.setting === "environment" || item.setting === "animal") return true;
-  const text = `${item.title} ${item.keywords.join(" ")}`.toLowerCase();
+  const text =
+    `${item.title} ${item.keywords.join(" ")} ${item.bottomLine ?? ""}`.toLowerCase();
   return (
     text.includes("global health") ||
+    text.includes("one health") ||
     text.includes("low-income") ||
     text.includes("lmic") ||
     text.includes("world health") ||
@@ -45,17 +48,43 @@ function matchesGlobalHealth(item: BriefItem): boolean {
   );
 }
 
+/** Soft match score floor so Top 10 capsules can fill when auto-class is null. */
+const SOFT_SETTING_MIN = 3;
+
 export function matchesBriefSettingFilter(
   item: BriefItem,
-  filter: BriefSettingFilter
+  filter: BriefSettingFilter,
+  soft = false
 ): boolean {
   if (!filter) return true;
-  if (filter === "global-health") return matchesGlobalHealth(item);
-  if (filter === "community") return item.setting === "community";
-  return item.setting === (filter as ArticleSetting);
+  if (filter === "global-health") {
+    if (matchesGlobalHealth(item)) return true;
+    if (!soft) return false;
+    const scores = scoreAllSettings({
+      title: item.title,
+      abstract: null,
+      keywords: item.keywords,
+    });
+    return (
+      scores.animal >= SOFT_SETTING_MIN ||
+      scores.environment >= SOFT_SETTING_MIN
+    );
+  }
+  if (item.setting === filter) return true;
+  if (!soft) return false;
+
+  const target = filter as ArticleSetting;
+  const scores = scoreAllSettings({
+    title: item.title,
+    abstract: null,
+    keywords: item.keywords,
+  });
+  return (scores[target] ?? 0) >= SOFT_SETTING_MIN;
 }
 
-export function briefSettingLabel(setting: ArticleSetting | null): string | null {
+export function briefSettingLabel(
+  setting: ArticleSetting | null
+): string | null {
   if (!setting) return null;
   const labels: Record<ArticleSetting, string> = {
     hospital: "Hospital",

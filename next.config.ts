@@ -1,14 +1,15 @@
 import type { NextConfig } from "next";
 
+const dataFiles = ["./data/jcr.csv", "./data/scimago_q1.json"];
+
 const nextConfig: NextConfig = {
-  // Ensure the JCR CSV is bundled into Vercel serverless functions
-  // so lib/jif.ts can read it via fs.readFileSync at runtime.
+  // Bundle journal lookup files into Vercel serverless functions.
   outputFileTracingIncludes: {
-    "/": ["./data/jcr.csv"],
-    "/stewardshipbrief": ["./data/jcr.csv"],
-    "/feed": ["./data/jcr.csv"],
-    "/feed/ai-stewardship": ["./data/jcr.csv"],
-    "/api/**": ["./data/jcr.csv"],
+    "/": dataFiles,
+    "/stewardshipbrief": dataFiles,
+    "/feed": dataFiles,
+    "/feed/ai-stewardship": dataFiles,
+    "/api/**": dataFiles,
   },
   images: {
     remotePatterns: [

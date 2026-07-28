@@ -316,8 +316,8 @@ export default function SettingsDashboard({ initialSecret }: Props) {
         </div>
         <div className="mt-6">
           <ToggleRow
-            label="Sort by newest ingest first"
-            hint="When off, highest priority + relevance rise to the top."
+            label="Prefer ingest time over priority (legacy)"
+            hint="Brief always leads with highest priority, then newest article date. Leave off."
             checked={settings.brief.sortByRecency}
             onChange={(v) =>
               setSettings((s) =>
@@ -325,6 +325,44 @@ export default function SettingsDashboard({ initialSecret }: Props) {
               )
             }
           />
+        </div>
+      </section>
+
+      <section>
+        <h2 className={`${brief.kicker} mb-4 pb-2 border-b ${brief.hairline}`}>
+          Clinical relevance rubric
+        </h2>
+        <p className={`mb-4 ${brief.sans} text-xs ${brief.muted}`}>
+          Points are scaled ×10 in the score (so +2 → +20). Defaults match the
+          editorial rubric (Q1, RCT/SR, multicenter, clinical stewardship,
+          novelty, cohort, intervention, guideline; non-human penalty).
+        </p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {(
+            [
+              ["q1Journal", "Q1 journal (SCImago)"],
+              ["rctOrSr", "RCT or systematic review"],
+              ["multicenter", "Multicenter"],
+              ["clinicalStewardship", "Human clinical stewardship"],
+              ["novelty", "Novelty"],
+              ["cohort", "Cohort study"],
+              ["intervention", "Intervention occurs"],
+              ["guideline", "Guideline"],
+              ["nonHumanPenalty", "Solely non-human (penalty)"],
+            ] as const
+          ).map(([key, label]) => (
+            <SliderRow
+              key={key}
+              label={label}
+              value={settings[key]}
+              min={key === "nonHumanPenalty" ? -5 : 0}
+              max={5}
+              step={1}
+              onChange={(v) =>
+                setSettings((s) => (s ? { ...s, [key]: v } : s))
+              }
+            />
+          ))}
         </div>
       </section>
 

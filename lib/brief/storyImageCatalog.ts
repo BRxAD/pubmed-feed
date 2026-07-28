@@ -301,7 +301,7 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     source: "unsplash",
     requireAny: ["emergency department", "emergency room", "triage", "urgent care"],
     tags: ["emergency", "emergency department", "triage", "urgent", "ed visit"],
-    settings: ["hospital", "community"],
+    settings: ["community"],
   },
   {
     id: "pediatric-care",

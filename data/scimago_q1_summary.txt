@@ -1,0 +1,19 @@
+SCImago Q1 journals (2025)
+Source: scimagojr 2025.csv
+Types included: journal, trade journal
+Q1 journals written: 9400
+Unique normalized names: 9400
+
+Parse notes:
+- Semicolon CSV with broken quoting around European decimal commas in SJR (e.g. 104",065 -> 104.065).
+- 428 sources overall have empty SJR and Best Quartile '-'; none are Q1 (253 of those are journal/trade journal).
+- Titles with embedded commas recovered via type-anchored regex.
+- ISSNs cleaned to digit/X tokens, comma-joined when multiple.
+- Book series and conference proceedings excluded.
+
+First 5 examples:
+  CA-A CANCER JOURNAL FOR CLINICIANS: sjr=104.065, issn=15424863,00079235, hIndex=236
+  NATURE REVIEWS MOLECULAR CELL BIOLOGY: sjr=35.568, issn=14710072,14710080, hIndex=553
+  QUARTERLY JOURNAL OF ECONOMICS: sjr=33.069, issn=00335533,15314650, hIndex=336
+  NATURE REVIEWS DRUG DISCOVERY: sjr=32.577, issn=14741784,14741776, hIndex=428
+  NATURE REVIEWS CLINICAL ONCOLOGY: sjr=28.076, issn=17594782,17594774, hIndex=259

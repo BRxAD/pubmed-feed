@@ -26,8 +26,6 @@ const HOSPITAL_PHRASES = [
   "tertiary care",
   "acute care",
   "secondary care",
-  "emergency department",
-  "emergency room",
   "critical care",
   "inpatient",
   "hospitalized",
@@ -72,6 +70,9 @@ const COMMUNITY_PHRASES = [
   "primary health care",
   "walk-in clinic",
   "urgent care",
+  "emergency department",
+  "emergency room",
+  "ed visit",
   "community setting",
 ];
 
@@ -250,19 +251,23 @@ const MIN_SCORE = 4;
  */
 const CONFIDENCE_RATIO = 3.0;
 
-export function classifyArticleSetting(params: {
+/**
+ * Score all settings (for soft matching / debugging).
+ * Does not apply MIN_SCORE or CONFIDENCE_RATIO gates.
+ */
+export function scoreAllSettings(params: {
   title?: string | null;
   abstract?: string | null;
   keywords?: string[] | null;
   meshTerms?: string[] | null;
-}): ArticleSetting | null {
+}): Record<ArticleSetting, number> {
   const text = [params.title ?? "", params.abstract ?? ""].join(" ");
   const kws = [
     ...(params.keywords ?? []),
     ...(params.meshTerms ?? []),
   ];
 
-  const scores: Record<ArticleSetting, number> = {
+  return {
     hospital:
       scoreText(text, HOSPITAL_PHRASES, HOSPITAL_WORDS) +
       scoreKeywords(kws, HOSPITAL_PHRASES, HOSPITAL_WORDS),
@@ -279,6 +284,15 @@ export function classifyArticleSetting(params: {
       scoreText(text, ENVIRONMENT_PHRASES, ENVIRONMENT_WORDS) +
       scoreKeywords(kws, ENVIRONMENT_PHRASES, ENVIRONMENT_WORDS),
   };
+}
+
+export function classifyArticleSetting(params: {
+  title?: string | null;
+  abstract?: string | null;
+  keywords?: string[] | null;
+  meshTerms?: string[] | null;
+}): ArticleSetting | null {
+  const scores = scoreAllSettings(params);
 
   const ranked = (
     Object.entries(scores) as [ArticleSetting, number][]

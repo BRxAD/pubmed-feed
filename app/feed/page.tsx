@@ -20,6 +20,7 @@ import {
   studyAccentClass,
   parseSummaryBullets,
   getItemSetting,
+  getAutoItemSetting,
   type ArticleSetting,
 } from "@/lib/filters";
 import { lookupJif, isHighImpactJournal } from "@/lib/jif";
@@ -29,6 +30,7 @@ import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
 import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
+import AdminSettingSelector from "@/components/AdminSettingSelector";
 import SourceSelector from "@/components/SourceSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 import { loadPriorityModel, predictArticlePriority, type PriorityModel } from "@/lib/brief/priorityModel";
@@ -53,6 +55,7 @@ function buildFeedUrl(params: {
   admin?: boolean;
   weights?: RankingWeights;
   source?: FeedSource;
+  minPriority?: number;
 }): string {
   const q = new URLSearchParams();
   q.set("topicId", params.topicId);
@@ -62,6 +65,8 @@ function buildFeedUrl(params: {
   if (params.page != null && params.page > 1) q.set("page", String(params.page));
   if (params.minRelevance && params.minRelevance > 0)
     q.set("minRelevance", String(params.minRelevance));
+  if (params.minPriority && params.minPriority > 0)
+    q.set("minPriority", String(params.minPriority));
   if (params.setting) q.set("setting", params.setting);
   if (params.admin) q.set("admin", "1");
   if (params.weights) {
@@ -154,8 +159,16 @@ function ArticleCard({
   const articleUrl = articleExternalUrl(item.pmid, item.source ?? source);
 
   const jifEntry = lookupJif(item.articles?.journal);
-  const jifIsHigh = jifEntry != null && isHighImpactJournal(item.articles?.journal);
-  const breakdown = computeBreakdown(query_string, makeRec(item), weights, true, jifIsHigh);
+  const jifIsHigh =
+    item.is_q1 ||
+    (jifEntry != null && isHighImpactJournal(item.articles?.journal));
+  const breakdown = computeBreakdown(
+    query_string,
+    makeRec(item),
+    weights,
+    true,
+    jifIsHigh
+  );
   const score = item.rank_score != null && !Number.isNaN(Number(item.rank_score))
     ? Number(item.rank_score)
     : breakdown.finalScore;
@@ -225,6 +238,14 @@ function ArticleCard({
         {jifStr && (
           <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
             JIF {jifStr}
+          </span>
+        )}
+        {item.is_q1 && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+            Q1
+            {item.sjr_scimago != null
+              ? ` · SJR ${item.sjr_scimago.toFixed(2)}`
+              : ""}
           </span>
         )}
         {itemSetting && (
@@ -427,6 +448,12 @@ function ArticleCard({
             initialPriority={item.admin_priority}
             featureSnapshot={snapshotFromBreakdown(breakdown)}
           />
+          <AdminSettingSelector
+            topicId={topicId}
+            pmid={item.pmid}
+            autoSetting={getAutoItemSetting(item)}
+            initialSetting={item.admin_setting}
+          />
         </div>
       )}
     </article>
@@ -453,6 +480,7 @@ export default async function FeedPage({
     keyword?: string;
     page?: string;
     minRelevance?: string;
+    minPriority?: string;
     setting?: string;
     admin?: string;
     wTitle?: string;
@@ -470,6 +498,7 @@ export default async function FeedPage({
     keyword: keywordRaw,
     page: pageRaw,
     minRelevance: minRelevanceRaw,
+    minPriority: minPriorityRaw,
     setting: settingRaw,
     admin: adminRaw,
     wTitle,
@@ -490,6 +519,10 @@ export default async function FeedPage({
   const minRelevance = isAdmin
     ? Math.max(0, Math.min(100, parseFloat(minRelevanceRaw ?? "0") || 0))
     : 0;
+  const minPriority = Math.max(
+    0,
+    Math.min(10, parseInt(minPriorityRaw ?? "0", 10) || 0)
+  );
   const setting = parseSettingParam(settingRaw);
   const weights = isAdmin
     ? parseWeightsFromParams({ wTitle, wAbstract, wLarge, studyBoost, jifBoost })
@@ -509,7 +542,11 @@ export default async function FeedPage({
     topicId = defaultId;
   }
 
-  const filters = { keyword: keyword || undefined };
+  const filters = {
+    keyword: keyword || undefined,
+    setting: setting || undefined,
+    minPriority: minPriority > 0 ? minPriority : undefined,
+  };
 
   let result: Awaited<ReturnType<typeof getFeedItems>>;
   try {
@@ -533,11 +570,9 @@ export default async function FeedPage({
       return normalizeScoreTo100(score) >= minRelevance;
     });
   }
-  if (setting) {
-    list = list.filter((item) => getItemSetting(item) === setting);
-  }
 
-  const hasFilters = keyword !== "" || minRelevance > 0 || setting !== "";
+  const hasFilters =
+    keyword !== "" || minRelevance > 0 || setting !== "" || minPriority > 0;
 
   const priorityModel = isAdmin
     ? await loadPriorityModel(getSupabaseServerClient(), topicId)
@@ -638,11 +673,37 @@ export default async function FeedPage({
               </select>
             </label>
 
+            {/* Min priority */}
+            <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              <span>Min priority</span>
+              <select
+                name="minPriority"
+                defaultValue={minPriority > 0 ? String(minPriority) : ""}
+                className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                <option value="">Any</option>
+                {[5, 6, 7, 8, 9, 10].map((n) => (
+                  <option key={n} value={n}>
+                    ≥ {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             {/* Min relevance — admin only */}
             {isAdmin && (
               <Suspense fallback={null}>
                 <RelevanceSlider defaultValue={minRelevance} />
               </Suspense>
+            )}
+
+            {isAdmin && (
+              <a
+                href="/stewardshipbrief/settings"
+                className="self-center text-xs font-medium text-[#2A79A7] underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Brief ranking settings →
+              </a>
             )}
 
             <input type="hidden" name="sort" value={sort} />

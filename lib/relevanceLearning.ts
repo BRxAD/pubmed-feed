@@ -77,6 +77,7 @@ export function computeLearnedWeights(rows: FeedbackRow[]): RankingWeights {
   };
 
   return {
+    ...DEFAULT_WEIGHTS,
     stewardshipTitle: scale(
       avgFeature(high, "stewardshipTitle"),
       avgFeature(low, "stewardshipTitle"),
