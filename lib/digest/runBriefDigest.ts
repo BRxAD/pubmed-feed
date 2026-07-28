@@ -13,6 +13,10 @@ import {
 } from "@/lib/digest/config";
 import { sendDigestEmailToEach } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
+import {
+  unsubscribeApiUrlForEmail,
+  unsubscribeUrlForEmail,
+} from "@/lib/digest/unsubscribeToken";
 
 export type BriefDigestResult = {
   sent: boolean;
@@ -167,6 +171,36 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     html,
     text,
     from: getBriefDigestFromAddress(),
+    personalize: (email) => {
+      let unsubscribePageUrl: string | undefined;
+      let unsubscribeApiUrl: string | undefined;
+      try {
+        unsubscribePageUrl = unsubscribeUrlForEmail(base, email);
+        unsubscribeApiUrl = unsubscribeApiUrlForEmail(base, email);
+      } catch {
+        unsubscribePageUrl = undefined;
+        unsubscribeApiUrl = undefined;
+      }
+      const personalized = buildBriefDigestEmail({
+        items,
+        briefUrl,
+        dateLabel,
+        logoUrl,
+        unsubscribeUrl: unsubscribePageUrl,
+      });
+      return {
+        html: personalized.html,
+        text: personalized.text,
+        ...(unsubscribeApiUrl
+          ? {
+              headers: {
+                "List-Unsubscribe": `<${unsubscribeApiUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+          : {}),
+      };
+    },
   });
 
   if (result.sent > 0 && items.length > 0) {

@@ -29,8 +29,10 @@ export function buildBriefDigestEmail(options: {
   briefUrl: string;
   dateLabel: string;
   logoUrl?: string;
+  /** Per-recipient signed unsubscribe link. */
+  unsubscribeUrl?: string;
 }): { subject: string; html: string; text: string } {
-  const { items, briefUrl, dateLabel, logoUrl } = options;
+  const { items, briefUrl, dateLabel, logoUrl, unsubscribeUrl } = options;
   const { plum, olive, steel, salmon, paper, paperWarm, hairline } = briefPalette;
 
   const subject =
@@ -98,6 +100,16 @@ export function buildBriefDigestEmail(options: {
     </div>`,
     `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center">The Stewardship Brief · Daily antimicrobial stewardship digest</p>`
   );
+
+  if (unsubscribeUrl) {
+    textParts.push("", `Unsubscribe: ${unsubscribeUrl}`);
+    htmlParts.push(
+      `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:16px;text-align:center">
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:${olive};text-decoration:underline">Unsubscribe</a>
+        from these emails
+      </p>`
+    );
+  }
 
   return {
     subject,

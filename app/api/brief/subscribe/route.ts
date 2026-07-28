@@ -4,6 +4,7 @@ import { getBriefDigestFromAddress } from "@/lib/digest/config";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { briefPalette } from "@/components/brief/briefTheme";
+import { unsubscribeUrlForEmail } from "@/lib/digest/unsubscribeToken";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,20 @@ function buildWelcomeEmail(email: string): {
 } {
   const { plum, olive, steel, paper } = briefPalette;
   const briefUrl = publicAppBaseUrl();
+  let unsubscribeUrl: string | undefined;
+  try {
+    unsubscribeUrl = unsubscribeUrlForEmail(briefUrl, email);
+  } catch {
+    unsubscribeUrl = undefined;
+  }
+
   const subject = "You're subscribed to The Stewardship Brief";
   const text = [
     "You're on The Stewardship Brief list.",
     "You'll get the daily email with top headlines and one bottom line each.",
     "",
     `Read online anytime: ${briefUrl}`,
+    ...(unsubscribeUrl ? ["", `Unsubscribe: ${unsubscribeUrl}`] : []),
   ].join("\n");
 
   const html = `<!DOCTYPE html><html><body style="max-width:560px;margin:0 auto;padding:28px 20px;background:${paper};color:${plum};font-family:system-ui,-apple-system,sans-serif">
@@ -32,6 +41,11 @@ function buildWelcomeEmail(email: string): {
       <a href="${briefUrl}" style="color:${steel};text-decoration:none;font-weight:500">Open today’s brief →</a>
     </p>
     <p style="margin:0;font-size:11px;color:${olive}">Signed up as ${email}</p>
+    ${
+      unsubscribeUrl
+        ? `<p style="margin:16px 0 0;font-size:11px;color:${olive}"><a href="${unsubscribeUrl}" style="color:${olive};text-decoration:underline">Unsubscribe</a></p>`
+        : ""
+    }
   </body></html>`;
 
   return { subject, html, text };

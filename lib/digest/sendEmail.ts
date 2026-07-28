@@ -1,7 +1,6 @@
 import "server-only";
 import {
   getDigestFromAddress,
-  getBriefDigestFromAddress,
   getDigestReplyTo,
 } from "@/lib/digest/config";
 
@@ -12,6 +11,8 @@ export async function sendDigestEmail(options: {
   text: string;
   from?: string;
   bcc?: string[];
+  /** Extra Resend headers (e.g. List-Unsubscribe). */
+  headers?: Record<string, string>;
 }): Promise<{ id?: string }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -35,6 +36,9 @@ export async function sendDigestEmail(options: {
       text: options.text,
       ...(options.bcc?.length ? { bcc: options.bcc } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(options.headers && Object.keys(options.headers).length > 0
+        ? { headers: options.headers }
+        : {}),
     }),
   });
 
@@ -50,15 +54,21 @@ export async function sendDigestEmail(options: {
   return { id: data.id };
 }
 
-/** Send the same message to each recipient (private inboxes, Resend-friendly). */
+/** Send a (possibly personalized) message to each recipient. */
 export async function sendDigestEmailToEach(options: {
   recipients: string[];
   subject: string;
   html: string;
   text: string;
   from?: string;
+  /** Override body/headers per recipient (e.g. unsubscribe links). */
+  personalize?: (email: string) => {
+    html?: string;
+    text?: string;
+    headers?: Record<string, string>;
+  };
 }): Promise<{ sent: number; failed: string[]; lastId?: string }> {
-  const { recipients, ...payload } = options;
+  const { recipients, personalize, ...payload } = options;
   if (recipients.length === 0) {
     return { sent: 0, failed: [] };
   }
@@ -69,7 +79,14 @@ export async function sendDigestEmailToEach(options: {
 
   for (const email of recipients) {
     try {
-      const result = await sendDigestEmail({ ...payload, to: [email] });
+      const extras = personalize?.(email) ?? {};
+      const result = await sendDigestEmail({
+        ...payload,
+        to: [email],
+        html: extras.html ?? payload.html,
+        text: extras.text ?? payload.text,
+        headers: extras.headers,
+      });
       sent += 1;
       lastId = result.id;
     } catch (err) {
