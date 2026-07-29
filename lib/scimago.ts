@@ -4,7 +4,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
-import { normalizeJournalName } from "@/lib/jif";
+import { journalNameLookupKeys } from "@/lib/jif";
 
 export type ScimagoEntry = {
   sjr: number;
@@ -56,7 +56,9 @@ function getState(): ScimagoState {
         hIndex: row.hIndex ?? null,
         isQ1: true,
       };
-      state.byName.set(normalizeJournalName(name), entry);
+      for (const key of journalNameLookupKeys(name)) {
+        if (!state.byName.has(key)) state.byName.set(key, entry);
+      }
       state.list.push({
         name,
         sjr: entry.sjr,
@@ -76,8 +78,7 @@ function getState(): ScimagoState {
 
 /** True when the journal is in the SCImago 2025 Q1 list. */
 export function isQ1Journal(journalName: string | null | undefined): boolean {
-  if (!journalName) return false;
-  return getState().byName.has(normalizeJournalName(journalName));
+  return lookupScimago(journalName) != null;
 }
 
 /** SCImago SJR for Q1 journals; null if not in the Q1 list. */
@@ -85,7 +86,12 @@ export function lookupScimago(
   journalName: string | null | undefined
 ): ScimagoEntry | null {
   if (!journalName) return null;
-  return getState().byName.get(normalizeJournalName(journalName)) ?? null;
+  const map = getState().byName;
+  for (const key of journalNameLookupKeys(journalName)) {
+    const hit = map.get(key);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export function getScimagoQ1Count(): number {

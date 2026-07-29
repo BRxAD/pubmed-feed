@@ -28,7 +28,29 @@ export function normalizeJournalName(name: string): string {
   return name
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, " ");
+    // PubMed often appends place/edition: "Lancet (London, England)"
+    .replace(/\s*\([^)]*\)/g, " ")
+    .replace(/\s*&\s*/g, " AND ")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Candidate keys for journal lookup (handles THE prefix and PubMed place suffixes).
+ * Example: "Lancet (London, England)" → ["LANCET", "THE LANCET"]
+ */
+export function journalNameLookupKeys(name: string): string[] {
+  const base = normalizeJournalName(name);
+  if (!base) return [];
+  const keys = new Set<string>([base]);
+  if (base.startsWith("THE ")) {
+    const without = base.slice(4).trim();
+    if (without) keys.add(without);
+  } else {
+    keys.add(`THE ${base}`);
+  }
+  return [...keys];
 }
 
 /**
@@ -114,14 +136,18 @@ function getState(): JifState {
     const entry: JifEntry = { jif, quartile };
 
     // Keep the highest JIF when the same journal appears more than once
-    const existing = state.byName.get(journalName);
-    if (!existing || jif > existing.jif) {
-      state.byName.set(journalName, entry);
+    for (const key of journalNameLookupKeys(cols[1])) {
+      const existing = state.byName.get(key);
+      if (!existing || jif > existing.jif) {
+        state.byName.set(key, entry);
+      }
     }
     if (abbrevName) {
-      const existingAbbrev = state.byAbbrev.get(abbrevName);
-      if (!existingAbbrev || jif > existingAbbrev.jif) {
-        state.byAbbrev.set(abbrevName, entry);
+      for (const key of journalNameLookupKeys(cols[3])) {
+        const existingAbbrev = state.byAbbrev.get(key);
+        if (!existingAbbrev || jif > existingAbbrev.jif) {
+          state.byAbbrev.set(key, entry);
+        }
       }
     }
   }
@@ -149,8 +175,11 @@ function getState(): JifState {
 export function lookupJif(journalName: string | null | undefined): JifEntry | null {
   if (!journalName) return null;
   const state = getState();
-  const norm = normalizeJournalName(journalName);
-  return state.byName.get(norm) ?? state.byAbbrev.get(norm) ?? null;
+  for (const key of journalNameLookupKeys(journalName)) {
+    const hit = state.byName.get(key) ?? state.byAbbrev.get(key);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /**
