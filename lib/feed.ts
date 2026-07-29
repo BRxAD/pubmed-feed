@@ -196,7 +196,7 @@ export async function getFeedItems(
       .eq("articles.source", source)
       .order("created_at", { ascending: false })
       .limit(Math.max(fetchLimit, isMainFeed ? 3000 : fetchLimit));
-    rawItems = fallback.data;
+    rawItems = fallback.data as typeof rawItems;
     error = fallback.error;
   }
 
