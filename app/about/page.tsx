@@ -34,6 +34,8 @@ const STEPS = [
   },
 ] as const;
 
+const REVIEWERS = ["Dr. Amy Y. Kang, PharmD, BCIDP"] as const;
+
 export default function AboutPage() {
   return (
     <BriefSitePage active="/about">
@@ -192,6 +194,22 @@ export default function AboutPage() {
                 stay current without reading everything.
               </p>
             </div>
+          </div>
+
+          <div
+            className={`mt-12 border-t ${brief.hairline} pt-8 sm:mt-14 sm:pl-36`}
+          >
+            <p className={`${brief.meta} mb-3`}>Acknowledged reviewers</p>
+            <ul className="space-y-1">
+              {REVIEWERS.map((reviewer) => (
+                <li
+                  key={reviewer}
+                  className={`${brief.serif} text-lg font-medium tracking-[-0.01em]`}
+                >
+                  {reviewer}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
