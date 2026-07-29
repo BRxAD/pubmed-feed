@@ -663,12 +663,12 @@ export default function SettingsDashboard({ initialSecret }: Props) {
         </div>
         <div className="mt-6">
           <ToggleRow
-            label="Prefer ingest time over priority (legacy)"
-            hint="Brief always leads with highest priority, then newest article date. Leave off."
-            checked={settings.brief.sortByRecency}
+            label="Lead by recency, then priority"
+            hint="On (default): newest article date first; highest priority wins ties. Off: highest priority first, then newest date."
+            checked={settings.brief.leadByRecency}
             onChange={(v) =>
               setSettings((s) =>
-                s ? { ...s, brief: { ...s.brief, sortByRecency: v } } : s
+                s ? { ...s, brief: { ...s.brief, leadByRecency: v } } : s
               )
             }
           />

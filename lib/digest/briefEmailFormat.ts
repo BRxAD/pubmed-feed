@@ -76,19 +76,19 @@ export function buildBriefDigestEmail(options: {
 
     textParts.push(
       item.headline,
+      item.bottomLine ?? "",
       meta,
-      item.bottomLine ? `Bottom line: ${item.bottomLine}` : "",
       item.pubmedUrl,
       ""
     );
 
     htmlParts.push(`
       <article style="margin:0 0 28px;padding:0 0 28px;border-bottom:1px solid ${hairline};font-family:system-ui,sans-serif">
-        <h2 style="margin:0 0 10px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
+        <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
           <a href="${escapeHtml(item.pubmedUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
         </h2>
-        ${meta ? `<p style="margin:0 0 12px;font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>` : ""}
-        ${item.bottomLine ? `<p style="margin:0;font-size:15px;line-height:1.55;color:${plum}"><span style="color:${steel};font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">Bottom line</span><br/><span style="display:block;margin-top:6px">${escapeHtml(item.bottomLine)}</span></p>` : ""}
+        ${item.bottomLine ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
+        ${meta ? `<p style="margin:0;font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>` : ""}
         ${item.isNew ? `<p style="margin:10px 0 0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${salmon}">New</p>` : ""}
       </article>
     `);

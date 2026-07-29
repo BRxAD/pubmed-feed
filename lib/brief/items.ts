@@ -447,12 +447,21 @@ export async function getBriefItems(options?: {
   }
 
   candidates.sort((a, b) => {
-    // Lead story = highest effective priority, then most recent article date.
-    if (b.effectivePriority !== a.effectivePriority) {
-      return b.effectivePriority - a.effectivePriority;
+    // Default: newest article date first, then highest priority within that day/tie.
+    // Alt (leadByRecency off): highest priority first, then newest date.
+    if (feedSettings.brief.leadByRecency) {
+      const tDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (tDiff !== 0) return tDiff;
+      if (b.effectivePriority !== a.effectivePriority) {
+        return b.effectivePriority - a.effectivePriority;
+      }
+    } else {
+      if (b.effectivePriority !== a.effectivePriority) {
+        return b.effectivePriority - a.effectivePriority;
+      }
+      const tDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (tDiff !== 0) return tDiff;
     }
-    const tDiff = articleTimestamp(b) - articleTimestamp(a);
-    if (tDiff !== 0) return tDiff;
     if (b.relevancePercent !== a.relevancePercent) {
       return b.relevancePercent - a.relevancePercent;
     }

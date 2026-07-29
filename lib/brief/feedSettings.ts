@@ -14,10 +14,10 @@ export type BriefFeedConfig = {
   largeStudyThreshold: number;
   smallSampleMax: number;
   /**
-   * Legacy toggle kept for settings UI compatibility.
-   * Brief list order is always priority first, then article date.
+   * When true (default): lead by newest article date, then highest priority.
+   * When false: lead by highest priority, then newest article date.
    */
-  sortByRecency: boolean;
+  leadByRecency: boolean;
 };
 
 /** Full tunable feed + brief configuration stored in topics.ranking_weights jsonb. */
@@ -31,7 +31,7 @@ export const DEFAULT_BRIEF_CONFIG: BriefFeedConfig = {
   daysBack: 7,
   largeStudyThreshold: 100,
   smallSampleMax: 100,
-  sortByRecency: false,
+  leadByRecency: true,
 };
 
 export const DEFAULT_FEED_SETTINGS: BriefFeedSettings = {
@@ -118,7 +118,11 @@ export function mergeFeedSettings(
         10,
         500
       ),
-      sortByRecency: briefRaw.sortByRecency === true,
+      // New key; ignore legacy unused sortByRecency so everyone gets the new default.
+      leadByRecency:
+        typeof briefRaw.leadByRecency === "boolean"
+          ? briefRaw.leadByRecency
+          : DEFAULT_BRIEF_CONFIG.leadByRecency,
     },
   };
 }
@@ -194,7 +198,7 @@ export function feedSettingsToStored(
     briefOut.largeStudyThreshold = b.largeStudyThreshold;
   if (b.smallSampleMax !== db.smallSampleMax)
     briefOut.smallSampleMax = b.smallSampleMax;
-  if (b.sortByRecency !== db.sortByRecency) briefOut.sortByRecency = b.sortByRecency;
+  if (b.leadByRecency !== db.leadByRecency) briefOut.leadByRecency = b.leadByRecency;
   if (Object.keys(briefOut).length > 0) out.brief = briefOut;
 
   return out;
