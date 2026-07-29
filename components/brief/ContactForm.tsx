@@ -3,19 +3,23 @@
 import { useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
 
+const FIELD =
+  "w-full rounded-sm border border-[#D8D4C8] bg-white px-3.5 py-3 text-sm text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-2 focus:ring-[#7BC1D4]/40";
+
 export default function ContactForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [topic, setTopic] = useState("General inquiry");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">(
     "idle"
   );
-  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("loading");
-    setFeedback("");
+    setError("");
     try {
       const res = await fetch("/api/brief/contact", {
         method: "POST",
@@ -23,6 +27,7 @@ export default function ContactForm() {
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim(),
+          topic,
           message: message.trim(),
         }),
       });
@@ -31,82 +36,143 @@ export default function ContactForm() {
         throw new Error(data.error ?? "Could not send message");
       }
       setStatus("ok");
-      setFeedback("Thanks — your message is on its way.");
       setName("");
       setEmail("");
       setMessage("");
     } catch (err) {
       setStatus("error");
-      setFeedback(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Something went wrong");
     }
   }
 
-  const fieldClass = `w-full ${brief.sans} text-sm bg-transparent border-0 border-b ${brief.rule} py-2.5 focus:outline-none focus:border-[#2A79A7] ${brief.ink} placeholder:text-[#72705B]/70`;
+  if (status === "ok") {
+    return (
+      <div
+        className="rounded-sm border border-[#D8D4C8] bg-white p-8 text-center shadow-[0_1px_2px_rgba(28,11,25,0.04)]"
+        role="status"
+      >
+        <div
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#7BC1D4]/25"
+          aria-hidden
+        >
+          <span className={`${brief.serif} text-xl text-[#2A79A7]`}>✓</span>
+        </div>
+        <h3
+          className={`mt-5 ${brief.serif} text-xl font-semibold tracking-tight`}
+        >
+          Message sent
+        </h3>
+        <p
+          className={`mx-auto mt-2 max-w-sm ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
+        >
+          Thanks for reaching out — we&apos;ll get back to you at the address you
+          provided.
+        </p>
+        <button
+          type="button"
+          onClick={() => setStatus("idle")}
+          className={`mt-6 ${brief.action}`}
+        >
+          Send another message
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="contact-name" className={`${brief.meta} block mb-1`}>
-          Name
-        </label>
-        <input
-          id="contact-name"
-          type="text"
-          required
-          maxLength={120}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className={fieldClass}
-          autoComplete="name"
-        />
+    <form
+      onSubmit={onSubmit}
+      className="rounded-sm border border-[#D8D4C8] bg-white p-6 shadow-[0_1px_2px_rgba(28,11,25,0.04)] sm:p-8"
+    >
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label htmlFor="contact-name" className={`${brief.meta} mb-2 block`}>
+            Name
+          </label>
+          <input
+            id="contact-name"
+            type="text"
+            required
+            maxLength={120}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            placeholder="Your name"
+            className={FIELD}
+          />
+        </div>
+        <div>
+          <label htmlFor="contact-email" className={`${brief.meta} mb-2 block`}>
+            Email
+          </label>
+          <input
+            id="contact-email"
+            type="email"
+            required
+            maxLength={200}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            placeholder="you@example.com"
+            className={FIELD}
+          />
+        </div>
       </div>
-      <div>
-        <label htmlFor="contact-email" className={`${brief.meta} block mb-1`}>
-          Email
+
+      <div className="mt-5">
+        <label htmlFor="contact-topic" className={`${brief.meta} mb-2 block`}>
+          Reason
         </label>
-        <input
-          id="contact-email"
-          type="email"
-          required
-          maxLength={200}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className={fieldClass}
-          autoComplete="email"
-        />
+        <select
+          id="contact-topic"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          className={`${FIELD} cursor-pointer`}
+        >
+          <option>General inquiry</option>
+          <option>Feedback on the brief</option>
+          <option>Collaboration opportunity</option>
+          <option>Media or speaking</option>
+          <option>Technical issue</option>
+        </select>
       </div>
-      <div>
-        <label htmlFor="contact-message" className={`${brief.meta} block mb-1`}>
+
+      <div className="mt-5">
+        <label htmlFor="contact-message" className={`${brief.meta} mb-2 block`}>
           Message
         </label>
         <textarea
           id="contact-message"
           required
+          minLength={10}
           maxLength={5000}
           rows={6}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className={`${fieldClass} resize-y min-h-[8rem]`}
-          placeholder="Questions, feedback, or collaboration ideas…"
+          placeholder="How can we help?"
+          className={`${FIELD} min-h-[9rem] resize-y leading-relaxed`}
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={status === "loading"}
-        className={`${brief.sans} text-sm font-medium tracking-wide text-[#F6F4EF] bg-[#2A79A7] px-5 py-2.5 rounded-sm hover:bg-[#1C0B19] disabled:opacity-50 transition-colors`}
-      >
-        {status === "loading" ? "Sending…" : "Send message →"}
-      </button>
-
-      {feedback && (
-        <p
-          className={`${brief.sans} text-sm ${
-            status === "error" ? "text-red-800" : brief.muted
-          }`}
-          role="status"
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="submit"
+          disabled={status === "loading"}
+          className={`${brief.sans} inline-flex items-center justify-center rounded-sm bg-[#1C0B19] px-6 py-3 text-sm font-semibold tracking-wide text-[#F6F4EF] transition-colors hover:bg-[#2A79A7] disabled:opacity-50`}
         >
-          {feedback}
+          {status === "loading" ? "Sending…" : "Send message →"}
+        </button>
+        <p className={`${brief.sans} text-xs ${brief.muted}`}>
+          Your email is used only to reply.
+        </p>
+      </div>
+
+      {status === "error" && error && (
+        <p
+          className={`mt-4 ${brief.sans} text-sm text-red-800`}
+          role="alert"
+        >
+          {error}
         </p>
       )}
     </form>

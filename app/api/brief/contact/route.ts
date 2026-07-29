@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       name?: string;
       email?: string;
+      topic?: string;
       message?: string;
     };
 
     const name = body.name?.trim() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
+    const topic = body.topic?.trim().slice(0, 80) ?? "";
     const message = body.message?.trim() ?? "";
 
     if (!name || name.length > 120) {
@@ -55,14 +57,17 @@ export async function POST(request: NextRequest) {
 
     const { plum, olive, paper } = briefPalette;
     const to = getBriefContactToAddress();
-    const subject = `Stewardship Brief contact — ${name}`;
+    const subject = topic
+      ? `Stewardship Brief — ${topic} — ${name}`
+      : `Stewardship Brief contact — ${name}`;
     const text = [
       `From: ${name} <${email}>`,
+      ...(topic ? [`Reason: ${topic}`] : []),
       "",
       message,
     ].join("\n");
     const html = `<!DOCTYPE html><html><body style="max-width:560px;margin:0 auto;padding:24px 20px;background:${paper};color:${plum};font-family:system-ui,sans-serif">
-      <p style="margin:0 0 4px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Contact form</p>
+      <p style="margin:0 0 4px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Contact form${topic ? ` · ${escapeHtml(topic)}` : ""}</p>
       <p style="margin:0 0 16px;font-family:Georgia,serif;font-size:22px;font-weight:600">Message from ${escapeHtml(name)}</p>
       <p style="margin:0 0 20px;font-size:13px;color:${olive}">${escapeHtml(email)}</p>
       <p style="margin:0;font-size:15px;line-height:1.6;white-space:pre-wrap">${escapeHtml(message)}</p>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { BriefItem } from "@/lib/brief/items";
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import Masthead from "@/components/brief/Masthead";
+import SiteNav from "@/components/brief/SiteNav";
+import SiteFooter from "@/components/brief/SiteFooter";
 import SettingBar from "@/components/brief/SettingBar";
 import {
   LeadStory,
@@ -109,6 +110,7 @@ export default function BriefPage({
 
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
+      <SiteNav active="/" wordmark={false} />
       <Masthead dateLabel={formatToday()} />
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -242,18 +244,9 @@ export default function BriefPage({
             </div>
           </aside>
         </div>
-
-        <footer
-          className={`mt-16 pt-8 pb-4 border-t ${brief.hairline} flex flex-wrap items-center justify-center gap-x-6 gap-y-2`}
-        >
-          <Link href="/about" className={brief.action}>
-            About
-          </Link>
-          <Link href="/contact" className={brief.action}>
-            Contact
-          </Link>
-        </footer>
       </div>
+
+      <SiteFooter />
     </div>
   );
 }
