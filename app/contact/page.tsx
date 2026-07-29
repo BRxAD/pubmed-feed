@@ -32,9 +32,6 @@ export default function ContactPage() {
         kicker="Contact"
         title="Start a conversation."
         lede="For more information, feedback, or collaboration opportunities."
-        imageUrl="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=2000&q=80"
-        imageAlt="Clinicians in discussion"
-        size="short"
       />
 
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">

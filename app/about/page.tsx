@@ -41,9 +41,32 @@ export default function AboutPage() {
         kicker="About"
         title="The signal in a fast-moving field."
         lede="Antimicrobial stewardship research grows every week. The Brief exists to surface the work most likely to change practice."
-        imageUrl="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=2000&q=80"
-        imageAlt="Modern hospital atrium"
-      />
+        image={{
+          url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1400&q=80",
+          alt: "Antibiotic tablets in blister packaging",
+        }}
+      >
+        <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-[#F6F4EF]/15 pt-6">
+          {[
+            { k: "Daily", v: "Published" },
+            { k: "12 mo", v: "Priority list" },
+            { k: "AI + human", v: "Ranking" },
+          ].map((stat) => (
+            <div key={stat.k}>
+              <dt
+                className={`${brief.serif} text-lg font-semibold tracking-tight text-[#F6F4EF]`}
+              >
+                {stat.k}
+              </dt>
+              <dd
+                className={`${brief.sans} mt-1 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#7BC1D4]`}
+              >
+                {stat.v}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </PageHero>
 
       {/* Lede */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
@@ -78,8 +101,8 @@ export default function AboutPage() {
           <figure className="relative">
             <div className="relative aspect-[4/5] w-full overflow-hidden rounded-sm">
               <Image
-                src="https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=1200&q=80"
-                alt="Laboratory microscope"
+                src="https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80"
+                alt="Laboratory glassware on a bench"
                 fill
                 sizes="(max-width: 1024px) 100vw, 420px"
                 className="object-cover"
