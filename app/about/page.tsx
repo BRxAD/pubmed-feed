@@ -70,7 +70,7 @@ export default function AboutPage() {
 
       {/* Lede */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="grid gap-12 lg:grid-cols-[1.35fr_1fr] lg:gap-16">
+        <div className="grid gap-12 lg:grid-cols-[1.35fr_1fr] lg:items-center lg:gap-16">
           <div>
             <p className={`${brief.kicker} mb-5`}>Why it exists</p>
             <p
