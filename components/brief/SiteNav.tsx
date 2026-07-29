@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { brief } from "@/components/brief/briefTheme";
 
 const LINKS = [
@@ -10,27 +11,28 @@ const LINKS = [
 type Props = {
   /** Current path so the active link is marked. */
   active?: "/" | "/about" | "/contact";
-  /** Show the serif wordmark on the left (off on the brief, which has a masthead). */
-  wordmark?: boolean;
 };
 
-export default function SiteNav({ active, wordmark = true }: Props) {
+export default function SiteNav({ active }: Props) {
   return (
     <div className="sticky top-0 z-40 border-b border-[#D8D4C8] bg-[#F6F4EF]/90 backdrop-blur-md">
       <nav
         aria-label="Site"
-        className={`mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 sm:px-6 lg:px-8 ${
-          wordmark ? "justify-between" : "justify-center"
-        }`}
+        className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-2.5 sm:px-6 lg:px-8"
       >
-        {wordmark && (
-          <Link
-            href="/"
-            className={`${brief.serif} text-[0.9375rem] font-semibold tracking-tight text-[#1C0B19] transition-opacity hover:opacity-70`}
-          >
-            The Stewardship Brief
-          </Link>
-        )}
+        <Link
+          href="/"
+          className="shrink-0 transition-opacity hover:opacity-80"
+        >
+          <Image
+            src="/stewardship-brief-logo.png"
+            alt="The Stewardship Brief"
+            width={1403}
+            height={631}
+            priority
+            className="h-9 w-auto max-w-[200px] object-contain object-left sm:h-10 sm:max-w-[240px]"
+          />
+        </Link>
 
         <ul className="flex items-center gap-1 sm:gap-2">
           {LINKS.map((link) => {

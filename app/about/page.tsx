@@ -30,7 +30,7 @@ const STEPS = [
   {
     n: "04",
     title: "Rank",
-    body: "A clinical rubric scores journal quality, study design, scale, and relevance — refined by human editorial review.",
+    body: "A clinical rubric scores journal quality, study design, scale, and relevance, refined by human editorial review.",
   },
 ] as const;
 
@@ -41,7 +41,7 @@ export default function AboutPage() {
     <BriefSitePage active="/about">
       <PageHero
         kicker="About"
-        title="The signal in a fast-moving field."
+        title="Detecting signal amongst the noise in a fast-moving field."
         lede="Antimicrobial stewardship research grows every week. The Brief exists to surface the work most likely to change practice."
         image={{
           url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1400&q=80",
@@ -51,17 +51,17 @@ export default function AboutPage() {
         <dl className="mt-10 flex max-w-xl flex-wrap gap-x-10 gap-y-5 border-t border-[#F6F4EF]/15 pt-6">
           {[
             { k: "Daily", v: "Published" },
-            { k: "12 months", v: "Priority list" },
+            { k: "High Impact Papers", v: "Priority list" },
             { k: "AI + human", v: "Ranking" },
           ].map((stat) => (
             <div key={stat.k}>
               <dt
-                className={`${brief.serif} whitespace-nowrap text-lg font-semibold tracking-tight text-[#F6F4EF]`}
+                className={`${brief.serif} text-lg font-semibold tracking-tight text-[#F6F4EF]`}
               >
                 {stat.k}
               </dt>
               <dd
-                className={`${brief.sans} mt-1 whitespace-nowrap text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#7BC1D4]`}
+                className={`${brief.sans} mt-1 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#7BC1D4]`}
               >
                 {stat.v}
               </dd>
@@ -113,8 +113,8 @@ export default function AboutPage() {
             <figcaption
               className={`mt-3 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}
             >
-              Evidence moves from bench and bedside to practice — the Brief
-              tracks the part that changes what clinicians do.
+              Evidence moves from bench and bedside to practice — the
+              Stewardship Brief tracks the part that changes what clinicians do.
             </figcaption>
           </figure>
         </div>
@@ -126,8 +126,8 @@ export default function AboutPage() {
           <p
             className={`${brief.serif} text-[1.6rem] font-medium leading-[1.4] tracking-[-0.015em] sm:text-[2rem]`}
           >
-            “Not every study should change your practice. The hard part is
-            knowing which ones might.”
+            “Built for clinicians and researchers who need to stay current
+            without reading everything”
           </p>
         </div>
       </section>
@@ -186,12 +186,6 @@ export default function AboutPage() {
                 className={`${brief.serif} text-2xl font-semibold tracking-[-0.015em] sm:text-3xl`}
               >
                 Bradley Langford, PharmD, MPH
-              </p>
-              <p
-                className={`mt-3 max-w-[58ch] ${brief.sans} text-[0.9375rem] leading-[1.7] ${brief.muted}`}
-              >
-                Built for clinicians, pharmacists, and researchers who need to
-                stay current without reading everything.
               </p>
             </div>
           </div>
