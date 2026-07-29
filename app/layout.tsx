@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Newsreader, Libre_Franklin } from "next/font/google"
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = "G-R3CGC4MY67";
+const UMAMI_WEBSITE_ID = "240653cf-dc5e-47b0-a798-e8fbc5d1e73e";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,6 +61,11 @@ export default function RootLayout({
             gtag('config', '${GA_MEASUREMENT_ID}');
           `}
         </Script>
+        <Script
+          src="https://cloud.umami.is/script.js"
+          data-website-id={UMAMI_WEBSITE_ID}
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
