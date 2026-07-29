@@ -34,7 +34,7 @@ const STEPS = [
   },
 ] as const;
 
-const REVIEWERS = ["Dr. Amy Y. Kang, PharmD, BCIDP"] as const;
+const REVIEWERS = ["Amy Y. Kang, PharmD, BCIDP"] as const;
 
 export default function AboutPage() {
   return (
@@ -50,9 +50,9 @@ export default function AboutPage() {
       >
         <dl className="mt-10 flex max-w-xl flex-wrap gap-x-10 gap-y-5 border-t border-[#F6F4EF]/15 pt-6">
           {[
-            { k: "Daily", v: "Published" },
-            { k: "High Impact Papers", v: "Priority list" },
-            { k: "AI + human", v: "Ranking" },
+            { k: "Published", v: "Daily" },
+            { k: "Priority list", v: "High Impact Papers" },
+            { k: "Ranking", v: "AI + human" },
           ].map((stat) => (
             <div key={stat.k}>
               <dt

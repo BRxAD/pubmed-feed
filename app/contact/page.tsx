@@ -35,8 +35,8 @@ export default function ContactPage() {
       />
 
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="grid gap-12 lg:grid-cols-[1fr_1.25fr] lg:gap-16">
-          <div>
+        <div className="grid min-w-0 gap-12 lg:grid-cols-[1fr_1.25fr] lg:gap-16">
+          <div className="min-w-0">
             <p className={`${brief.kicker} mb-4`}>Get in touch</p>
             <h2
               className={`${brief.serif} text-3xl font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[2.5rem]`}
@@ -68,7 +68,7 @@ export default function ContactPage() {
             </dl>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <ContactForm />
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
 
 const FIELD =
-  "w-full rounded-sm border border-[#D8D4C8] bg-white px-3.5 py-3 text-sm text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-2 focus:ring-[#7BC1D4]/40";
+  "box-border w-full max-w-full min-w-0 rounded-sm border border-[#D8D4C8] bg-white px-3.5 py-3 text-sm text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-2 focus:ring-[#7BC1D4]/40";
 
 export default function ContactForm() {
   const [name, setName] = useState("");
@@ -82,10 +82,10 @@ export default function ContactForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-sm border border-[#D8D4C8] bg-white p-6 shadow-[0_1px_2px_rgba(28,11,25,0.04)] sm:p-8"
+      className="min-w-0 max-w-full overflow-hidden rounded-sm border border-[#D8D4C8] bg-white p-5 shadow-[0_1px_2px_rgba(28,11,25,0.04)] sm:p-8"
     >
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
+      <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+        <div className="min-w-0">
           <label htmlFor="contact-name" className={`${brief.meta} mb-2 block`}>
             Name
           </label>
@@ -101,7 +101,7 @@ export default function ContactForm() {
             className={FIELD}
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label htmlFor="contact-email" className={`${brief.meta} mb-2 block`}>
             Email
           </label>
@@ -119,7 +119,7 @@ export default function ContactForm() {
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-5 min-w-0">
         <label htmlFor="contact-topic" className={`${brief.meta} mb-2 block`}>
           Reason
         </label>
@@ -137,7 +137,7 @@ export default function ContactForm() {
         </select>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-5 min-w-0">
         <label htmlFor="contact-message" className={`${brief.meta} mb-2 block`}>
           Message
         </label>

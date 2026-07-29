@@ -10,9 +10,9 @@ type Props = {
 /** Shell for static Brief pages (About, Contact): nav, content, footer. */
 export default function BriefSitePage({ children, active }: Props) {
   return (
-    <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
+    <div className={`min-h-screen overflow-x-hidden ${brief.bg} ${brief.ink}`}>
       <SiteNav active={active} />
-      <main>{children}</main>
+      <main className="min-w-0">{children}</main>
       <SiteFooter />
     </div>
   );

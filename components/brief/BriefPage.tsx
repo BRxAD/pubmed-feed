@@ -110,7 +110,7 @@ export default function BriefPage({
 
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
-      <SiteNav active="/" />
+      <SiteNav active="/" showLogo={false} />
       <Masthead dateLabel={formatToday()} />
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
