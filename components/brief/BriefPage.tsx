@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { BriefItem } from "@/lib/brief/items";
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
@@ -241,6 +242,17 @@ export default function BriefPage({
             </div>
           </aside>
         </div>
+
+        <footer
+          className={`mt-16 pt-8 pb-4 border-t ${brief.hairline} flex flex-wrap items-center justify-center gap-x-6 gap-y-2`}
+        >
+          <Link href="/about" className={brief.action}>
+            About
+          </Link>
+          <Link href="/contact" className={brief.action}>
+            Contact
+          </Link>
+        </footer>
       </div>
     </div>
   );

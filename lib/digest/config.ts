@@ -60,6 +60,14 @@ export function getBriefDigestFromAddress(): string {
   return "The Stewardship Brief <onboarding@resend.dev>";
 }
 
+/** Inbox for About/Contact form submissions. */
+export function getBriefContactToAddress(): string {
+  const explicit = process.env.BRIEF_CONTACT_EMAIL?.trim();
+  if (explicit?.includes("@")) return explicit;
+  // Gmail plus-address tag for Brief correspondence
+  return "brad.langford+BRIEF@gmail.com";
+}
+
 export function getDigestReplyTo(): string | undefined {
   return (
     process.env.DIGEST_REPLY_TO?.trim() ??

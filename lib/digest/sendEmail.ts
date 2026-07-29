@@ -11,6 +11,8 @@ export async function sendDigestEmail(options: {
   text: string;
   from?: string;
   bcc?: string[];
+  /** Override Reply-To (e.g. contact form submitter). */
+  replyTo?: string;
   /** Extra Resend headers (e.g. List-Unsubscribe). */
   headers?: Record<string, string>;
 }): Promise<{ id?: string }> {
@@ -20,7 +22,7 @@ export async function sendDigestEmail(options: {
   }
 
   const from = options.from ?? getDigestFromAddress();
-  const replyTo = getDigestReplyTo();
+  const replyTo = options.replyTo?.trim() || getDigestReplyTo();
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
