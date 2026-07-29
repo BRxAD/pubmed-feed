@@ -46,20 +46,20 @@ export default function AboutPage() {
           alt: "Antibiotic tablets in blister packaging",
         }}
       >
-        <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-[#F6F4EF]/15 pt-6">
+        <dl className="mt-10 flex max-w-xl flex-wrap gap-x-10 gap-y-5 border-t border-[#F6F4EF]/15 pt-6">
           {[
             { k: "Daily", v: "Published" },
-            { k: "12 mo", v: "Priority list" },
+            { k: "12 months", v: "Priority list" },
             { k: "AI + human", v: "Ranking" },
           ].map((stat) => (
             <div key={stat.k}>
               <dt
-                className={`${brief.serif} text-lg font-semibold tracking-tight text-[#F6F4EF]`}
+                className={`${brief.serif} whitespace-nowrap text-lg font-semibold tracking-tight text-[#F6F4EF]`}
               >
                 {stat.k}
               </dt>
               <dd
-                className={`${brief.sans} mt-1 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#7BC1D4]`}
+                className={`${brief.sans} mt-1 whitespace-nowrap text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#7BC1D4]`}
               >
                 {stat.v}
               </dd>

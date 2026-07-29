@@ -25,18 +25,18 @@ export default function PageHero({
       <div className="absolute inset-0" aria-hidden style={{ background: MESH }} />
 
       {image && (
-        <div className="relative h-56 w-full sm:h-72 lg:absolute lg:inset-y-0 lg:right-0 lg:h-full lg:w-[44%]">
+        <div className="relative h-56 w-full sm:h-72 xl:absolute xl:inset-y-0 xl:right-0 xl:h-full xl:w-[42%]">
           <Image
             src={image.url}
             alt={image.alt}
             fill
             priority
-            sizes="(max-width: 1024px) 100vw, 44vw"
+            sizes="(max-width: 1280px) 100vw, 42vw"
             className="object-cover"
           />
           {/* Blend the photo edge into the plum panel. */}
           <div
-            className="absolute inset-0 bg-gradient-to-t from-[#1C0B19] via-[#1C0B19]/25 to-transparent lg:bg-gradient-to-r lg:from-[#1C0B19] lg:via-[#1C0B19]/20 lg:to-transparent"
+            className="absolute inset-0 bg-gradient-to-t from-[#1C0B19] via-[#1C0B19]/25 to-transparent xl:bg-gradient-to-r xl:from-[#1C0B19] xl:via-[#1C0B19]/20 xl:to-transparent"
             aria-hidden
           />
         </div>
@@ -45,7 +45,7 @@ export default function PageHero({
       <div
         className={`relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${
           image
-            ? "py-14 sm:py-16 lg:py-28 lg:pr-[48%]"
+            ? "py-14 sm:py-16 lg:py-20 xl:py-28 xl:pr-[46%]"
             : "py-16 sm:py-20 lg:py-24"
         }`}
       >
@@ -59,7 +59,7 @@ export default function PageHero({
         </div>
 
         <h1
-          className={`${brief.serif} mt-5 max-w-3xl text-[2.25rem] font-semibold leading-[1.06] tracking-[-0.025em] text-[#F6F4EF] sm:text-5xl lg:text-[3.5rem]`}
+          className={`${brief.serif} mt-5 max-w-3xl text-[2.25rem] font-semibold leading-[1.06] tracking-[-0.025em] text-[#F6F4EF] sm:text-5xl xl:text-[3.5rem]`}
         >
           {title}
         </h1>
