@@ -3,9 +3,9 @@ import Image from "next/image";
 import { brief } from "@/components/brief/briefTheme";
 
 const LINKS = [
-  { href: "/", label: "Daily brief" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
+  { href: "/", label: "Daily brief", shortLabel: "Brief" },
+  { href: "/about", label: "About", shortLabel: "About" },
+  { href: "/contact", label: "Contact", shortLabel: "Contact" },
 ] as const;
 
 type Props = {
@@ -33,7 +33,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
               width={1403}
               height={631}
               priority
-              className="h-8 w-auto max-w-[min(160px,42vw)] object-contain object-left sm:h-10 sm:max-w-[240px]"
+              className="h-8 w-auto max-w-[120px] object-contain object-left sm:h-10 sm:max-w-[240px]"
             />
           </Link>
         ) : (
@@ -54,7 +54,8 @@ export default function SiteNav({ active, showLogo = true }: Props) {
                       : "text-[#72705B] hover:bg-[#7BC1D4]/25 hover:text-[#1C0B19]"
                   }`}
                 >
-                  {link.label}
+                  <span className="sm:hidden">{link.shortLabel}</span>
+                  <span className="hidden sm:inline">{link.label}</span>
                 </Link>
               </li>
             );
