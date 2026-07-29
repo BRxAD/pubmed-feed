@@ -10,8 +10,14 @@ import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal, lookupScimago } from "@/lib/scimago";
 import {
   mergeLearnedWeights,
+  mergeStoredFeedSettings,
   priorityScoreBoost,
 } from "@/lib/relevanceLearning";
+import {
+  toPenaltyWeights,
+  type BriefFeedSettings,
+} from "@/lib/brief/feedSettings";
+import type { ScoringOptions } from "@/lib/ranking";
 import {
   applyFiltersToFeedItems,
   canonicalKeywordForGrouping,
@@ -127,6 +133,7 @@ export async function getFeedItems(
   totalCount: number;
   totalPages: number;
   page: number;
+  feedSettings: BriefFeedSettings;
 }> {
   const supabase = getSupabaseServerClient();
 
@@ -145,9 +152,17 @@ export async function getFeedItems(
       ? String(topic.query_string).trim()
       : "";
 
+  const feedSettings = mergeStoredFeedSettings(
+    (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
+  );
   const learnedWeights = mergeLearnedWeights(
     (topic as { ranking_weights?: Record<string, unknown> | null }).ranking_weights
   );
+  const scoringOptions: ScoringOptions = {
+    ...toPenaltyWeights(feedSettings),
+    smallSampleMax: feedSettings.brief.smallSampleMax,
+    largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
+  };
 
   const hasFilters = Boolean(
     filters?.keyword?.trim() ||
@@ -340,7 +355,8 @@ export async function getFeedItems(
           rec,
           learnedWeights,
           true,
-          jifIsHigh
+          jifIsHigh,
+          scoringOptions
         );
         const rank_score =
           breakdown.finalScore + priorityScoreBoost(item.admin_priority);
@@ -421,6 +437,7 @@ export async function getFeedItems(
     totalCount,
     totalPages,
     page: pageNum,
+    feedSettings,
   };
 }
 

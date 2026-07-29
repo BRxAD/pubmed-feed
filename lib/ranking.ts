@@ -190,6 +190,12 @@ export type RelevanceBreakdown = {
   extraTerms: number;
   clinicalBonus: number;
   clinicalFlags: string[];
+  /** Per-rule clinical contributions (editorial points × scale). */
+  clinicalDetails: Array<{
+    label: string;
+    settingPoints: number;
+    scorePoints: number;
+  }>;
   baseScore: number;
   studyBoostFactor: number;
   jifBoostFactor: number;
@@ -286,7 +292,8 @@ export function computeBreakdown(
 
   const clinical = scoreClinicalRubric(rec, weights, jifIsHigh);
   const clinicalBonus = clinical.points;
-  const clinicalFlags = clinical.flags;
+  const clinicalFlags = clinical.details.map((d) => d.label);
+  const clinicalDetails = clinical.details;
 
   const baseScore =
     stewardshipTitle +
@@ -305,6 +312,7 @@ export function computeBreakdown(
       extraTerms,
       clinicalBonus,
       clinicalFlags,
+      clinicalDetails,
       baseScore,
       studyBoostFactor: 1,
       jifBoostFactor: 1,
@@ -332,6 +340,7 @@ export function computeBreakdown(
     extraTerms,
     clinicalBonus,
     clinicalFlags,
+    clinicalDetails,
     baseScore,
     studyBoostFactor,
     jifBoostFactor,
@@ -345,7 +354,10 @@ function scoreClinicalRubric(
   rec: PubMedRecord,
   weights: RankingWeights,
   isQ1: boolean
-): { points: number; flags: string[] } {
+): {
+  points: number;
+  details: Array<{ label: string; settingPoints: number; scorePoints: number }>;
+} {
   const title = (rec.title ?? "").toLowerCase();
   const abstract = (rec.abstract ?? "").toLowerCase();
   const text = `${title} ${abstract}`;
@@ -353,13 +365,23 @@ function scoreClinicalRubric(
   const meshKw = [...(rec.meshTerms ?? []), ...(rec.keywords ?? [])]
     .join(" ")
     .toLowerCase();
-  const flags: string[] = [];
+  const details: Array<{
+    label: string;
+    settingPoints: number;
+    scorePoints: number;
+  }> = [];
   let pts = 0;
   const scale = CLINICAL_POINT_SCALE;
 
+  const add = (label: string, settingPoints: number) => {
+    if (!settingPoints) return;
+    const scorePoints = settingPoints * scale;
+    pts += scorePoints;
+    details.push({ label, settingPoints, scorePoints });
+  };
+
   if (isQ1 && weights.q1Journal) {
-    pts += weights.q1Journal * scale;
-    flags.push("Q1");
+    add("Q1 journal", weights.q1Journal);
   }
 
   const isRct =
@@ -382,8 +404,7 @@ function scoreClinicalRubric(
     text.includes("meta-analysis") ||
     text.includes("meta analysis");
   if ((isRct || isSr) && weights.rctOrSr) {
-    pts += weights.rctOrSr * scale;
-    flags.push(isRct ? "RCT" : "SR");
+    add(isRct ? "RCT" : "Systematic review", weights.rctOrSr);
   }
 
   if (
@@ -392,8 +413,7 @@ function scoreClinicalRubric(
       /\bmultiple\s+(?:hospitals?|sites?|centers?|centres?)\b/.test(text) ||
       pubs.some((p) => p.includes("multicenter") || p.includes("multicentre")))
   ) {
-    pts += weights.multicenter * scale;
-    flags.push("multicenter");
+    add("Multicenter", weights.multicenter);
   }
 
   const clinicalStewardship =
@@ -404,8 +424,7 @@ function scoreClinicalRubric(
       ) ||
         /\bhuman\b/.test(text)));
   if (clinicalStewardship && weights.clinicalStewardship) {
-    pts += weights.clinicalStewardship * scale;
-    flags.push("clinical stewardship");
+    add("Clinical stewardship", weights.clinicalStewardship);
   }
 
   if (
@@ -414,8 +433,7 @@ function scoreClinicalRubric(
       text
     )
   ) {
-    pts += weights.novelty * scale;
-    flags.push("novelty");
+    add("Novelty", weights.novelty);
   }
 
   if (
@@ -425,8 +443,7 @@ function scoreClinicalRubric(
       text.includes("retrospective cohort") ||
       text.includes("prospective cohort"))
   ) {
-    pts += weights.cohort * scale;
-    flags.push("cohort");
+    add("Cohort", weights.cohort);
   }
 
   if (
@@ -435,8 +452,7 @@ function scoreClinicalRubric(
       text
     )
   ) {
-    pts += weights.intervention * scale;
-    flags.push("intervention");
+    add("Intervention", weights.intervention);
   }
 
   const nonHumanOnly =
@@ -446,8 +462,7 @@ function scoreClinicalRubric(
       /\banimals\b/.test(meshKw)) &&
     !/\b(human|patient|patients|clinical)\b/.test(text);
   if (nonHumanOnly && weights.nonHumanPenalty) {
-    pts += weights.nonHumanPenalty * scale;
-    flags.push("non-human only");
+    add("Non-human only", weights.nonHumanPenalty);
   }
 
   if (
@@ -455,11 +470,10 @@ function scoreClinicalRubric(
     (pubs.some((p) => p.includes("guideline") || p.includes("practice guideline")) ||
       /\b(guideline|consensus statement|practice recommendation)\b/.test(text))
   ) {
-    pts += weights.guideline * scale;
-    flags.push("guideline");
+    add("Guideline", weights.guideline);
   }
 
-  return { points: pts, flags };
+  return { points: pts, details };
 }
 
 // ── Study-type boost ──────────────────────────────────────────────────────────

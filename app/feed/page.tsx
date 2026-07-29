@@ -8,10 +8,9 @@ import {
 } from "@/lib/feed";
 import {
   computeBreakdown,
-  parseWeightsFromParams,
-  weightsToParams,
-  DEFAULT_WEIGHTS,
+  CLINICAL_POINT_SCALE,
   type RankingWeights,
+  type ScoringOptions,
 } from "@/lib/ranking";
 import {
   normalizeScoreTo100,
@@ -40,6 +39,10 @@ import {
   parseFeedSource,
   type FeedSource,
 } from "@/lib/feedSource";
+import {
+  toPenaltyWeights,
+  toRankingWeights,
+} from "@/lib/brief/feedSettings";
 
 const MAX_KEYWORD_CHIPS = 5;
 const KEYWORD_TRUNCATE_LEN = 26;
@@ -53,7 +56,6 @@ function buildFeedUrl(params: {
   minRelevance?: number;
   setting?: ArticleSetting | "";
   admin?: boolean;
-  weights?: RankingWeights;
   source?: FeedSource;
   minPriority?: number;
 }): string {
@@ -69,10 +71,6 @@ function buildFeedUrl(params: {
     q.set("minPriority", String(params.minPriority));
   if (params.setting) q.set("setting", params.setting);
   if (params.admin) q.set("admin", "1");
-  if (params.weights) {
-    for (const [k, v] of Object.entries(weightsToParams(params.weights)))
-      q.set(k, v);
-  }
   return `${BASE_PATH}?${q.toString()}`;
 }
 
@@ -106,16 +104,22 @@ function makeRec(item: FeedItem): PubMedRecord {
   };
 }
 
-function getItemScore(
+function getItemLiveScore(
   item: FeedItem,
   query_string: string,
-  weights: RankingWeights = DEFAULT_WEIGHTS
+  weights: RankingWeights,
+  scoringOptions: ScoringOptions
 ): number {
-  const jifIsHigh = isHighImpactJournal(item.articles?.journal);
-  const bd = computeBreakdown(query_string, makeRec(item), weights, true, jifIsHigh);
-  return item.rank_score != null && !Number.isNaN(Number(item.rank_score))
-    ? Number(item.rank_score)
-    : bd.finalScore;
+  const jifIsHigh =
+    item.is_q1 || isHighImpactJournal(item.articles?.journal);
+  return computeBreakdown(
+    query_string,
+    makeRec(item),
+    weights,
+    true,
+    jifIsHigh,
+    scoringOptions
+  ).finalScore;
 }
 
 function formatDate(raw: string | null | undefined): string {
@@ -137,6 +141,7 @@ function ArticleCard({
   setting,
   isAdmin,
   weights,
+  scoringOptions,
   source,
   priorityModel,
 }: {
@@ -149,6 +154,7 @@ function ArticleCard({
   setting: ArticleSetting | "";
   isAdmin: boolean;
   weights: RankingWeights;
+  scoringOptions: ScoringOptions;
   source: FeedSource;
   priorityModel: PriorityModel | null;
 }) {
@@ -167,11 +173,11 @@ function ArticleCard({
     makeRec(item),
     weights,
     true,
-    jifIsHigh
+    jifIsHigh,
+    scoringOptions
   );
-  const score = item.rank_score != null && !Number.isNaN(Number(item.rank_score))
-    ? Number(item.rank_score)
-    : breakdown.finalScore;
+  // Always use live settings-based score (ignore stored rank_score).
+  const score = breakdown.finalScore;
   const normalizedScore = normalizeScoreTo100(score);
 
   const priorityPrediction = isAdmin
@@ -339,7 +345,7 @@ function ArticleCard({
         <div className="mt-4 rounded-lg border border-amber-200/60 bg-amber-50/60 p-3 text-xs dark:border-amber-800/40 dark:bg-amber-950/30">
           <div className="mb-2 flex items-center gap-2">
             <p className="font-semibold text-amber-700 dark:text-amber-400">
-              Admin · Relevance
+              Admin · Relevance (Brief settings)
             </p>
             <div
               className="h-1.5 w-20 rounded-full bg-zinc-200 dark:bg-zinc-600"
@@ -354,40 +360,169 @@ function ArticleCard({
             <span className="tabular-nums font-semibold text-amber-700 dark:text-amber-400">
               {normalizedScore}/100
             </span>
+            <span className="tabular-nums text-zinc-400">
+              raw {Math.round(score * 10) / 10}
+            </span>
           </div>
 
-          {/* Score breakdown */}
-          <div className="mb-2 flex flex-wrap gap-x-3 gap-y-0.5 text-zinc-500 dark:text-zinc-400">
-            {breakdown.stewardshipTitle > 0 && (
-              <span>Title stewardship: <strong className="text-zinc-700 dark:text-zinc-300">+{breakdown.stewardshipTitle}</strong></span>
-            )}
-            {breakdown.stewardshipAbstract > 0 && (
-              <span>Abstract: <strong className="text-zinc-700 dark:text-zinc-300">+{breakdown.stewardshipAbstract}</strong></span>
-            )}
-            {breakdown.largeStudy > 0 && (
-              <span>Large study: <strong className="text-zinc-700 dark:text-zinc-300">+{breakdown.largeStudy}</strong></span>
-            )}
-            {breakdown.extraTerms > 0 && (
-              <span>Extra terms: <strong className="text-zinc-700 dark:text-zinc-300">+{breakdown.extraTerms}</strong></span>
-            )}
-            {breakdown.studyBoostFactor > 1 && (
-              <span>Study boost: <strong className="text-zinc-700 dark:text-zinc-300">×{breakdown.studyBoostFactor.toFixed(2)}</strong></span>
-            )}
-            {breakdown.jifBoostFactor > 1 && (
-              <span>JIF ×1.2: <strong className="text-green-700 dark:text-green-400">applied</strong></span>
-            )}
-            {breakdown.penaltyFactor < 1 && (
+          {/* Score breakdown — all variables from current settings */}
+          <div className="mb-2 space-y-1.5 text-zinc-500 dark:text-zinc-400">
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>
+                Title stewardship{" "}
+                <span className="text-zinc-400">(wt {weights.stewardshipTitle})</span>:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {breakdown.stewardshipTitle > 0
+                    ? `+${breakdown.stewardshipTitle}`
+                    : "0"}
+                </strong>
+              </span>
+              <span>
+                Abstract{" "}
+                <span className="text-zinc-400">(wt {weights.stewardshipAbstract})</span>:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {breakdown.stewardshipAbstract > 0
+                    ? `+${breakdown.stewardshipAbstract}`
+                    : "0"}
+                </strong>
+              </span>
+              <span>
+                Large study{" "}
+                <span className="text-zinc-400">(wt {weights.largeStudy})</span>:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {breakdown.largeStudy > 0 ? `+${breakdown.largeStudy}` : "0"}
+                </strong>
+              </span>
+              <span>
+                Extra terms:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {breakdown.extraTerms > 0 ? `+${breakdown.extraTerms}` : "0"}
+                </strong>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span className="w-full text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400">
+                Clinical rubric (setting pts ×{CLINICAL_POINT_SCALE} = score pts)
+              </span>
+              {(
+                [
+                  ["Q1 journal", "Q1 journal", weights.q1Journal],
+                  ["RCT", "RCT / SR", weights.rctOrSr],
+                  ["Systematic review", "RCT / SR", weights.rctOrSr],
+                  ["Multicenter", "Multicenter", weights.multicenter],
+                  ["Clinical stewardship", "Clinical stewardship", weights.clinicalStewardship],
+                  ["Novelty", "Novelty", weights.novelty],
+                  ["Cohort", "Cohort", weights.cohort],
+                  ["Intervention", "Intervention", weights.intervention],
+                  ["Guideline", "Guideline", weights.guideline],
+                  ["Non-human only", "Non-human", weights.nonHumanPenalty],
+                ] as const
+              )
+                .filter((row, i, arr) => {
+                  // Deduplicate RCT/SR display row
+                  if (row[0] === "Systematic review") return false;
+                  if (row[0] === "RCT") return true;
+                  return arr.findIndex((r) => r[1] === row[1]) === i;
+                })
+                .map(([, displayLabel, settingPts]) => {
+                  const hit = breakdown.clinicalDetails.find((d) => {
+                    if (displayLabel === "RCT / SR") {
+                      return d.label === "RCT" || d.label === "Systematic review";
+                    }
+                    if (displayLabel === "Non-human") {
+                      return d.label === "Non-human only";
+                    }
+                    return d.label === displayLabel;
+                  });
+                  const off = settingPts === 0;
+                  return (
+                    <span
+                      key={displayLabel}
+                      className={off ? "opacity-45" : undefined}
+                    >
+                      {displayLabel}{" "}
+                      <span className="text-zinc-400">
+                        ({settingPts > 0 ? `+${settingPts}` : String(settingPts)}
+                        {off ? " off" : ""})
+                      </span>
+                      :{" "}
+                      <strong
+                        className={
+                          hit
+                            ? hit.scorePoints < 0
+                              ? "text-red-700 dark:text-red-400"
+                              : "text-zinc-700 dark:text-zinc-300"
+                            : "text-zinc-400"
+                        }
+                      >
+                        {hit
+                          ? `${hit.scorePoints > 0 ? "+" : ""}${hit.scorePoints}`
+                          : "—"}
+                      </strong>
+                    </span>
+                  );
+                })}
+              {breakdown.clinicalBonus !== 0 && (
+                <span>
+                  Clinical total:{" "}
+                  <strong className="text-zinc-700 dark:text-zinc-300">
+                    {breakdown.clinicalBonus > 0 ? "+" : ""}
+                    {breakdown.clinicalBonus}
+                  </strong>
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>
+                Study boost{" "}
+                <span className="text-zinc-400">
+                  ({weights.studyTypeBoost ? "on" : "off"})
+                </span>
+                :{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  ×{breakdown.studyBoostFactor.toFixed(2)}
+                </strong>
+              </span>
+              <span>
+                JIF ×1.2{" "}
+                <span className="text-zinc-400">
+                  ({weights.jifMultiplier ? "on" : "off"})
+                </span>
+                :{" "}
+                <strong
+                  className={
+                    breakdown.jifBoostFactor > 1
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-zinc-700 dark:text-zinc-300"
+                  }
+                >
+                  ×{breakdown.jifBoostFactor.toFixed(2)}
+                </strong>
+              </span>
               <span>
                 Down-rate:{" "}
-                <strong className="text-red-700 dark:text-red-400">
+                <strong
+                  className={
+                    breakdown.penaltyFactor < 1
+                      ? "text-red-700 dark:text-red-400"
+                      : "text-zinc-700 dark:text-zinc-300"
+                  }
+                >
                   ×{breakdown.penaltyFactor.toFixed(2)}
                   {breakdown.penaltyReasons.length > 0
                     ? ` (${breakdown.penaltyReasons.join("; ")})`
                     : ""}
                 </strong>
               </span>
-            )}
-            <span className="ml-1 text-zinc-400">→ raw {Math.round(breakdown.finalScore * 10) / 10}</span>
+              <span>
+                Base:{" "}
+                <strong className="text-zinc-700 dark:text-zinc-300">
+                  {Math.round(breakdown.baseScore * 10) / 10}
+                </strong>
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-zinc-500 dark:text-zinc-400">
@@ -483,11 +618,6 @@ export default async function FeedPage({
     minPriority?: string;
     setting?: string;
     admin?: string;
-    wTitle?: string;
-    wAbstract?: string;
-    wLarge?: string;
-    studyBoost?: string;
-    jifBoost?: string;
     source?: string;
   }>;
 }) {
@@ -501,11 +631,6 @@ export default async function FeedPage({
     minPriority: minPriorityRaw,
     setting: settingRaw,
     admin: adminRaw,
-    wTitle,
-    wAbstract,
-    wLarge,
-    studyBoost,
-    jifBoost,
   } = await searchParams;
 
   const source = parseFeedSource(sourceRaw);
@@ -524,9 +649,6 @@ export default async function FeedPage({
     Math.min(10, parseInt(minPriorityRaw ?? "0", 10) || 0)
   );
   const setting = parseSettingParam(settingRaw);
-  const weights = isAdmin
-    ? parseWeightsFromParams({ wTitle, wAbstract, wLarge, studyBoost, jifBoost })
-    : DEFAULT_WEIGHTS;
 
   if (!topicId) {
     const defaultId = await getDefaultTopicId();
@@ -560,13 +682,20 @@ export default async function FeedPage({
     );
   }
 
-  const { items, query_string, totalCount, totalPages, page: currentPage } = result;
+  const { items, query_string, totalCount, totalPages, page: currentPage, feedSettings } = result;
   const trendingKeywords = await getTrendingKeywords(topicId, source);
+
+  const weights = toRankingWeights(feedSettings);
+  const scoringOptions: ScoringOptions = {
+    ...toPenaltyWeights(feedSettings),
+    smallSampleMax: feedSettings.brief.smallSampleMax,
+    largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
+  };
 
   let list = items.filter((item) => item.pmid);
   if (minRelevance > 0) {
     list = list.filter((item) => {
-      const score = getItemScore(item, query_string, weights);
+      const score = getItemLiveScore(item, query_string, weights, scoringOptions);
       return normalizeScoreTo100(score) >= minRelevance;
     });
   }
@@ -729,17 +858,8 @@ export default async function FeedPage({
           {isAdmin && (
             <Suspense fallback={null}>
               <RelevanceWeightsPanel
-                weights={weights}
-                basePath={BASE_PATH}
-                preservedParams={{
-                  topicId: topicId!,
-                  sort,
-                  ...(source !== "pubmed" ? { source } : {}),
-                  ...(keyword ? { keyword } : {}),
-                  ...(setting ? { setting } : {}),
-                  ...(minRelevance > 0 ? { minRelevance: String(minRelevance) } : {}),
-                  admin: "1",
-                }}
+                settings={feedSettings}
+                settingsHref="/stewardshipbrief/settings"
               />
             </Suspense>
           )}
@@ -785,6 +905,7 @@ export default async function FeedPage({
                       setting={setting}
                       isAdmin={isAdmin}
                       weights={weights}
+                      scoringOptions={scoringOptions}
                       source={source}
                       priorityModel={priorityModel}
                     />
