@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   mergeFeedSettings,
   toRankingWeights,
-  feedSettingsToStored,
   type BriefFeedSettings,
 } from "@/lib/brief/feedSettings";
 import { DEFAULT_WEIGHTS, type RankingWeights, type RelevanceBreakdown } from "@/lib/ranking";
@@ -59,15 +58,23 @@ function avgFeature(rows: FeedbackRow[], key: keyof FeatureSnapshot): number {
 }
 
 /**
- * Recompute topic ranking_weights from admin priority ratings.
- * High-priority items (>=7) vs low (<=4) shift weights toward features that differentiate them.
+ * Recompute a few base relevance weights from admin priority ratings.
+ * Only stewardship/large-study signals are learned — never overwrite Brief
+ * settings toggles (JIF boost, study boost) or the clinical rubric.
  */
-export function computeLearnedWeights(rows: FeedbackRow[]): RankingWeights {
+export function computeLearnedBaseWeights(rows: FeedbackRow[]): Pick<
+  RankingWeights,
+  "stewardshipTitle" | "stewardshipAbstract" | "largeStudy"
+> {
   const high = rows.filter((r) => r.admin_priority >= 7);
   const low = rows.filter((r) => r.admin_priority <= 4);
 
   if (high.length < 2 || low.length < 2) {
-    return { ...DEFAULT_WEIGHTS };
+    return {
+      stewardshipTitle: DEFAULT_WEIGHTS.stewardshipTitle,
+      stewardshipAbstract: DEFAULT_WEIGHTS.stewardshipAbstract,
+      largeStudy: DEFAULT_WEIGHTS.largeStudy,
+    };
   }
 
   const scale = (highAvg: number, lowAvg: number, base: number, max: number) => {
@@ -77,7 +84,6 @@ export function computeLearnedWeights(rows: FeedbackRow[]): RankingWeights {
   };
 
   return {
-    ...DEFAULT_WEIGHTS,
     stewardshipTitle: scale(
       avgFeature(high, "stewardshipTitle"),
       avgFeature(low, "stewardshipTitle"),
@@ -96,8 +102,14 @@ export function computeLearnedWeights(rows: FeedbackRow[]): RankingWeights {
       DEFAULT_WEIGHTS.largeStudy,
       60
     ),
-    studyTypeBoost: DEFAULT_WEIGHTS.studyTypeBoost,
-    jifMultiplier: DEFAULT_WEIGHTS.jifMultiplier,
+  };
+}
+
+/** @deprecated Use computeLearnedBaseWeights — kept for any external callers. */
+export function computeLearnedWeights(rows: FeedbackRow[]): RankingWeights {
+  return {
+    ...DEFAULT_WEIGHTS,
+    ...computeLearnedBaseWeights(rows),
   };
 }
 
@@ -118,7 +130,7 @@ export async function relearnTopicWeights(
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const weights = computeLearnedWeights(
+  const learned = computeLearnedBaseWeights(
     (feedback ?? []) as FeedbackRow[]
   );
 
@@ -132,16 +144,15 @@ export async function relearnTopicWeights(
     (topicRow as { ranking_weights?: Record<string, unknown> | null } | null)
       ?.ranking_weights
   );
-  const merged = {
-    ...feedSettingsToStored({
-      ...existing,
-      ...weights,
-      brief: existing.brief,
-      veterinary: existing.veterinary,
-      singleCenterSmall: existing.singleCenterSmall,
-      descriptiveAmr: existing.descriptiveAmr,
-      minFactor: existing.minFactor,
-    }),
+
+  // Preserve Brief settings (JIF toggle, clinical rubric, penalties, brief config).
+  // Only refresh the three learned base weights.
+  const merged: BriefFeedSettings = {
+    ...existing,
+    stewardshipTitle: learned.stewardshipTitle,
+    stewardshipAbstract: learned.stewardshipAbstract,
+    largeStudy: learned.largeStudy,
+    brief: { ...existing.brief },
   };
 
   await supabase
@@ -149,7 +160,7 @@ export async function relearnTopicWeights(
     .update({ ranking_weights: merged })
     .eq("id", topicId);
 
-  return weights;
+  return toRankingWeights(merged);
 }
 
 export async function saveAdminPriority(options: {

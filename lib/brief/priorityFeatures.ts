@@ -1,11 +1,14 @@
+import "server-only";
 import type { RelevanceBreakdown } from "@/lib/ranking";
-import { normalizeText } from "@/lib/ranking";
+import { CLINICAL_POINT_SCALE, normalizeText } from "@/lib/ranking";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { lookupJif } from "@/lib/jif";
+import { isQ1Journal } from "@/lib/scimago";
 
 /**
  * Feature names for priority ML. Intentionally excludes finalScore /
  * algorithmicScore so predicted priority is not a rescaling of relevance.
+ * Clinical rubric flags align with editorial priority ratings.
  */
 export const PRIORITY_FEATURE_NAMES = [
   "stewardshipTitle",
@@ -14,10 +17,17 @@ export const PRIORITY_FEATURE_NAMES = [
   "extraTerms",
   "studyBoostFactor",
   "jifNorm",
-  "jifIsHigh",
+  "isQ1",
   "isRct",
   "isSystematicReview",
   "isCohort",
+  "isMulticenter",
+  "clinicalStewardship",
+  "novelty",
+  "intervention",
+  "guideline",
+  "nonHumanOnly",
+  "clinicalBonusNorm",
   "logAbstractWords",
   "keywordCountNorm",
 ] as const;
@@ -30,6 +40,13 @@ function pubTypesNormalized(rec: PubMedRecord): string[] {
 
 function hasPubTypeHint(types: string[], hints: string[]): boolean {
   return types.some((p) => hints.some((h) => p.includes(h)));
+}
+
+function hasClinicalLabel(
+  breakdown: RelevanceBreakdown,
+  ...labels: string[]
+): boolean {
+  return breakdown.clinicalDetails.some((d) => labels.includes(d.label));
 }
 
 export function publicationTypeFlags(rec: PubMedRecord): {
@@ -71,6 +88,29 @@ export function extractPriorityFeatures(
   const keywordCount = rec.keywords?.length ?? 0;
   const pub = publicationTypeFlags(rec);
 
+  const isQ1 =
+    isQ1Journal(rec.journal) || hasClinicalLabel(breakdown, "Q1 journal");
+  const isRct = pub.isRct || hasClinicalLabel(breakdown, "RCT");
+  const isSystematicReview =
+    pub.isSystematicReview ||
+    hasClinicalLabel(breakdown, "Systematic review");
+  const isCohort = pub.isCohort || hasClinicalLabel(breakdown, "Cohort");
+  const isMulticenter = hasClinicalLabel(breakdown, "Multicenter");
+  const clinicalStewardship = hasClinicalLabel(
+    breakdown,
+    "Clinical stewardship"
+  );
+  const novelty = hasClinicalLabel(breakdown, "Novelty");
+  const intervention = hasClinicalLabel(breakdown, "Intervention");
+  const guideline = hasClinicalLabel(breakdown, "Guideline");
+  const nonHumanOnly = hasClinicalLabel(breakdown, "Non-human only");
+
+  // Typical clinical bonus range ≈ −20…120 with scale 10
+  const clinicalBonusNorm = Math.max(
+    -1,
+    Math.min(1, breakdown.clinicalBonus / (12 * CLINICAL_POINT_SCALE))
+  );
+
   return [
     breakdown.stewardshipTitle,
     breakdown.stewardshipAbstract,
@@ -78,10 +118,17 @@ export function extractPriorityFeatures(
     breakdown.extraTerms,
     breakdown.studyBoostFactor,
     Math.min(1, jif / 25),
-    jif >= 10 ? 1 : 0,
-    pub.isRct ? 1 : 0,
-    pub.isSystematicReview ? 1 : 0,
-    pub.isCohort ? 1 : 0,
+    isQ1 ? 1 : 0,
+    isRct ? 1 : 0,
+    isSystematicReview ? 1 : 0,
+    isCohort ? 1 : 0,
+    isMulticenter ? 1 : 0,
+    clinicalStewardship ? 1 : 0,
+    novelty ? 1 : 0,
+    intervention ? 1 : 0,
+    guideline ? 1 : 0,
+    nonHumanOnly ? 1 : 0,
+    clinicalBonusNorm,
     Math.log1p(abstractWords) / 10,
     Math.min(1, keywordCount / 15),
   ];

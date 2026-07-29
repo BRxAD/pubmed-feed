@@ -15,7 +15,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 1;
+  version: 2;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -86,7 +86,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 1,
+    version: 2,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -138,8 +138,8 @@ export function predictPriorityFromModel(
 }
 
 /**
- * Heuristic when the model is not trained yet — uses overlapping signals but
- * different weighting than relevance (emphasizes JIF + study design + size).
+ * Heuristic when the model is not trained yet — emphasizes clinical rubric
+ * signals that track editorial priority (Q1, RCT/SR, multicenter, ASP, etc.).
  */
 export function fallbackPredictedPriority(features: number[]): number {
   const [
@@ -149,28 +149,42 @@ export function fallbackPredictedPriority(features: number[]): number {
     extraTerms,
     studyBoostFactor,
     jifNorm,
-    jifIsHigh,
+    isQ1,
     isRct,
     isSystematicReview,
     isCohort,
+    isMulticenter,
+    clinicalStewardship,
+    novelty,
+    intervention,
+    guideline,
+    nonHumanOnly,
+    clinicalBonusNorm,
     logAbstractWords,
     keywordCountNorm,
   ] = features;
 
   const raw =
-    2.2 +
-    stewardshipTitle / 35 +
-    stewardshipAbstract / 12 +
-    largeStudy * 1.4 +
-    extraTerms / 25 +
-    (studyBoostFactor - 1) * 4 +
-    jifNorm * 2.5 +
-    jifIsHigh * 0.8 +
-    isRct * 0.9 +
-    isSystematicReview * 1.2 +
+    2.0 +
+    stewardshipTitle / 40 +
+    stewardshipAbstract / 14 +
+    largeStudy * 1.2 +
+    extraTerms / 30 +
+    (studyBoostFactor - 1) * 2.5 +
+    jifNorm * 1.2 +
+    isQ1 * 1.4 +
+    isRct * 1.1 +
+    isSystematicReview * 1.3 +
     isCohort * 0.5 +
-    logAbstractWords * 0.6 +
-    keywordCountNorm * 0.4;
+    isMulticenter * 1.0 +
+    clinicalStewardship * 1.2 +
+    novelty * 0.5 +
+    intervention * 0.7 +
+    guideline * 1.1 +
+    nonHumanOnly * -1.5 +
+    clinicalBonusNorm * 1.5 +
+    logAbstractWords * 0.5 +
+    keywordCountNorm * 0.3;
 
   return clampPriority(raw);
 }
@@ -180,7 +194,8 @@ export function parsePriorityModel(
 ): PriorityModel | null {
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
-  if (m.version !== 1 || m.method !== "ridge_regression") return null;
+  // v1 models used a shorter feature vector — discard so we retrain on v2.
+  if (m.version !== 2 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||
@@ -360,7 +375,8 @@ export async function relearnPriorityModel(
       authors: [],
     };
 
-    const jifIsHigh = isHighImpactJournal(rec.journal);
+    const jifIsHigh =
+      isQ1Journal(rec.journal) || isHighImpactJournal(rec.journal);
     const breakdown = computeBreakdown(
       queryString,
       rec,
