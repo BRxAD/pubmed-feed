@@ -172,13 +172,28 @@ export async function saveAdminPriority(options: {
 }): Promise<void> {
   const { topicId, pmid, priority, snapshot, supabase } = options;
 
-  const { error: summaryErr } = await supabase
+  const { data: updated, error: summaryErr } = await supabase
     .from("summaries")
     .update({ admin_priority: priority })
     .eq("topic_id", topicId)
-    .eq("pmid", pmid);
+    .eq("pmid", pmid)
+    .select("pmid");
 
   if (summaryErr) throw new Error(summaryErr.message);
+
+  // If the summary row is missing, create one so the rating persists.
+  if (!updated?.length) {
+    const { error: upsertErr } = await supabase.from("summaries").upsert(
+      {
+        topic_id: topicId,
+        pmid,
+        summary_text: null,
+        admin_priority: priority,
+      },
+      { onConflict: "topic_id,pmid" }
+    );
+    if (upsertErr) throw new Error(upsertErr.message);
+  }
 
   if (priority != null) {
     const { error: fbErr } = await supabase.from("relevance_feedback").insert({

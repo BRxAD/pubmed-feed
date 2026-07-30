@@ -3,6 +3,7 @@ import {
   getFeedItems,
   getDefaultTopicId,
   getTrendingKeywords,
+  parseFeedSort,
   type FeedItem,
   type FeedSort,
 } from "@/lib/feed";
@@ -58,6 +59,7 @@ function buildFeedUrl(params: {
   admin?: boolean;
   source?: FeedSource;
   minPriority?: number;
+  unratedOnly?: boolean;
 }): string {
   const q = new URLSearchParams();
   q.set("topicId", params.topicId);
@@ -70,6 +72,7 @@ function buildFeedUrl(params: {
   if (params.minPriority && params.minPriority > 0)
     q.set("minPriority", String(params.minPriority));
   if (params.setting) q.set("setting", params.setting);
+  if (params.unratedOnly) q.set("unrated", "1");
   if (params.admin) q.set("admin", "1");
   return `${BASE_PATH}?${q.toString()}`;
 }
@@ -138,7 +141,9 @@ function ArticleCard({
   sort,
   keyword,
   minRelevance,
+  minPriority,
   setting,
+  unratedOnly,
   isAdmin,
   weights,
   scoringOptions,
@@ -151,7 +156,9 @@ function ArticleCard({
   sort: FeedSort;
   keyword: string;
   minRelevance: number;
+  minPriority: number;
   setting: ArticleSetting | "";
+  unratedOnly: boolean;
   isAdmin: boolean;
   weights: RankingWeights;
   scoringOptions: ScoringOptions;
@@ -159,9 +166,13 @@ function ArticleCard({
   priorityModel: PriorityModel | null;
 }) {
   const journal = item.articles?.journal != null ? String(item.articles.journal) : "";
-  const dateStr = formatDate(
-    item.articles?.release_date ?? item.articles?.pub_date ?? item.articles?.fetched_at
+  const pubDateStr = formatDate(
+    item.articles?.release_date ?? item.articles?.pub_date
   );
+  const ingestedStr = formatDate(
+    item.articles?.fetched_at ?? item.created_at
+  );
+  const dateStr = pubDateStr || ingestedStr;
   const articleUrl = articleExternalUrl(item.pmid, item.source ?? source);
 
   const jifEntry = lookupJif(item.articles?.journal);
@@ -233,7 +244,17 @@ function ArticleCard({
             {journal}
           </span>
         )}
-        {dateStr && (
+        {pubDateStr && (
+          <span className="text-sm text-zinc-400 dark:text-zinc-500">
+            Pub {pubDateStr}
+          </span>
+        )}
+        {ingestedStr && (
+          <span className="text-sm text-zinc-400 dark:text-zinc-500">
+            Ingested {ingestedStr}
+          </span>
+        )}
+        {!pubDateStr && !ingestedStr && dateStr && (
           <span className="text-sm text-zinc-400 dark:text-zinc-500">{dateStr}</span>
         )}
         {studyLabelDisplay && (
@@ -327,6 +348,9 @@ function ArticleCard({
                   keyword: kw,
                   page: 1,
                   minRelevance,
+                  minPriority,
+                  setting: setting || undefined,
+                  unratedOnly,
                   admin: isAdmin || undefined,
                   source,
                 })}
@@ -619,6 +643,7 @@ export default async function FeedPage({
     setting?: string;
     admin?: string;
     source?: string;
+    unrated?: string;
   }>;
 }) {
   const {
@@ -631,12 +656,12 @@ export default async function FeedPage({
     minPriority: minPriorityRaw,
     setting: settingRaw,
     admin: adminRaw,
+    unrated: unratedRaw,
   } = await searchParams;
 
   const source = parseFeedSource(sourceRaw);
   let topicId = topicIdRaw?.trim();
-  const sort: FeedSort =
-    sortRaw === "relevance" || sortRaw === "recency" ? sortRaw : "recency";
+  const sort: FeedSort = parseFeedSort(sortRaw);
   const keyword = keywordRaw?.trim() ?? "";
   const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
   const isAdmin = adminRaw === "1";
@@ -648,6 +673,7 @@ export default async function FeedPage({
     0,
     Math.min(10, parseInt(minPriorityRaw ?? "0", 10) || 0)
   );
+  const unratedOnly = unratedRaw === "1" || unratedRaw === "true";
   const setting = parseSettingParam(settingRaw);
 
   if (!topicId) {
@@ -668,6 +694,7 @@ export default async function FeedPage({
     keyword: keyword || undefined,
     setting: setting || undefined,
     minPriority: minPriority > 0 ? minPriority : undefined,
+    unratedOnly: unratedOnly || undefined,
   };
 
   let result: Awaited<ReturnType<typeof getFeedItems>>;
@@ -701,7 +728,11 @@ export default async function FeedPage({
   }
 
   const hasFilters =
-    keyword !== "" || minRelevance > 0 || setting !== "" || minPriority > 0;
+    keyword !== "" ||
+    minRelevance > 0 ||
+    setting !== "" ||
+    minPriority > 0 ||
+    unratedOnly;
 
   const priorityModel = isAdmin
     ? await loadPriorityModel(getSupabaseServerClient(), topicId)
@@ -748,29 +779,44 @@ export default async function FeedPage({
             </Suspense>
 
             {/* Sort */}
-            <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <span className="font-medium">Sort</span>
-              <a
-                href={buildFeedUrl({ topicId, sort: "relevance", keyword, page: 1, minRelevance, setting: setting || undefined, admin: isAdmin || undefined, source })}
-                className={
-                  sort === "relevance"
-                    ? "font-semibold text-zinc-900 dark:text-zinc-100"
-                    : "hover:text-zinc-900 dark:hover:text-zinc-100"
-                }
-              >
-                Relevance
-              </a>
-              <span aria-hidden className="text-zinc-300 dark:text-zinc-600">|</span>
-              <a
-                href={buildFeedUrl({ topicId, sort: "recency", keyword, page: 1, minRelevance, setting: setting || undefined, admin: isAdmin || undefined, source })}
-                className={
-                  sort === "recency"
-                    ? "font-semibold text-zinc-900 dark:text-zinc-100"
-                    : "hover:text-zinc-900 dark:hover:text-zinc-100"
-                }
-              >
-                Recency
-              </a>
+              {(
+                [
+                  { value: "ingested" as const, label: "Ingested" },
+                  { value: "published" as const, label: "Published" },
+                  { value: "relevance" as const, label: "Relevance" },
+                ] as const
+              ).map((opt, i) => (
+                <span key={opt.value} className="inline-flex items-center gap-2">
+                  {i > 0 && (
+                    <span aria-hidden className="text-zinc-300 dark:text-zinc-600">
+                      |
+                    </span>
+                  )}
+                  <a
+                    href={buildFeedUrl({
+                      topicId,
+                      sort: opt.value,
+                      keyword,
+                      page: 1,
+                      minRelevance,
+                      minPriority,
+                      setting: setting || undefined,
+                      unratedOnly,
+                      admin: isAdmin || undefined,
+                      source,
+                    })}
+                    className={
+                      sort === opt.value
+                        ? "font-semibold text-zinc-900 dark:text-zinc-100"
+                        : "hover:text-zinc-900 dark:hover:text-zinc-100"
+                    }
+                  >
+                    {opt.label}
+                  </a>
+                </span>
+              ))}
             </div>
 
             {/* Keyword */}
@@ -811,12 +857,24 @@ export default async function FeedPage({
                 className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               >
                 <option value="">Any</option>
-                {[5, 6, 7, 8, 9, 10].map((n) => (
+                {[4, 5, 6, 7, 8, 9, 10].map((n) => (
                   <option key={n} value={n}>
                     ≥ {n}
                   </option>
                 ))}
               </select>
+            </label>
+
+            {/* Human-unrated only */}
+            <label className="flex cursor-pointer items-center gap-2 self-end pb-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+              <input
+                type="checkbox"
+                name="unrated"
+                value="1"
+                defaultChecked={unratedOnly}
+                className="h-4 w-4 rounded border-zinc-300 text-zinc-800 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800"
+              />
+              <span>Unrated only</span>
             </label>
 
             {/* Min relevance — admin only */}
@@ -902,7 +960,9 @@ export default async function FeedPage({
                       sort={sort}
                       keyword={keyword}
                       minRelevance={minRelevance}
+                      minPriority={minPriority}
                       setting={setting}
+                      unratedOnly={unratedOnly}
                       isAdmin={isAdmin}
                       weights={weights}
                       scoringOptions={scoringOptions}
@@ -925,7 +985,7 @@ export default async function FeedPage({
                   <div className="flex gap-2">
                     {currentPage > 1 ? (
                       <a
-                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage - 1, minRelevance, setting: setting || undefined, admin: isAdmin || undefined, source })}
+                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage - 1, minRelevance, minPriority, setting: setting || undefined, unratedOnly, admin: isAdmin || undefined, source })}
                         className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
                       >
                         ← Previous
@@ -937,7 +997,7 @@ export default async function FeedPage({
                     )}
                     {currentPage < totalPages ? (
                       <a
-                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage + 1, minRelevance, setting: setting || undefined, admin: isAdmin || undefined, source })}
+                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage + 1, minRelevance, minPriority, setting: setting || undefined, unratedOnly, admin: isAdmin || undefined, source })}
                         className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
                       >
                         Next →
@@ -977,6 +1037,9 @@ export default async function FeedPage({
                         keyword: kw,
                         page: 1,
                         minRelevance,
+                        minPriority,
+                        setting: setting || undefined,
+                        unratedOnly,
                         admin: isAdmin || undefined,
                         source,
                       })}

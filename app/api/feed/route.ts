@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFeedItems, type FeedSort } from "@/lib/feed";
+import { getFeedItems, parseFeedSort } from "@/lib/feed";
 import type { FeedFilterParams } from "@/lib/filters";
 import { parseFeedSource } from "@/lib/feedSource";
 
@@ -8,7 +8,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const topicId = searchParams.get("topicId");
     const cursor = searchParams.get("cursor");
-    const sortParam = searchParams.get("sort");
     const keyword = searchParams.get("keyword") ?? undefined;
     const pageParam = searchParams.get("page");
 
@@ -19,18 +18,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sort: FeedSort =
-      sortParam === "relevance" || sortParam === "recency"
-        ? sortParam
-        : "recency";
+    const sort = parseFeedSort(searchParams.get("sort"));
 
     const page =
       pageParam != null && pageParam !== ""
         ? Math.max(1, parseInt(pageParam, 10) || 1)
         : 1;
 
+    const minPriorityRaw = parseInt(searchParams.get("minPriority") ?? "0", 10);
     const filters: FeedFilterParams = {
       keyword: keyword?.trim() || undefined,
+      minPriority:
+        Number.isFinite(minPriorityRaw) && minPriorityRaw > 0
+          ? minPriorityRaw
+          : undefined,
+      unratedOnly:
+        searchParams.get("unrated") === "1" ||
+        searchParams.get("unrated") === "true"
+          ? true
+          : undefined,
     };
 
     const source = parseFeedSource(searchParams.get("source") ?? undefined);

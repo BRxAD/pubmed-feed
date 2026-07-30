@@ -114,7 +114,15 @@ export type FeedItem = {
   } | null;
 };
 
-export type FeedSort = "relevance" | "recency";
+export type FeedSort = "relevance" | "ingested" | "published";
+
+/** Accept legacy ?sort=recency as ingest-time sort. */
+export function parseFeedSort(raw: string | null | undefined): FeedSort {
+  if (raw === "relevance") return "relevance";
+  if (raw === "published") return "published";
+  // Default + legacy "recency" → newest intake first
+  return "ingested";
+}
 
 const PAGE_SIZE = 10;
 
@@ -122,7 +130,7 @@ export async function getFeedItems(
   topicId: string,
   limit = PAGE_SIZE,
   cursor: string | null = null,
-  sort: FeedSort = "recency",
+  sort: FeedSort = "ingested",
   filters?: FeedFilterParams,
   page = 1,
   source: FeedSource = DEFAULT_FEED_SOURCE
@@ -164,13 +172,9 @@ export async function getFeedItems(
     largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
   };
 
-  const hasFilters = Boolean(
-    filters?.keyword?.trim() ||
-      filters?.setting ||
-      (filters?.minPriority != null && filters.minPriority > 0) ||
-      (filters?.minRelevance != null && filters.minRelevance > 0)
-  );
-  const fetchLimit = 3000;
+  // Wide fetch window so re-sorting by ingest time does not drop older
+  // summaries that still belong in the feed.
+  const fetchLimit = 5000;
 
   // Main feed: include both default (stewardship) and AI topic summaries so we don't lose
   // high-relevance articles that were only ingested under the AI topic.
@@ -195,7 +199,7 @@ export async function getFeedItems(
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
 
-  if (cursor?.trim() && sort === "recency") {
+  if (cursor?.trim() && sort === "ingested") {
     query = query.lt("created_at", cursor.trim());
   }
 
@@ -333,6 +337,20 @@ export async function getFeedItems(
     itemsWithJif = applyFiltersToFeedItems(itemsWithJif, filters);
   }
 
+  const releaseOrPub = (item: FeedItem): string => {
+    const today = new Date().toISOString().slice(0, 10);
+    const release = item.articles?.release_date?.trim();
+    const pub = item.articles?.pub_date?.trim();
+    const raw = release ?? pub ?? "";
+    if (!raw) return "";
+    return raw > today ? today : raw;
+  };
+  const ingestTime = (item: FeedItem): string => {
+    const fetched = item.articles?.fetched_at?.trim() ?? "";
+    const created = item.created_at?.trim() ?? "";
+    return fetched || created || "";
+  };
+
   if (sort === "relevance" && query_string) {
     const recFromItem = (item: FeedItem): PubMedRecord => ({
       pmid: item.pmid,
@@ -363,29 +381,40 @@ export async function getFeedItems(
         return { ...item, rank_score };
       })
       .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
-  } else if (sort === "recency") {
-    const today = new Date().toISOString().slice(0, 10);
-    const releaseOrFetched = (item: FeedItem): string => {
-      const release = item.articles?.release_date?.trim();
-      const pub = item.articles?.pub_date?.trim();
-      const fetched = item.articles?.fetched_at?.slice(0, 10);
-      const created = item.created_at.slice(0, 10);
-      const raw = release ?? pub ?? fetched ?? created ?? "";
-      if (!raw) return "";
-      return raw > today ? today : raw;
-    };
-    const fetchedAt = (item: FeedItem): string =>
-      item.articles?.fetched_at?.trim() ?? "";
+  } else if (sort === "published") {
     itemsWithJif = itemsWithJif.sort((a, b) => {
-      const da = releaseOrFetched(a);
-      const db = releaseOrFetched(b);
+      const da = releaseOrPub(a);
+      const db = releaseOrPub(b);
       if (da !== db) {
         if (!da) return 1;
         if (!db) return -1;
         return db.localeCompare(da);
       }
-      return fetchedAt(b).localeCompare(fetchedAt(a));
+      return ingestTime(b).localeCompare(ingestTime(a));
     });
+  } else {
+    // ingested (default): newest intake first
+    itemsWithJif = itemsWithJif.sort((a, b) => {
+      const ia = ingestTime(a);
+      const ib = ingestTime(b);
+      if (ia !== ib) {
+        if (!ia) return 1;
+        if (!ib) return -1;
+        return ib.localeCompare(ia);
+      }
+      const da = releaseOrPub(a);
+      const db = releaseOrPub(b);
+      if (da !== db) {
+        if (!da) return 1;
+        if (!db) return -1;
+        return db.localeCompare(da);
+      }
+      return a.pmid.localeCompare(b.pmid);
+    });
+  }
+
+  if (filters?.unratedOnly) {
+    itemsWithJif = itemsWithJif.filter((item) => item.admin_priority == null);
   }
 
   const minPriority = filters?.minPriority;

@@ -12,6 +12,8 @@ export type FeedFilterParams = {
   /** Effective priority floor (admin or predicted). */
   minPriority?: number | null;
   setting?: ArticleSetting | null;
+  /** When true, only rows with no human admin_priority. */
+  unratedOnly?: boolean;
 };
 
 /**
