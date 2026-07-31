@@ -20,7 +20,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
     <div className="sticky top-0 z-40 border-b border-[#D8D4C8] bg-[#F6F4EF]/90 backdrop-blur-md">
       <nav
         aria-label="Site"
-        className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:gap-6 sm:px-6 lg:px-8"
+        className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6 lg:px-8"
       >
         {showLogo ? (
           <Link
@@ -33,7 +33,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
               width={1403}
               height={631}
               priority
-              className="h-8 w-auto max-w-[120px] object-contain object-left sm:h-10 sm:max-w-[240px]"
+              className="h-7 w-auto max-w-[102px] object-contain object-left sm:h-[34px] sm:max-w-[204px]"
             />
           </Link>
         ) : (
