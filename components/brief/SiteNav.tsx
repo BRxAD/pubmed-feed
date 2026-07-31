@@ -31,7 +31,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
               src="/stewardship-brief-logo.png"
               alt="The Stewardship Brief"
               width={1024}
-              height={161}
+              height={160}
               priority
               className="h-8 w-auto max-w-[200px] object-contain object-left sm:h-9 sm:max-w-[260px]"
             />

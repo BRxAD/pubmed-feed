@@ -14,7 +14,7 @@ export default function Masthead({ dateLabel }: Props) {
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
             width={1024}
-            height={161}
+            height={160}
             priority
             className="h-auto w-full max-w-[720px] max-h-[120px] object-contain object-center"
           />
