@@ -30,10 +30,10 @@ export default function SiteNav({ active, showLogo = true }: Props) {
             <Image
               src="/stewardship-brief-logo.png"
               alt="The Stewardship Brief"
-              width={1024}
-              height={160}
+              width={1403}
+              height={631}
               priority
-              className="h-8 w-auto max-w-[200px] object-contain object-left sm:h-9 sm:max-w-[260px]"
+              className="h-8 w-auto max-w-[120px] object-contain object-left sm:h-10 sm:max-w-[240px]"
             />
           </Link>
         ) : (
