@@ -13,10 +13,10 @@ export default function Masthead({ dateLabel }: Props) {
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
-            width={1403}
-            height={631}
+            width={1024}
+            height={161}
             priority
-            className="h-auto w-full max-w-[760px] max-h-[160px] object-contain object-center"
+            className="h-auto w-full max-w-[720px] max-h-[120px] object-contain object-center"
           />
           <div className="mt-3 flex items-center justify-center gap-3">
             <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />

@@ -87,7 +87,7 @@ export default function BriefPage({
   /** Server-assigned images (null = text-only). */
   images: Record<string, StoryImageMatch | null>;
 }) {
-  const { saved, toggleSave } = useBriefSaved();
+  const { saved, savedItems, toggleSave } = useBriefSaved();
   const [brokenPmids, setBrokenPmids] = useState<Set<string>>(() => new Set());
 
   const ranked = useMemo(() => {
@@ -237,7 +237,11 @@ export default function BriefPage({
               <TopPriorityPanel items={topPriority} />
             </div>
             <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
-              <SaveStreak savedCount={saved.size} />
+              <SaveStreak
+                savedCount={saved.size}
+                savedItems={savedItems}
+                onRemove={(pmid) => toggleSave(pmid)}
+              />
             </div>
             <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
               <DigestSignup />

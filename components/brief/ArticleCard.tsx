@@ -21,7 +21,10 @@ function formatDate(iso: string | null): string {
 type StoryProps = {
   item: BriefItem;
   saved: boolean;
-  onToggleSave: (pmid: string) => void;
+  onToggleSave: (
+    pmid: string,
+    meta?: { title?: string | null; pubmedUrl?: string | null }
+  ) => void;
   image?: StoryImageMatch | null;
   /** Called when a photo fails to load — parent can demote to text-only. */
   onImageError?: () => void;
@@ -101,7 +104,10 @@ function StoryActions({
 }: {
   item: BriefItem;
   saved: boolean;
-  onToggleSave: (pmid: string) => void;
+  onToggleSave: (
+    pmid: string,
+    meta?: { title?: string | null; pubmedUrl?: string | null }
+  ) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const showDetail = hasDetailContent(item);
@@ -127,7 +133,12 @@ function StoryActions({
         )}
         <button
           type="button"
-          onClick={() => onToggleSave(item.pmid)}
+          onClick={() =>
+            onToggleSave(item.pmid, {
+              title: item.headline || item.title,
+              pubmedUrl: item.pubmedUrl,
+            })
+          }
           className={brief.action}
         >
           {saved ? "Saved ✓" : "Save"}

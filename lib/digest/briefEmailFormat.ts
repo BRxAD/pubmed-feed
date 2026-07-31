@@ -96,7 +96,7 @@ export function buildBriefDigestEmail(options: {
 
   htmlParts.push(
     `<div style="margin-top:32px;padding:16px;background:${paperWarm};border:1px solid ${hairline};text-align:center">
-      <a href="${escapeHtml(briefUrl)}" style="font-family:system-ui,sans-serif;font-size:14px;font-weight:500;color:${steel};text-decoration:none">View full brief with images →</a>
+      <a href="${escapeHtml(briefUrl)}" style="font-family:system-ui,sans-serif;font-size:14px;font-weight:500;color:${steel};text-decoration:none">View full brief →</a>
     </div>`,
     `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center">The Stewardship Brief · Daily antimicrobial stewardship digest</p>`
   );

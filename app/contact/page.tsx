@@ -38,13 +38,8 @@ export default function ContactPage() {
         <div className="grid min-w-0 gap-12 lg:grid-cols-[1fr_1.25fr] lg:gap-16">
           <div className="min-w-0">
             <p className={`${brief.kicker} mb-4`}>Get in touch</p>
-            <h2
-              className={`${brief.serif} text-3xl font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[2.5rem]`}
-            >
-              We read every message
-            </h2>
             <p
-              className={`mt-5 max-w-[52ch] ${brief.deck} text-[0.9375rem] leading-[1.75]`}
+              className={`max-w-[52ch] ${brief.deck} text-[0.9375rem] leading-[1.75]`}
             >
               Use the form and we&apos;ll reply directly. Please include enough
               detail that we can be useful on the first response.

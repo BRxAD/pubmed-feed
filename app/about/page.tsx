@@ -41,7 +41,7 @@ export default function AboutPage() {
     <BriefSitePage active="/about">
       <PageHero
         kicker="About"
-        title="Detecting signal amongst the noise in a fast-moving field."
+        title="Detect the signal amongst the noise."
         lede="Antimicrobial stewardship research grows every week. The Brief exists to surface the work most likely to change practice."
         image={{
           url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1400&q=80",
@@ -103,8 +103,8 @@ export default function AboutPage() {
           <figure className="relative">
             <div className="relative aspect-[4/5] w-full overflow-hidden rounded-sm">
               <Image
-                src="https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80"
-                alt="Laboratory glassware on a bench"
+                src="https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=1200&q=80"
+                alt="Medication capsules and tablets"
                 fill
                 sizes="(max-width: 1024px) 100vw, 420px"
                 className="object-cover"
@@ -169,30 +169,16 @@ export default function AboutPage() {
       {/* Author */}
       <section className="border-t border-[#D8D4C8]">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-          <div className="grid gap-10 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-12">
-            <div
-              className="flex h-24 w-24 items-center justify-center rounded-full border border-[#D8D4C8] bg-[#EFECE4]"
-              aria-hidden
+          <div>
+            <p className={`${brief.meta} mb-2`}>Developed by</p>
+            <p
+              className={`${brief.serif} text-2xl font-semibold tracking-[-0.015em] sm:text-3xl`}
             >
-              <span
-                className={`${brief.serif} text-2xl font-semibold tracking-tight text-[#2A79A7]`}
-              >
-                BL
-              </span>
-            </div>
-            <div>
-              <p className={`${brief.meta} mb-2`}>Developed by</p>
-              <p
-                className={`${brief.serif} text-2xl font-semibold tracking-[-0.015em] sm:text-3xl`}
-              >
-                Bradley Langford, PharmD, MPH
-              </p>
-            </div>
+              Bradley Langford, PharmD, MPH
+            </p>
           </div>
 
-          <div
-            className={`mt-12 border-t ${brief.hairline} pt-8 sm:mt-14 sm:pl-36`}
-          >
+          <div className={`mt-12 border-t ${brief.hairline} pt-8`}>
             <p className={`${brief.meta} mb-3`}>Acknowledged reviewers</p>
             <ul className="space-y-1">
               {REVIEWERS.map((reviewer) => (
@@ -217,11 +203,6 @@ export default function AboutPage() {
             >
               Questions, feedback, or collaboration?
             </h2>
-            <p
-              className={`mt-2 ${brief.sans} text-sm leading-relaxed text-[#F6F4EF]/70`}
-            >
-              We read every message.
-            </p>
           </div>
           <Link
             href="/contact"
