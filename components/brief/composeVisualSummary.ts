@@ -32,12 +32,12 @@ function pickFallbackImage(pmid: string): string {
   return LOCAL_GENERICS[h % LOCAL_GENERICS.length]!;
 }
 
-/** Prefer topic photo; fall back to a local generic when missing or catalog-generic. */
+/** Use the article's assigned story image; fall back only when none was selected. */
 export function resolveVisualSummaryImageSrc(
   item: BriefItem,
   image?: StoryImageMatch | null
 ): string {
-  if (image?.url && !image.isGeneric) return image.url;
+  if (image?.url) return image.url;
   return pickFallbackImage(item.pmid);
 }
 
@@ -59,11 +59,13 @@ function wrapLines(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
-  maxLines: number
+  maxLines: number,
+  options?: { ellipsis?: boolean }
 ): string[] {
   const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   if (words.length === 0 || maxLines <= 0) return [];
 
+  const useEllipsis = options?.ellipsis !== false;
   const lines: string[] = [];
   let current = "";
 
@@ -78,7 +80,7 @@ function wrapLines(
     if (current) lines.push(current);
     current = word;
 
-    if (lines.length === maxLines - 1) {
+    if (useEllipsis && lines.length === maxLines - 1) {
       const rest = [current, ...words.slice(i + 1)].join(" ");
       let truncated = rest;
       const needsEllipsis =
@@ -102,6 +104,17 @@ function wrapLines(
 
   if (current && lines.length < maxLines) lines.push(current);
   return lines.slice(0, maxLines);
+}
+
+/** Wrap to full width with no truncation / ellipsis. */
+function wrapLinesFull(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  return wrapLines(ctx, text, maxWidth, Number.MAX_SAFE_INTEGER, {
+    ellipsis: false,
+  });
 }
 
 function drawCoverImage(
@@ -222,11 +235,12 @@ async function renderToBlob(
   });
   ctx.fillStyle = "rgba(255,255,255,0.78)";
   ctx.font = "400 15px 'Libre Franklin', system-ui, sans-serif";
-  const citeLines = wrapLines(ctx, citation, textMax, 3);
-  let citeY = HEIGHT - 56 - Math.max(0, citeLines.length - 1) * 20;
+  const citeLines = wrapLinesFull(ctx, citation, textMax);
+  const citeLh = 20;
+  let citeY = HEIGHT - 56 - Math.max(0, citeLines.length - 1) * citeLh;
   for (const line of citeLines) {
     ctx.fillText(line, padX, citeY);
-    citeY += 20;
+    citeY += citeLh;
   }
 
   const qr = await loadQrImage(item.pubmedUrl);
@@ -244,12 +258,8 @@ async function renderToBlob(
     const lockupW = logoW + gap + brandW;
     const lockupX = brandRight - lockupW;
     const logoY = brandBottom - logoH;
-    // Soft plate so a dark logo mark still reads on photo.
-    ctx.fillStyle = "rgba(246,244,239,0.88)";
-    roundRect(ctx, lockupX - 10, logoY - 8, lockupW + 20, logoH + 16, 8);
-    ctx.fill();
+    // No plate — logo + site sit directly on the photo.
     ctx.drawImage(logo, lockupX, logoY, logoW, logoH);
-    ctx.fillStyle = SHADE;
     ctx.textBaseline = "middle";
     ctx.fillText(BRAND_URL, lockupX + logoW + gap, logoY + logoH / 2);
     brandBottom = logoY - 16;
@@ -289,17 +299,8 @@ export async function composeVisualSummary(
   input: VisualSummaryInput
 ): Promise<Blob> {
   const { item } = input;
-  const preferred = resolveVisualSummaryImageSrc(item, input.image);
-  const fallback = pickFallbackImage(item.pmid);
-
-  try {
-    return await renderToBlob(item, preferred);
-  } catch {
-    if (preferred !== fallback) {
-      return await renderToBlob(item, fallback);
-    }
-    throw new Error("Could not create visual summary");
-  }
+  const photoSrc = resolveVisualSummaryImageSrc(item, input.image);
+  return renderToBlob(item, photoSrc);
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
