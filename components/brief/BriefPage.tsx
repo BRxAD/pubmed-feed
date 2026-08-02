@@ -96,39 +96,6 @@ export default function BriefPage({
                     />
                   </div>
                 )}
-
-                {rest.length > 0 && (
-                  <section aria-label="More stories">
-                    <h2
-                      className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
-                    >
-                      Also in today&apos;s brief
-                    </h2>
-
-                    {/*
-                      CSS columns pack stories top-to-bottom so a short card
-                      never leaves a tall empty hole beside a taller neighbor
-                      (the old paired-row grid did that on desktop).
-                    */}
-                    <div className="mt-1 columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
-                      {rest.map((s) => (
-                        <div
-                          key={s.item.pmid}
-                          className="break-inside-avoid border-b border-[#D8D4C8]"
-                        >
-                          <FeaturedStory
-                            item={s.item}
-                            image={s.image}
-                            bare
-                            saved={saved.has(s.item.pmid)}
-                            onToggleSave={toggleSave}
-                            onImageError={() => markBroken(s.item.pmid)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
               </>
             )}
           </main>
@@ -151,6 +118,39 @@ export default function BriefPage({
             </div>
           </aside>
         </div>
+
+        {rest.length > 0 && (
+          <section aria-label="More stories" className="mt-2">
+            <h2
+              className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
+            >
+              Also in today&apos;s brief
+            </h2>
+
+            {/*
+              CSS columns pack stories top-to-bottom so a short card
+              never leaves a tall empty hole beside a taller neighbor
+              (the old paired-row grid did that on desktop).
+            */}
+            <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
+              {rest.map((s) => (
+                <div
+                  key={s.item.pmid}
+                  className="break-inside-avoid border-b border-[#D8D4C8]"
+                >
+                  <FeaturedStory
+                    item={s.item}
+                    image={s.image}
+                    bare
+                    saved={saved.has(s.item.pmid)}
+                    onToggleSave={toggleSave}
+                    onImageError={() => markBroken(s.item.pmid)}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <SiteFooter />

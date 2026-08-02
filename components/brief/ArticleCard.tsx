@@ -51,22 +51,34 @@ function MetaLine({ item }: { item: BriefItem }) {
   );
 }
 
-function hasDetailContent(item: BriefItem): boolean {
+function hasDetailContent(
+  item: BriefItem,
+  opts?: { skipMethodsResults?: boolean }
+): boolean {
+  if (opts?.skipMethodsResults) return Boolean(item.title || item.journal);
   return Boolean(item.methods || item.results || item.title || item.journal);
 }
 
-function DetailPanel({ item }: { item: BriefItem }) {
+function DetailPanel({
+  item,
+  skipMethodsResults,
+}: {
+  item: BriefItem;
+  skipMethodsResults?: boolean;
+}) {
+  const showMethods = !skipMethodsResults && item.methods;
+  const showResults = !skipMethodsResults && item.results;
   return (
     <div
       className={`w-full mt-4 p-4 sm:p-5 space-y-4 ${brief.detailPanel} ${brief.sans} text-sm leading-[1.6] ${brief.ink}`}
     >
-      {item.methods && (
+      {showMethods && (
         <div>
           <p className={brief.meta}>Methods</p>
           <p className="mt-1.5">{item.methods}</p>
         </div>
       )}
-      {item.results && (
+      {showResults && (
         <div>
           <p className={brief.meta}>Results</p>
           <p className="mt-1.5">{item.results}</p>
@@ -74,7 +86,7 @@ function DetailPanel({ item }: { item: BriefItem }) {
       )}
       {(item.title || item.journal || item.jif != null) && (
         <div
-          className={`${item.methods || item.results ? `pt-4 border-t ${brief.hairline}` : ""}`}
+          className={`${showMethods || showResults ? `pt-4 border-t ${brief.hairline}` : ""}`}
         >
           <p className={brief.meta}>Original title</p>
           {item.title && (
@@ -103,6 +115,7 @@ function StoryActions({
   saved,
   onToggleSave,
   image,
+  skipMethodsResults,
 }: {
   item: BriefItem;
   saved: boolean;
@@ -111,9 +124,10 @@ function StoryActions({
     meta?: { title?: string | null; pubmedUrl?: string | null }
   ) => void;
   image?: StoryImageMatch | null;
+  skipMethodsResults?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const showDetail = hasDetailContent(item);
+  const showDetail = hasDetailContent(item, { skipMethodsResults });
 
   return (
     <div className="mt-4">
@@ -156,7 +170,9 @@ function StoryActions({
         </a>
         <ShareMenu item={item} image={image} />
       </div>
-      {expanded && showDetail && <DetailPanel item={item} />}
+      {expanded && showDetail && (
+        <DetailPanel item={item} skipMethodsResults={skipMethodsResults} />
+      )}
     </div>
   );
 }
@@ -235,11 +251,30 @@ export function LeadStory({
           {item.bottomLine}
         </p>
       )}
+      {(item.methods || item.results) && (
+        <div
+          className={`mt-6 space-y-4 ${brief.sans} text-[0.9375rem] leading-relaxed`}
+        >
+          {item.methods && (
+            <div>
+              <p className={brief.meta}>Methods</p>
+              <p className="mt-1.5">{item.methods}</p>
+            </div>
+          )}
+          {item.results && (
+            <div>
+              <p className={brief.meta}>Results</p>
+              <p className="mt-1.5">{item.results}</p>
+            </div>
+          )}
+        </div>
+      )}
       <StoryActions
         item={item}
         saved={saved}
         onToggleSave={onToggleSave}
         image={image}
+        skipMethodsResults
       />
     </article>
   );
