@@ -12,7 +12,6 @@ import SettingBar from "@/components/brief/SettingBar";
 import {
   LeadStory,
   FeaturedStory,
-  CompactStory,
 } from "@/components/brief/ArticleCard";
 import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
@@ -111,36 +110,22 @@ export default function BriefPage({
                       never leaves a tall empty hole beside a taller neighbor
                       (the old paired-row grid did that on desktop).
                     */}
-                    <div className="mt-1 columns-1 gap-x-8 md:columns-2 [column-fill:_balance]">
-                      {rest.map((s) => {
-                        const useFeatured = s.image?.tier === "strict";
-                        return (
-                          <div
-                            key={s.item.pmid}
-                            className="break-inside-avoid border-b border-[#D8D4C8]"
-                          >
-                            {useFeatured ? (
-                              <FeaturedStory
-                                item={s.item}
-                                image={s.image}
-                                bare
-                                saved={saved.has(s.item.pmid)}
-                                onToggleSave={toggleSave}
-                                onImageError={() => markBroken(s.item.pmid)}
-                              />
-                            ) : (
-                              <CompactStory
-                                item={s.item}
-                                image={s.image}
-                                bare
-                                saved={saved.has(s.item.pmid)}
-                                onToggleSave={toggleSave}
-                                onImageError={() => markBroken(s.item.pmid)}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="mt-1 columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
+                      {rest.map((s) => (
+                        <div
+                          key={s.item.pmid}
+                          className="break-inside-avoid border-b border-[#D8D4C8]"
+                        >
+                          <FeaturedStory
+                            item={s.item}
+                            image={s.image}
+                            bare
+                            saved={saved.has(s.item.pmid)}
+                            onToggleSave={toggleSave}
+                            onImageError={() => markBroken(s.item.pmid)}
+                          />
+                        </div>
+                      ))}
                     </div>
                   </section>
                 )}

@@ -161,28 +161,31 @@ function StoryActions({
   );
 }
 
+/** 16:9 cover crop — keeps card rhythm consistent across the brief. */
 function StoryImage({
   image,
   sizes,
-  className,
   priority,
   onError,
+  className,
 }: {
   image: StoryImageMatch;
   sizes: string;
-  className?: string;
   priority?: boolean;
   onError?: () => void;
+  className?: string;
 }) {
   return (
-    <div className={`relative overflow-hidden bg-[#EFECE4] ${className ?? ""}`}>
+    <div
+      className={`relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4] ${className ?? ""}`}
+    >
       <Image
         src={image.url}
         alt={image.label}
         fill
         sizes={sizes}
         priority={priority}
-        className="object-cover"
+        className="object-cover object-center"
         onError={() => onError?.()}
       />
     </div>
@@ -196,8 +199,6 @@ export function LeadStory({
   image,
   onImageError,
 }: StoryProps) {
-  const showImage = Boolean(image);
-
   return (
     <article className="pb-10 mb-10 border-b-2 border-[#2A79A7]/30">
       <p className={`${brief.kicker} mb-4`}>
@@ -205,55 +206,46 @@ export function LeadStory({
           Lead story
         </span>
       </p>
-      <div
-        className={
-          showImage
-            ? "grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8 lg:items-start"
-            : ""
-        }
+      {image && (
+        <StoryImage
+          image={image}
+          priority
+          sizes="(max-width: 1024px) 100vw, 720px"
+          className="mb-5"
+          onError={onImageError}
+        />
+      )}
+      <MetaLine item={item} />
+      <h2
+        className={`${brief.serif} mt-3 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
       >
-        {showImage && image && (
-          <StoryImage
-            image={image}
-            priority
-            sizes="(max-width: 1024px) 100vw, 520px"
-            className="aspect-[16/10] w-full lg:aspect-[5/4]"
-            onError={onImageError}
-          />
-        )}
-        <div>
-          <MetaLine item={item} />
-          <h2
-            className={`${brief.serif} mt-3 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
-          >
-            <a
-              href={item.pubmedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
-            >
-              {item.headline}
-            </a>
-          </h2>
-          {item.bottomLine && (
-            <p
-              className={`mt-4 ${brief.deck} text-base sm:text-[1.0625rem] leading-relaxed`}
-            >
-              {item.bottomLine}
-            </p>
-          )}
-          <StoryActions
-            item={item}
-            saved={saved}
-            onToggleSave={onToggleSave}
-            image={image}
-          />
-        </div>
-      </div>
+        <a
+          href={item.pubmedUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
+        >
+          {item.headline}
+        </a>
+      </h2>
+      {item.bottomLine && (
+        <p
+          className={`mt-4 ${brief.deck} text-base sm:text-[1.0625rem] leading-relaxed`}
+        >
+          {item.bottomLine}
+        </p>
+      )}
+      <StoryActions
+        item={item}
+        saved={saved}
+        onToggleSave={onToggleSave}
+        image={image}
+      />
     </article>
   );
 }
 
+/** Shared card used for all non-lead stories — stacked 16:9 + text. */
 export function FeaturedStory({
   item,
   saved,
@@ -264,77 +256,13 @@ export function FeaturedStory({
 }: StoryProps & { bare?: boolean }) {
   return (
     <article className={`py-6 ${bare ? "" : `border-b ${brief.hairline}`}`}>
-      <div
-        className={
-          image
-            ? "grid gap-4 sm:grid-cols-[140px_1fr] sm:gap-5 items-start"
-            : ""
-        }
-      >
-        {image && (
-          <StoryImage
-            image={image}
-            sizes="140px"
-            className="aspect-[4/3] w-full sm:aspect-square"
-            onError={onImageError}
-          />
-        )}
-        <div className="min-w-0">
-          <MetaLine item={item} />
-          <h2
-            className={`${brief.serif} mt-2 text-xl font-bold leading-snug tracking-[-0.01em]`}
-          >
-            <a
-              href={item.pubmedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
-            >
-              {item.headline}
-            </a>
-          </h2>
-          {item.bottomLine && (
-            <p
-              className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}
-            >
-              {item.bottomLine}
-            </p>
-          )}
-          <StoryActions
-            item={item}
-            saved={saved}
-            onToggleSave={onToggleSave}
-            image={image}
-          />
-        </div>
-      </div>
-    </article>
-  );
-}
-
-export function CompactStory({
-  item,
-  saved,
-  onToggleSave,
-  bare = false,
-  image,
-  onImageError,
-}: StoryProps & { bare?: boolean }) {
-  const showThumb = Boolean(image);
-
-  return (
-    <article
-      className={`py-5 ${bare ? "" : `border-b ${brief.hairline} last:border-0`}`}
-    >
-      {showThumb && image && (
-        <div className="relative mb-3 aspect-[16/9] w-full overflow-hidden bg-[#E8E4D9]">
-          <StoryImage
-            image={image}
-            sizes="(max-width: 1024px) 100vw, 280px"
-            className="absolute inset-0 h-full w-full"
-            onError={onImageError}
-          />
-        </div>
+      {image && (
+        <StoryImage
+          image={image}
+          sizes="(max-width: 768px) 100vw, 420px"
+          className="mb-4"
+          onError={onImageError}
+        />
       )}
       <MetaLine item={item} />
       <h2
@@ -350,7 +278,9 @@ export function CompactStory({
         </a>
       </h2>
       {item.bottomLine && (
-        <p className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
+        <p
+          className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}
+        >
           {item.bottomLine}
         </p>
       )}
@@ -364,10 +294,10 @@ export function CompactStory({
   );
 }
 
+export function CompactStory(props: StoryProps & { bare?: boolean }) {
+  return <FeaturedStory {...props} />;
+}
+
 export default function BriefArticleCard(props: StoryProps) {
-  return props.image ? (
-    <FeaturedStory {...props} />
-  ) : (
-    <CompactStory {...props} />
-  );
+  return <FeaturedStory {...props} />;
 }
