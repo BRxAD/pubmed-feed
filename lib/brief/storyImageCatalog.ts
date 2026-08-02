@@ -528,14 +528,6 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     tags: ["laboratory", "gloves", "aseptic", "infection control", "ppe"],
   },
   {
-    id: "light-microscope-art",
-    url: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80",
-    label: "microscope in soft light",
-    source: "unsplash",
-    requireAny: ["research", "laboratory", "science", "discovery", "translational"],
-    tags: ["research", "laboratory", "science", "microscope", "discovery"],
-  },
-  {
     id: "pexels-medical-abstract",
     url: "https://images.pexels.com/photos/356040/pexels-photo-356040.jpeg?auto=compress&cs=tinysrgb&w=1200",
     label: "abstract medical blue",
