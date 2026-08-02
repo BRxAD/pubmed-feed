@@ -402,10 +402,24 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
   {
     id: "lab-microscope",
     url: "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=1200&q=80",
-    label: "laboratory microscope",
+    label: "clinical laboratory aisle",
     source: "unsplash",
-    requireAny: ["laboratory", "microbiology", "diagnostic", "pathogen", "susceptibility"],
-    tags: ["laboratory", "microbiology", "diagnostic", "pathogen", "assay"],
+    // Lab facility scene — only for lab/microbiology stories, not general diagnostics.
+    requireAny: [
+      "laboratory",
+      "microbiology",
+      "lab-based",
+      "lab based",
+      "clinical laboratory",
+      "clinical lab",
+    ],
+    tags: [
+      "laboratory",
+      "microbiology",
+      "lab-based",
+      "clinical laboratory",
+      "clinical lab",
+    ],
   },
   {
     id: "lab-pipette",
