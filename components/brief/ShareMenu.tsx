@@ -134,43 +134,57 @@ export default function ShareMenu({ item, image }: Props) {
       </button>
 
       {open && (
-        <div
-          id={menuId}
-          role="menu"
-          className="absolute left-0 top-full z-40 mt-2 w-[15.5rem] rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] py-1.5 shadow-[0_8px_24px_rgba(28,11,25,0.12)]"
-        >
-          <MenuButton
-            onClick={() => void shareVisualSummary()}
-            disabled={busy}
+        <>
+          {/* Mobile: dim backdrop; tap closes. */}
+          <button
+            type="button"
+            aria-label="Close share menu"
+            className="fixed inset-0 z-40 bg-[#1C0B19]/35 sm:hidden"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            id={menuId}
+            role="menu"
+            className={[
+              "z-50 w-[min(15.5rem,calc(100vw-2rem))] rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] py-1.5 shadow-[0_8px_24px_rgba(28,11,25,0.12)]",
+              // Mobile: centered on screen. Desktop: drop up against the Share control.
+              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              "sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:translate-x-0 sm:translate-y-0",
+            ].join(" ")}
           >
-            {busy ? "Creating image…" : "Share visual summary"}
-          </MenuButton>
-          <MenuButton
-            onClick={() => void downloadVisualSummary()}
-            disabled={busy}
-          >
-            Download visual summary
-          </MenuButton>
-          <MenuButton onClick={() => void copyPubmedLink()}>
-            {copied ? "PubMed link copied" : "Copy PubMed link"}
-          </MenuButton>
-          <MenuLink href={mailto}>Email</MenuLink>
-          <div className="my-1.5 border-t border-[#D8D4C8]" />
-          <MenuLink href={linkedin} external>
-            LinkedIn
-          </MenuLink>
-          <MenuLink href={twitter} external>
-            X (Twitter)
-          </MenuLink>
-          <MenuLink href={facebook} external>
-            Facebook
-          </MenuLink>
-          {error && (
-            <p className="px-3 py-2 text-[0.7rem] leading-snug text-[#9B3A3A]">
-              {error}
-            </p>
-          )}
-        </div>
+            <MenuButton
+              onClick={() => void shareVisualSummary()}
+              disabled={busy}
+            >
+              {busy ? "Creating image…" : "Share visual summary"}
+            </MenuButton>
+            <MenuButton
+              onClick={() => void downloadVisualSummary()}
+              disabled={busy}
+            >
+              Download visual summary
+            </MenuButton>
+            <MenuButton onClick={() => void copyPubmedLink()}>
+              {copied ? "PubMed link copied" : "Copy PubMed link"}
+            </MenuButton>
+            <MenuLink href={mailto}>Email</MenuLink>
+            <div className="my-1.5 border-t border-[#D8D4C8]" />
+            <MenuLink href={linkedin} external>
+              LinkedIn
+            </MenuLink>
+            <MenuLink href={twitter} external>
+              X (Twitter)
+            </MenuLink>
+            <MenuLink href={facebook} external>
+              Facebook
+            </MenuLink>
+            {error && (
+              <p className="px-3 py-2 text-[0.7rem] leading-snug text-[#9B3A3A]">
+                {error}
+              </p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

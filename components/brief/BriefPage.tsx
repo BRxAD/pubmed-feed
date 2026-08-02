@@ -157,7 +157,7 @@ export default function BriefPage({
                         return (
                           <div
                             key={key}
-                            className="grid gap-0 lg:grid-cols-[1.35fr_1fr] lg:gap-8 border-b border-[#D8D4C8]"
+                            className="grid items-start gap-0 lg:grid-cols-[1.35fr_1fr] lg:gap-8 border-b border-[#D8D4C8]"
                           >
                             <FeaturedStory
                               item={row.featured.item}
@@ -204,7 +204,7 @@ export default function BriefPage({
                       return (
                         <div
                           key={key}
-                          className="grid gap-0 sm:grid-cols-2 lg:grid-cols-3 border-b border-[#D8D4C8] divide-y sm:divide-y-0 sm:divide-x divide-[#D8D4C8]"
+                          className="grid items-start gap-0 sm:grid-cols-2 lg:grid-cols-3 border-b border-[#D8D4C8] divide-y sm:divide-y-0 sm:divide-x divide-[#D8D4C8]"
                         >
                           {row.compacts.map((s) => (
                             <div
