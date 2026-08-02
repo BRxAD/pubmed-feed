@@ -6,6 +6,7 @@ import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
+import ShareMenu from "@/components/brief/ShareMenu";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -101,6 +102,7 @@ function StoryActions({
   item,
   saved,
   onToggleSave,
+  image,
 }: {
   item: BriefItem;
   saved: boolean;
@@ -108,6 +110,7 @@ function StoryActions({
     pmid: string,
     meta?: { title?: string | null; pubmedUrl?: string | null }
   ) => void;
+  image?: StoryImageMatch | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const showDetail = hasDetailContent(item);
@@ -151,6 +154,7 @@ function StoryActions({
         >
           Read article
         </a>
+        <ShareMenu item={item} image={image} />
       </div>
       {expanded && showDetail && <DetailPanel item={item} />}
     </div>
@@ -238,7 +242,12 @@ export function LeadStory({
               {item.bottomLine}
             </p>
           )}
-          <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
+          <StoryActions
+            item={item}
+            saved={saved}
+            onToggleSave={onToggleSave}
+            image={image}
+          />
         </div>
       </div>
     </article>
@@ -291,7 +300,12 @@ export function FeaturedStory({
               {item.bottomLine}
             </p>
           )}
-          <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
+          <StoryActions
+            item={item}
+            saved={saved}
+            onToggleSave={onToggleSave}
+            image={image}
+          />
         </div>
       </div>
     </article>
@@ -340,7 +354,12 @@ export function CompactStory({
           {item.bottomLine}
         </p>
       )}
-      <StoryActions item={item} saved={saved} onToggleSave={onToggleSave} />
+      <StoryActions
+        item={item}
+        saved={saved}
+        onToggleSave={onToggleSave}
+        image={image}
+      />
     </article>
   );
 }

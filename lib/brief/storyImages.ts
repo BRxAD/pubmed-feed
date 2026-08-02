@@ -274,6 +274,7 @@ async function firstReachableMatch(
       confidence,
       label: entry.label,
       tier,
+      isGeneric: Boolean(entry.generic),
     };
   }
   return null;

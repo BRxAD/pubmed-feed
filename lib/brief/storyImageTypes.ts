@@ -8,6 +8,8 @@ export type StoryImageMatch = {
    * thematic = broader match / setting fallback for compact cards.
    */
   tier: "strict" | "thematic";
+  /** Catalog marked this as a last-resort generic (avoid for visual summaries when possible). */
+  isGeneric?: boolean;
 };
 
 /** Minimum confidence for lead / featured photos (0–1). */

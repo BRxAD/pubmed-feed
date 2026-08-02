@@ -63,6 +63,8 @@ export type BriefItem = {
   effectivePriority: number;
   prioritySource: "admin" | PriorityPredictionSource;
   pubmedUrl: string;
+  /** Author names as stored from PubMed (e.g. "Smith JA"). */
+  authors: string[];
   keywords: string[];
   /** MeSH terms used for image matching (and optional display later). */
   meshTerms: string[];
@@ -200,9 +202,9 @@ export async function getBriefItems(options?: {
   let error: { message: string } | null = null;
 
   const selectWithHeadline =
-    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
   const selectWithoutHeadline =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
 
   const applyBriefFilters = <T extends { or: Function; gte: Function; order: Function; limit: Function }>(
     q: T
@@ -234,7 +236,8 @@ export async function getBriefItems(options?: {
   if (
     errMsg.includes("headline") ||
     errMsg.includes("mesh_terms") ||
-    errMsg.includes("admin_setting")
+    errMsg.includes("admin_setting") ||
+    errMsg.includes("authors")
   ) {
     let selectFallback = selectWithHeadline;
     if (errMsg.includes("headline")) {
@@ -245,6 +248,9 @@ export async function getBriefItems(options?: {
     }
     if (errMsg.includes("admin_setting")) {
       selectFallback = selectFallback.replace(", admin_setting", "");
+    }
+    if (errMsg.includes("authors")) {
+      selectFallback = selectFallback.replace(", authors", "");
     }
     const fallback = await applyBriefFilters(
       supabase
@@ -293,12 +299,17 @@ export async function getBriefItems(options?: {
         publication_types?: string[] | null;
         keywords?: string[] | null;
         mesh_terms?: string[] | null;
+        authors?: string[] | null;
         source?: string | null;
       } | null;
     };
 
     if (!row.articles?.title?.trim() || !row.summary_text?.trim()) continue;
     if (!isPubMedArticle(row.pmid, row.articles.source)) continue;
+
+    const authors = (row.articles.authors ?? [])
+      .map((a) => String(a).trim())
+      .filter(Boolean);
 
     const rec: PubMedRecord = {
       pmid: row.pmid,
@@ -309,7 +320,7 @@ export async function getBriefItems(options?: {
       publicationTypes: row.articles.publication_types ?? [],
       meshTerms: row.articles.mesh_terms ?? [],
       keywords: row.articles.keywords ?? [],
-      authors: [],
+      authors,
     };
 
     const scimago = lookupScimago(row.articles.journal);
@@ -433,6 +444,7 @@ export async function getBriefItems(options?: {
       effectivePriority: eff,
       prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
+      authors,
       keywords: (row.articles.keywords ?? []).slice(0, 8),
       meshTerms: (row.articles.mesh_terms ?? []).slice(0, 12),
       abstractSnippet: (() => {
