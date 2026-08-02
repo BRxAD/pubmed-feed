@@ -33,48 +33,6 @@ type RankedStory = {
   image: StoryImageMatch | null;
 };
 
-function buildLayoutRows(ranked: RankedStory[]): {
-  lead: RankedStory | null;
-  rows: Array<{ featured: RankedStory | null; compacts: RankedStory[] }>;
-} {
-  const [lead, ...rest] = ranked;
-  // Strict (tier A) images drive featured columns; thematic (tier B) stay compact.
-  const withStrictImage = rest.filter((s) => s.image?.tier === "strict");
-  const compactPool = rest.filter((s) => s.image?.tier !== "strict");
-
-  const rows: Array<{ featured: RankedStory | null; compacts: RankedStory[] }> =
-    [];
-  let iFeat = 0;
-  let iComp = 0;
-
-  while (iFeat < withStrictImage.length || iComp < compactPool.length) {
-    const featured = withStrictImage[iFeat] ?? null;
-    if (featured) iFeat += 1;
-
-    const compacts: RankedStory[] = [];
-    while (compacts.length < 2 && iComp < compactPool.length) {
-      compacts.push(compactPool[iComp]!);
-      iComp += 1;
-    }
-
-    if (!featured && compacts.length === 0) break;
-    rows.push({ featured, compacts });
-
-    if (!featured && iComp < compactPool.length) {
-      while (iComp < compactPool.length) {
-        const batch: RankedStory[] = [];
-        while (batch.length < 3 && iComp < compactPool.length) {
-          batch.push(compactPool[iComp]!);
-          iComp += 1;
-        }
-        rows.push({ featured: null, compacts: batch });
-      }
-    }
-  }
-
-  return { lead: lead ?? null, rows };
-}
-
 export default function BriefPage({
   items,
   topPriority,
@@ -97,7 +55,8 @@ export default function BriefPage({
     }));
   }, [items, images, brokenPmids]);
 
-  const { lead, rows } = useMemo(() => buildLayoutRows(ranked), [ranked]);
+  const lead = ranked[0] ?? null;
+  const rest = ranked.slice(1);
 
   function markBroken(pmid: string) {
     setBrokenPmids((prev) => {
@@ -139,7 +98,7 @@ export default function BriefPage({
                   </div>
                 )}
 
-                {rows.length > 0 && (
+                {rest.length > 0 && (
                   <section aria-label="More stories">
                     <h2
                       className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
@@ -147,83 +106,42 @@ export default function BriefPage({
                       Also in today&apos;s brief
                     </h2>
 
-                    {rows.map((row, idx) => {
-                      const key =
-                        row.featured?.item.pmid ??
-                        row.compacts[0]?.item.pmid ??
-                        `row-${idx}`;
-
-                      if (row.featured && row.compacts.length > 0) {
+                    {/*
+                      CSS columns pack stories top-to-bottom so a short card
+                      never leaves a tall empty hole beside a taller neighbor
+                      (the old paired-row grid did that on desktop).
+                    */}
+                    <div className="mt-1 columns-1 gap-x-8 md:columns-2 [column-fill:_balance]">
+                      {rest.map((s) => {
+                        const useFeatured = s.image?.tier === "strict";
                         return (
                           <div
-                            key={key}
-                            className="grid items-start gap-0 lg:grid-cols-[1.35fr_1fr] lg:gap-8 border-b border-[#D8D4C8]"
+                            key={s.item.pmid}
+                            className="break-inside-avoid border-b border-[#D8D4C8]"
                           >
-                            <FeaturedStory
-                              item={row.featured.item}
-                              image={row.featured.image}
-                              bare
-                              saved={saved.has(row.featured.item.pmid)}
-                              onToggleSave={toggleSave}
-                              onImageError={() =>
-                                markBroken(row.featured!.item.pmid)
-                              }
-                            />
-                            <div className="lg:border-l lg:border-[#D8D4C8] lg:pl-8 divide-y divide-[#D8D4C8]">
-                              {row.compacts.map((s) => (
-                                <CompactStory
-                                  key={s.item.pmid}
-                                  item={s.item}
-                                  bare
-                                  image={s.image}
-                                  saved={saved.has(s.item.pmid)}
-                                  onToggleSave={toggleSave}
-                                  onImageError={() => markBroken(s.item.pmid)}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (row.featured) {
-                        return (
-                          <FeaturedStory
-                            key={key}
-                            item={row.featured.item}
-                            image={row.featured.image}
-                            saved={saved.has(row.featured.item.pmid)}
-                            onToggleSave={toggleSave}
-                            onImageError={() =>
-                              markBroken(row.featured!.item.pmid)
-                            }
-                          />
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={key}
-                          className="grid items-start gap-0 sm:grid-cols-2 lg:grid-cols-3 border-b border-[#D8D4C8] divide-y sm:divide-y-0 sm:divide-x divide-[#D8D4C8]"
-                        >
-                          {row.compacts.map((s) => (
-                            <div
-                              key={s.item.pmid}
-                              className="sm:px-4 first:sm:pl-0 last:sm:pr-0"
-                            >
-                              <CompactStory
+                            {useFeatured ? (
+                              <FeaturedStory
                                 item={s.item}
-                                bare
                                 image={s.image}
+                                bare
                                 saved={saved.has(s.item.pmid)}
                                 onToggleSave={toggleSave}
                                 onImageError={() => markBroken(s.item.pmid)}
                               />
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
+                            ) : (
+                              <CompactStory
+                                item={s.item}
+                                image={s.image}
+                                bare
+                                saved={saved.has(s.item.pmid)}
+                                onToggleSave={toggleSave}
+                                onImageError={() => markBroken(s.item.pmid)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 )}
               </>

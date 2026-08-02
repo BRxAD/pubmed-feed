@@ -15,15 +15,21 @@ import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
 export type { StoryImageMatch };
 export { IMAGE_MATCH_THRESHOLD, IMAGE_MATCH_THRESHOLD_THEMATIC };
 
-/** Never assign these — organ/cell stock that was repeatedly mis-matched. */
+/** Never assign these — repeatedly mis-matched or user-rejected stock. */
 const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1532094349884", // fluorescent eukaryotic cells (not bacteria)
+  "photo-1530026405186", // mislabeled culture/cells stock
+  "photo-1576086213369", // clinical lab aisle — over-matched
+  "photos/7089020", // team huddle — over-matched generic
   "/brief-images/heart-endocarditis",
   "/brief-images/brain-meningitis-cns",
 ] as const;
 
 const BLOCKED_IMAGE_IDS = new Set([
   "light-microscope-art",
+  "petri-culture",
+  "lab-microscope",
+  "pexels-team-huddle",
   "local-heart-endocarditis",
   "local-brain-meningitis-cns",
   "mri-diagnostics",

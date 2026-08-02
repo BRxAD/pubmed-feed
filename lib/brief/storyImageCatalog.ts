@@ -366,60 +366,12 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
 
   // ── Microbiology / lab ───────────────────────────────────────────
   {
-    id: "petri-culture",
-    url: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=1200&q=80",
-    label: "bacterial culture plates",
-    source: "unsplash",
-    requireAny: [
-      "microbiology",
-      "culture",
-      "petri",
-      "antibiogram",
-      "susceptibility",
-      "colony",
-      "bacterial",
-      "resistance",
-    ],
-    tags: [
-      "microbiology",
-      "culture",
-      "bacteria",
-      "antibiogram",
-      "susceptibility",
-      "colony",
-      "pathogen",
-      "resistance",
-    ],
-  },
-  {
     id: "wikimedia-agar-plates",
     url: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Agar_plates_with_bacterial_colonies.jpg/1280px-Agar_plates_with_bacterial_colonies.jpg",
     label: "agar plates with colonies",
     source: "wikimedia",
     requireAny: ["culture", "colony", "bacteria", "microbiology", "agar", "pathogen", "antibiogram", "susceptibility"],
     tags: ["agar", "colony", "bacteria", "microbiology", "culture", "pathogen", "antibiogram", "susceptibility"],
-  },
-  {
-    id: "lab-microscope",
-    url: "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=1200&q=80",
-    label: "clinical laboratory aisle",
-    source: "unsplash",
-    // Lab facility scene — only for lab/microbiology stories, not general diagnostics.
-    requireAny: [
-      "laboratory",
-      "microbiology",
-      "lab-based",
-      "lab based",
-      "clinical laboratory",
-      "clinical lab",
-    ],
-    tags: [
-      "laboratory",
-      "microbiology",
-      "lab-based",
-      "clinical laboratory",
-      "clinical lab",
-    ],
   },
   {
     id: "lab-pipette",
@@ -585,16 +537,6 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     requireAny: ["dental", "dentist", "odontogenic", "oral surgery"],
     tags: ["dental", "dentist", "oral", "outpatient", "prophylaxis"],
     settings: ["community"],
-  },
-  {
-    id: "pexels-team-huddle",
-    url: "https://images.pexels.com/photos/7089020/pexels-photo-7089020.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    label: "care team huddle",
-    source: "pexels",
-    generic: true,
-    requireAny: ["stewardship", "multidisciplinary", "team", "pharmacist", "intervention", "rounds"],
-    tags: ["stewardship", "multidisciplinary", "pharmacist", "team", "intervention", "rounds"],
-    settings: ["hospital", "community"],
   },
   {
     id: "pexels-oxygen-mask",
