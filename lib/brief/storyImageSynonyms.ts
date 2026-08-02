@@ -21,10 +21,6 @@ const SYNONYM_EXPANSIONS: Array<{ match: RegExp; add: string }> = [
   { match: /\bssi\b|surgical site/i, add: "surgical site infection perioperative surgery prophylaxis" },
   { match: /\bcatheter\b|\bcauti\b|central line|\bclabsi\b/i, add: "catheter bloodstream infection device" },
   { match: /\bpneumonia\b/i, add: "pneumonia respiratory lung infection" },
-  { match: /\bmeningitis\b/i, add: "meningitis central nervous system brain infection" },
-  { match: /\bendocarditis\b|\bpericarditis\b|\bmyocarditis\b/i, add: "heart endocarditis pericarditis myocarditis heart infection cardiac infection" },
-  // Never expand bare "cns" — conflicts with coagulase-negative staph (CNS/CoNS).
-  { match: /\bcentral nervous system\b|\bmeningoencephalitis\b|\bencephalitis\b|\bbrain abscess\b/i, add: "brain meningitis central nervous system brain infection" },
   { match: /\botitis\b/i, add: "otitis pediatric ear infection" },
   { match: /\bsinusitis\b|\buri\b|\burti\b|upper respiratory/i, add: "sinusitis uri urti upper respiratory outpatient flu cold" },
   { match: /\blrti\b|lower respiratory/i, add: "lrti lower respiratory pneumonia lung" },

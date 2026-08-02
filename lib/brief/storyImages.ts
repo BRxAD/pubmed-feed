@@ -15,6 +15,25 @@ import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
 export type { StoryImageMatch };
 export { IMAGE_MATCH_THRESHOLD, IMAGE_MATCH_THRESHOLD_THEMATIC };
 
+/** Never assign these — organ/cell stock that was repeatedly mis-matched. */
+const BLOCKED_IMAGE_URL_PARTS = [
+  "photo-1532094349884", // fluorescent eukaryotic cells (not bacteria)
+  "/brief-images/heart-endocarditis",
+  "/brief-images/brain-meningitis-cns",
+] as const;
+
+const BLOCKED_IMAGE_IDS = new Set([
+  "light-microscope-art",
+  "local-heart-endocarditis",
+  "local-brain-meningitis-cns",
+  "mri-diagnostics",
+]);
+
+function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
+  if (BLOCKED_IMAGE_IDS.has(entry.id)) return true;
+  return BLOCKED_IMAGE_URL_PARTS.some((part) => entry.url.includes(part));
+}
+
 type StoryImageFields = Pick<
   BriefItem,
   | "pmid"
@@ -175,6 +194,7 @@ function rankCandidates(
 
   for (const entry of STORY_IMAGE_CATALOG) {
     if (!isUnused(entry, used)) continue;
+    if (isBlockedCatalogEntry(entry)) continue;
     const confidence = scoreEntry(corpus, item.setting, entry, mode);
     if (confidence > threshold) {
       ranked.push({ entry, confidence });
@@ -204,6 +224,7 @@ function genericFallbackCandidates(
   for (const entry of STORY_IMAGE_CATALOG) {
     if (!entry.generic) continue;
     if (!isUnused(entry, used)) continue;
+    if (isBlockedCatalogEntry(entry)) continue;
     out.push({
       entry,
       confidence: IMAGE_MATCH_THRESHOLD_THEMATIC,
