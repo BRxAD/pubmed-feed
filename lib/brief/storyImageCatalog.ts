@@ -631,8 +631,25 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     label: "anatomical heart model",
     source: "local",
     // Organ-specific — never use as generic fallback.
-    requireAny: ["heart", "endocarditis", "pericarditis"],
-    tags: ["heart", "endocarditis", "pericarditis"],
+    // Require a cardiac-infection cue (bare "heart" alone is too weak).
+    requireAny: [
+      "endocarditis",
+      "pericarditis",
+      "myocarditis",
+      "heart infection",
+      "cardiac infection",
+      "heart valve",
+      "infective endocarditis",
+    ],
+    tags: [
+      "endocarditis",
+      "pericarditis",
+      "myocarditis",
+      "heart infection",
+      "cardiac infection",
+      "heart valve",
+      "heart",
+    ],
   },
   {
     id: "local-brain-meningitis-cns",
@@ -640,17 +657,24 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     label: "brain MRI on diagnostic workstation",
     source: "local",
     // Organ-specific — never use as generic fallback.
+    // Do NOT gate on bare "cns" — in ASP literature that usually means
+    // coagulase-negative staphylococci, not central nervous system.
     requireAny: [
-      "brain",
       "meningitis",
+      "encephalitis",
+      "meningoencephalitis",
       "central nervous system",
-      "cns",
+      "brain abscess",
+      "brain infection",
     ],
     tags: [
-      "brain",
       "meningitis",
+      "encephalitis",
+      "meningoencephalitis",
       "central nervous system",
-      "cns",
+      "brain abscess",
+      "brain infection",
+      "brain",
     ],
   },
   {

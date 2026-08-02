@@ -40,8 +40,9 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * Phrase / token match with word boundaries for short tokens.
- * Prevents "ct" matching inside "practical" / "impact", etc.
+ * Phrase / token match with word boundaries for single tokens.
+ * Prevents "cns" / "ct" / "ai" matching inside unrelated words, and
+ * "heart"/"brain" matching as substrings.
  */
 function corpusHas(corpus: string, raw: string): boolean {
   const needle = raw.toLowerCase().trim();
@@ -49,14 +50,11 @@ function corpusHas(corpus: string, raw: string): boolean {
   if (needle.includes(" ") || needle.includes("-") || needle.includes(".")) {
     return corpus.includes(needle);
   }
-  if (needle.length <= 3) {
-    const re = new RegExp(
-      `(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`,
-      "i"
-    );
-    return re.test(corpus);
-  }
-  return corpus.includes(needle);
+  const re = new RegExp(
+    `(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`,
+    "i"
+  );
+  return re.test(corpus);
 }
 
 function normalize(text: string): string {
