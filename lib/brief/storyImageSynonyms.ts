@@ -41,6 +41,9 @@ const SYNONYM_EXPANSIONS: Array<{ match: RegExp; add: string }> = [
   { match: /\bpenicillin\b|beta[- ]lactam/i, add: "penicillin beta-lactam antibiotic" },
   { match: /\bvancomycin\b/i, add: "vancomycin intravenous gram-positive" },
   { match: /\bfluoroquinolone\b|\bciprofloxacin\b|\blevofloxacin\b/i, add: "fluoroquinolone prescribing outpatient" },
+  { match: /\bnurse\b|\bnursing\b|\bnurses\b/i, add: "nurse nurses nursing health profession" },
+  { match: /\bphysician\b|\bphysicians\b|\bdoctor\b|\bdoctors\b/i, add: "physician physicians doctor doctors health profession" },
+  { match: /\bhealth professions?\b|\bhealthcare professionals?\b|\bhealth professionals?\b/i, add: "health profession health professions healthcare professional physician nurse" },
   { match: /\bhand hygiene\b|infection prevention|\bipc\b/i, add: "hand hygiene infection prevention infection control" },
 ];
 

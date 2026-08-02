@@ -259,11 +259,33 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
   {
     id: "white-coat",
     url: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=1200&q=80",
-    label: "physician in white coat",
+    label: "health professional in scrubs",
     source: "unsplash",
-    generic: true,
-    requireAny: ["physician", "clinician", "doctor", "stewardship", "prescribing", "guideline"],
-    tags: ["physician", "clinician", "doctor", "stewardship", "prescribing"],
+    // Portrait of a clinician — only for profession-focused stories, never as a generic.
+    requireAny: [
+      "health profession",
+      "health professions",
+      "healthcare professional",
+      "health professional",
+      "physician",
+      "physicians",
+      "doctor",
+      "doctors",
+      "nurse",
+      "nurses",
+      "nursing",
+    ],
+    tags: [
+      "health profession",
+      "health professions",
+      "healthcare professional",
+      "physician",
+      "physicians",
+      "doctor",
+      "nurse",
+      "nurses",
+      "nursing",
+    ],
   },
 
   // ── Community / outpatient ───────────────────────────────────────
