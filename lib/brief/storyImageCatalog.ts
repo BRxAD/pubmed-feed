@@ -635,6 +635,25 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     tags: ["heart", "endocarditis", "pericarditis"],
   },
   {
+    id: "local-brain-meningitis-cns",
+    url: "/brief-images/brain-meningitis-cns.png",
+    label: "brain MRI on diagnostic workstation",
+    source: "local",
+    // Organ-specific — never use as generic fallback.
+    requireAny: [
+      "brain",
+      "meningitis",
+      "central nervous system",
+      "cns",
+    ],
+    tags: [
+      "brain",
+      "meningitis",
+      "central nervous system",
+      "cns",
+    ],
+  },
+  {
     id: "local-cold-flu-urti",
     url: "/brief-images/cold-flu-urti.png",
     label: "upper respiratory illness at home",

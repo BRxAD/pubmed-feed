@@ -46,6 +46,7 @@ const SYNONYM_EXPANSIONS: Array<{ match: RegExp; add: string }> = [
   { match: /\bhealth professions?\b|\bhealthcare professionals?\b|\bhealth professionals?\b/i, add: "health profession health professions healthcare professional physician nurse" },
   { match: /\blaboratory\b|\bmicrobiology\b|\blab[- ]based\b|\bclinical lab(?:oratory)?\b/i, add: "laboratory microbiology lab-based clinical laboratory" },
   { match: /\bendocarditis\b|\bpericarditis\b/i, add: "heart endocarditis pericarditis" },
+  { match: /\bmeningitis\b|\bcns\b|central nervous system/i, add: "brain meningitis central nervous system cns" },
   { match: /\bhand hygiene\b|infection prevention|\bipc\b/i, add: "hand hygiene infection prevention infection control" },
 ];
 
