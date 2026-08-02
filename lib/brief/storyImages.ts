@@ -132,6 +132,8 @@ function scoreEntry(
   }
 
   if (entry.source === "wikimedia") score = Math.min(1, score + 0.02);
+  // Prefer curated local topic photos when tags already match.
+  if (entry.source === "local") score = Math.min(1, score + 0.04);
 
   return score;
 }
@@ -217,6 +219,12 @@ const urlHealthCache = new Map<string, boolean>();
 export async function isImageUrlReachable(url: string): Promise<boolean> {
   const cached = urlHealthCache.get(url);
   if (cached != null) return cached;
+
+  // Local public assets — skip remote HEAD (relative paths fail server-side fetch).
+  if (url.startsWith("/")) {
+    urlHealthCache.set(url, true);
+    return true;
+  }
 
   try {
     const head = await fetch(url, {
