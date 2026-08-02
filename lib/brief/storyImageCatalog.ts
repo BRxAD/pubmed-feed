@@ -620,6 +620,15 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
 
   // ── Local topic-specific (filename-guided) ───────────────────────
   {
+    id: "local-heart-endocarditis",
+    url: "/brief-images/heart-endocarditis.png",
+    label: "anatomical heart model",
+    source: "local",
+    // Organ-specific — never use as generic fallback.
+    requireAny: ["heart", "endocarditis", "pericarditis"],
+    tags: ["heart", "endocarditis", "pericarditis"],
+  },
+  {
     id: "local-cold-flu-urti",
     url: "/brief-images/cold-flu-urti.png",
     label: "upper respiratory illness at home",
