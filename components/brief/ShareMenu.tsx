@@ -86,6 +86,23 @@ export default function ShareMenu({ item, image }: Props) {
     }
   }
 
+  async function downloadVisualSummary() {
+    setBusy(true);
+    setError(null);
+    try {
+      const blob = await composeVisualSummary({ item, image });
+      downloadBlob(blob, `stewardship-brief-${item.pmid}.png`);
+      setOpen(false);
+    } catch (e) {
+      console.error(e);
+      setError(
+        e instanceof Error ? e.message : "Could not create visual summary"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const shareText = [item.headline, item.bottomLine, item.pubmedUrl]
     .filter(Boolean)
     .join("\n\n");
@@ -126,7 +143,13 @@ export default function ShareMenu({ item, image }: Props) {
             onClick={() => void shareVisualSummary()}
             disabled={busy}
           >
-            {busy ? "Creating image…" : "Visual summary image"}
+            {busy ? "Creating image…" : "Share visual summary"}
+          </MenuButton>
+          <MenuButton
+            onClick={() => void downloadVisualSummary()}
+            disabled={busy}
+          >
+            Download visual summary
           </MenuButton>
           <MenuButton onClick={() => void copyPubmedLink()}>
             {copied ? "PubMed link copied" : "Copy PubMed link"}

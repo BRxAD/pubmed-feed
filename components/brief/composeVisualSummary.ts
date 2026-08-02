@@ -133,11 +133,12 @@ function drawCoverImage(
 }
 
 function drawLeftShade(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const grad = ctx.createLinearGradient(0, 0, w * 0.72, 0);
+  // Extend ~33% further right so white text stays on solid shade.
+  const grad = ctx.createLinearGradient(0, 0, w * 0.96, 0);
   grad.addColorStop(0, hexAlpha(SHADE, 0.97));
-  grad.addColorStop(0.22, hexAlpha(SHADE, 0.92));
-  grad.addColorStop(0.45, hexAlpha(SHADE, 0.55));
-  grad.addColorStop(0.68, hexAlpha(SHADE, 0.12));
+  grad.addColorStop(0.28, hexAlpha(SHADE, 0.94));
+  grad.addColorStop(0.52, hexAlpha(SHADE, 0.72));
+  grad.addColorStop(0.74, hexAlpha(SHADE, 0.28));
   grad.addColorStop(1, hexAlpha(SHADE, 0));
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
@@ -237,48 +238,51 @@ async function renderToBlob(
   ctx.font = "400 15px 'Libre Franklin', system-ui, sans-serif";
   const citeLines = wrapLinesFull(ctx, citation, textMax);
   const citeLh = 20;
-  let citeY = HEIGHT - 56 - Math.max(0, citeLines.length - 1) * citeLh;
+  const brandLogoH = 36;
+  const brandGap = 14;
+  const bottomPad = 48;
+  const citeBlockH =
+    citeLines.length * citeLh + brandGap + brandLogoH;
+  let citeY = HEIGHT - bottomPad - citeBlockH;
+
+  ctx.textBaseline = "top";
   for (const line of citeLines) {
     ctx.fillText(line, padX, citeY);
     citeY += citeLh;
   }
 
-  const qr = await loadQrImage(item.pubmedUrl);
-  const brandRight = WIDTH - 56;
-  let brandBottom = HEIGHT - 48;
+  // Logo + site below citation, inverted (white) for the dark shade.
+  citeY += brandGap;
+  ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
+  ctx.fillStyle = "#FFFFFF";
+  const brandGapX = 12;
+  let brandX = padX;
 
   try {
     const logo = await loadImage(LOGO_SRC);
-    const logoH = 44;
+    const logoH = brandLogoH;
     const logoW = (logo.naturalWidth / Math.max(1, logo.naturalHeight)) * logoH;
-    ctx.font = "600 28px Newsreader, Georgia, 'Times New Roman', serif";
-    ctx.fillStyle = SHADE;
-    const brandW = ctx.measureText(BRAND_URL).width;
-    const gap = 14;
-    const lockupW = logoW + gap + brandW;
-    const lockupX = brandRight - lockupW;
-    const logoY = brandBottom - logoH;
-    // No plate — logo + site sit directly on the photo.
-    ctx.drawImage(logo, lockupX, logoY, logoW, logoH);
-    ctx.textBaseline = "middle";
-    ctx.fillText(BRAND_URL, lockupX + logoW + gap, logoY + logoH / 2);
-    brandBottom = logoY - 16;
+    ctx.save();
+    // Force light mark on dark background.
+    ctx.filter = "brightness(0) invert(1)";
+    ctx.drawImage(logo, brandX, citeY, logoW, logoH);
+    ctx.restore();
+    brandX += logoW + brandGapX;
   } catch {
-    ctx.font = "600 28px Newsreader, Georgia, serif";
-    ctx.fillStyle = SHADE;
-    ctx.textBaseline = "bottom";
-    ctx.fillText(
-      BRAND_URL,
-      brandRight - ctx.measureText(BRAND_URL).width,
-      brandBottom
-    );
-    brandBottom -= 40;
+    // Text-only fallback.
   }
 
+  ctx.fillStyle = "#FFFFFF";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
+  ctx.fillText(BRAND_URL, brandX, citeY + brandLogoH / 2);
+
+  // QR stays bottom-right on the photo.
+  const qr = await loadQrImage(item.pubmedUrl);
   if (qr) {
     const qrSize = 108;
-    const qx = brandRight - qrSize;
-    const qy = brandBottom - qrSize;
+    const qx = WIDTH - 56 - qrSize;
+    const qy = HEIGHT - 48 - qrSize;
     ctx.fillStyle = "rgba(246,244,239,0.95)";
     roundRect(ctx, qx - 8, qy - 8, qrSize + 16, qrSize + 16, 8);
     ctx.fill();
