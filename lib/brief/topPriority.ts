@@ -22,24 +22,27 @@ export type TopPriorityItem = Pick<
   | "pubmedUrl"
   | "date"
   | "setting"
+  | "jif"
+  | "sjrScimago"
 >;
 
-function articleTimestamp(item: {
-  date: string | null;
-  createdAt: string;
-}): number {
-  const raw = item.date ?? item.createdAt;
-  if (!raw) return 0;
-  const t = new Date(
-    raw.includes("T") ? raw : `${String(raw).slice(0, 10)}T12:00:00`
-  ).getTime();
-  return Number.isNaN(t) ? 0 : t;
+/** Prefer JIF; fall back to SJR so Q1/Scimago journals still compete when JIF is missing. */
+function citationImpactScore(item: BriefItem): number {
+  const jif = item.jif != null && Number.isFinite(item.jif) ? item.jif : 0;
+  const sjr =
+    item.sjrScimago != null && Number.isFinite(item.sjrScimago)
+      ? item.sjrScimago
+      : 0;
+  // SJR is typically smaller than JIF; weight it so both can break ties meaningfully.
+  return Math.max(jif, sjr * 3);
 }
 
 /**
  * Top 10 PubMed brief-eligible studies from the past 12 months (article date),
  * priority ≥ 5. Soft setting match so capsules can fill to 10 when classifiers
- * left many rows unclassified. Priority first, then newest.
+ * left many rows unclassified.
+ *
+ * Rank: effective priority → clinical rubric (relevance %) → JIF / citation impact.
  */
 export async function getTopPriorityYearItems(
   setting: BriefSettingFilter = ""
@@ -65,11 +68,11 @@ export async function getTopPriorityYearItems(
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }
-    const tDiff = articleTimestamp(b) - articleTimestamp(a);
-    if (tDiff !== 0) return tDiff;
     if (b.relevancePercent !== a.relevancePercent) {
       return b.relevancePercent - a.relevancePercent;
     }
+    const impactDiff = citationImpactScore(b) - citationImpactScore(a);
+    if (impactDiff !== 0) return impactDiff;
     return 0;
   });
 
@@ -83,5 +86,7 @@ export async function getTopPriorityYearItems(
     pubmedUrl: item.pubmedUrl,
     date: item.date,
     setting: item.setting,
+    jif: item.jif,
+    sjrScimago: item.sjrScimago,
   }));
 }
