@@ -17,7 +17,6 @@ import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
 import { brief } from "@/components/brief/briefTheme";
-import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
@@ -143,10 +142,6 @@ export default function BriefPage({
               <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
                 {rest.map((s) => {
                   const hasImage = Boolean(s.image);
-                  const isPull =
-                    STORY_IMAGE_POLICY.quoteWhenNoImage &&
-                    !hasImage &&
-                    Boolean(s.item.bottomLine);
 
                   return (
                     <div
@@ -157,7 +152,6 @@ export default function BriefPage({
                         item={s.item}
                         image={s.image}
                         bare
-                        pullQuote={isPull}
                         compact={!hasImage}
                         saved={saved.has(s.item.pmid)}
                         onToggleSave={toggleSave}

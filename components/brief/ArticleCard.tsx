@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
 
@@ -184,27 +185,43 @@ function StoryImage({
   priority,
   onError,
   className,
+  caption,
 }: {
   image: StoryImageMatch;
   sizes: string;
   priority?: boolean;
   onError?: () => void;
   className?: string;
+  /** Quoted bottom line under the photo (caption), when provided. */
+  caption?: string | null;
 }) {
   return (
-    <div
-      className={`relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4] ${className ?? ""}`}
-    >
-      <Image
-        src={image.url}
-        alt={image.label}
-        fill
-        sizes={sizes}
-        priority={priority}
-        className="object-cover object-center"
-        onError={() => onError?.()}
-      />
-    </div>
+    <figure className={className ?? ""}>
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4]">
+        <Image
+          src={image.url}
+          alt={image.label}
+          fill
+          sizes={sizes}
+          priority={priority}
+          className="object-cover object-center"
+          onError={() => onError?.()}
+        />
+      </div>
+      {caption && (
+        <figcaption
+          className={`mt-2.5 ${brief.serif} text-[0.9375rem] leading-[1.45] tracking-[-0.01em] ${brief.ink} sm:text-base`}
+        >
+          <span className="text-[#2A79A7]" aria-hidden>
+            “
+          </span>
+          {caption}
+          <span className="text-[#2A79A7]" aria-hidden>
+            ”
+          </span>
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
@@ -215,6 +232,11 @@ export function LeadStory({
   image,
   onImageError,
 }: StoryProps) {
+  const photoCaption =
+    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image && item.bottomLine
+      ? item.bottomLine
+      : null;
+
   return (
     <article className="brief-lead-fade pb-2">
       <p className={`${brief.kicker} mb-4`}>
@@ -229,6 +251,7 @@ export function LeadStory({
           sizes="(max-width: 1024px) 100vw, 720px"
           className="mb-5"
           onError={onImageError}
+          caption={photoCaption}
         />
       )}
       <MetaLine item={item} />
@@ -288,15 +311,17 @@ export function FeaturedStory({
   image,
   onImageError,
   bare = false,
-  pullQuote = false,
   compact = false,
 }: StoryProps & {
   bare?: boolean;
-  /** Bottom line as pull quote — used when there is no photo. */
-  pullQuote?: boolean;
   /** Tighter spacing for lower-ranked text-only stories. */
   compact?: boolean;
 }) {
+  const photoCaption =
+    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image && item.bottomLine
+      ? item.bottomLine
+      : null;
+
   return (
     <article
       className={`${compact ? "py-4" : "py-6"} ${bare ? "" : `border-b ${brief.hairline}`}`}
@@ -307,6 +332,7 @@ export function FeaturedStory({
           sizes="(max-width: 768px) 100vw, 420px"
           className="mb-4"
           onError={onImageError}
+          caption={photoCaption}
         />
       )}
       <MetaLine item={item} />
@@ -325,26 +351,8 @@ export function FeaturedStory({
         </a>
       </h2>
       {item.bottomLine && (
-        <p
-          className={
-            pullQuote
-              ? `mt-3 ${brief.serif} text-[1.0625rem] leading-[1.45] tracking-[-0.01em] ${brief.ink}`
-              : `mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`
-          }
-        >
-          {pullQuote ? (
-            <>
-              <span className="text-[#2A79A7]" aria-hidden>
-                “
-              </span>
-              {item.bottomLine}
-              <span className="text-[#2A79A7]" aria-hidden>
-                ”
-              </span>
-            </>
-          ) : (
-            item.bottomLine
-          )}
+        <p className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
+          {item.bottomLine}
         </p>
       )}
       <StoryActions

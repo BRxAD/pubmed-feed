@@ -22,10 +22,10 @@ export const STORY_IMAGE_POLICY = {
   secondaryAllowGeneric: true,
 
   /**
-   * When a secondary story has no photo but has a bottom line, set it as a
-   * pull quote (caption replacement).
+   * On photo stories, show the bottom line as a quoted caption under the
+   * image — in addition to the normal bottom line under the headline.
    */
-  quoteWhenNoImage: true,
+  quoteCaptionUnderPhoto: true,
 } as const;
 
 export type StoryImagePolicy = typeof STORY_IMAGE_POLICY;
