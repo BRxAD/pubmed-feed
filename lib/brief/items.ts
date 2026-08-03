@@ -68,7 +68,7 @@ export type BriefItem = {
   keywords: string[];
   /** MeSH terms used for image matching (and optional display later). */
   meshTerms: string[];
-  /** First ~400 chars of abstract for richer image matching. */
+  /** First ~700 chars of abstract for image matching and photo captions. */
   abstractSnippet: string | null;
 };
 
@@ -450,7 +450,8 @@ export async function getBriefItems(options?: {
       abstractSnippet: (() => {
         const a = row.articles.abstract?.trim() ?? "";
         if (!a) return null;
-        return a.length > 400 ? `${a.slice(0, 400)}…` : a;
+        // Keep enough text to reach Results-style sentences for photo quotes.
+        return a.length > 700 ? `${a.slice(0, 700)}…` : a;
       })(),
     };
 

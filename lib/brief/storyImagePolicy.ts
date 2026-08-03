@@ -22,8 +22,8 @@ export const STORY_IMAGE_POLICY = {
   secondaryAllowGeneric: true,
 
   /**
-   * On photo stories, show the bottom line as a quoted caption under the
-   * image — in addition to the normal bottom line under the headline.
+   * On photo stories, show a short abstract-derived quote under the image
+   * (caption). Distinct from the editorial bottom line under the headline.
    */
   quoteCaptionUnderPhoto: true,
 } as const;

@@ -6,6 +6,7 @@ import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
+import { pickPhotoQuote } from "@/lib/brief/photoQuote";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
 
@@ -192,7 +193,7 @@ function StoryImage({
   priority?: boolean;
   onError?: () => void;
   className?: string;
-  /** Quoted bottom line under the photo (caption), when provided. */
+  /** Quoted abstract excerpt under the photo (caption), when provided. */
   caption?: string | null;
 }) {
   return (
@@ -210,7 +211,7 @@ function StoryImage({
       </div>
       {caption && (
         <figcaption
-          className={`mt-2.5 ${brief.serif} text-[0.9375rem] leading-[1.45] tracking-[-0.01em] ${brief.ink} sm:text-base`}
+          className={`mt-2 ${brief.sans} text-[0.75rem] leading-[1.45] ${brief.muted} sm:text-[0.8125rem]`}
         >
           <span className="text-[#2A79A7]" aria-hidden>
             “
@@ -233,8 +234,8 @@ export function LeadStory({
   onImageError,
 }: StoryProps) {
   const photoCaption =
-    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image && item.bottomLine
-      ? item.bottomLine
+    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image
+      ? pickPhotoQuote(item)
       : null;
 
   return (
@@ -318,8 +319,8 @@ export function FeaturedStory({
   compact?: boolean;
 }) {
   const photoCaption =
-    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image && item.bottomLine
-      ? item.bottomLine
+    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image
+      ? pickPhotoQuote(item)
       : null;
 
   return (
