@@ -23,9 +23,9 @@ export const STORY_IMAGE_POLICY = {
 
   /**
    * On photo stories, show a short abstract-derived quote under the image
-   * (caption). Distinct from the editorial bottom line under the headline.
+   * (caption). Off for now — revisit with an LLM caption later.
    */
-  quoteCaptionUnderPhoto: true,
+  quoteCaptionUnderPhoto: false,
 } as const;
 
 export type StoryImagePolicy = typeof STORY_IMAGE_POLICY;
