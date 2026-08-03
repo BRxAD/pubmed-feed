@@ -32,3 +32,59 @@ body {
 .brief-sans {
   font-family: var(--font-brief-sans), system-ui, sans-serif;
 }
+
+/* Brief motion — restrained; disabled when prefers-reduced-motion */
+@keyframes brief-masthead-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes brief-lead-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.brief-masthead-settle {
+  animation: brief-masthead-settle 0.55s ease-out both;
+}
+
+.brief-lead-fade {
+  animation: brief-lead-fade 0.7s ease-out 0.12s both;
+}
+
+.brief-story-link {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 1px;
+  transition:
+    background-size 0.25s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.brief-story-link:hover,
+.brief-story-link:focus-visible {
+  background-size: 100% 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brief-masthead-settle,
+  .brief-lead-fade {
+    animation: none;
+  }
+
+  .brief-story-link {
+    transition: none;
+  }
+}

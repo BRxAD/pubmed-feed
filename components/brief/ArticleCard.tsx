@@ -216,7 +216,7 @@ export function LeadStory({
   onImageError,
 }: StoryProps) {
   return (
-    <article className="pb-2">
+    <article className="brief-lead-fade pb-2">
       <p className={`${brief.kicker} mb-4`}>
         <span className="inline-block border-b-2 border-[#FFA69E] pb-0.5">
           Lead story
@@ -239,7 +239,7 @@ export function LeadStory({
           href={item.pubmedUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
+          className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
         >
           {item.headline}
         </a>
@@ -307,7 +307,7 @@ export function FeaturedStory({
           href={item.pubmedUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${brief.ink} no-underline ${brief.accentHover} transition-colors`}
+          className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
         >
           {item.headline}
         </a>

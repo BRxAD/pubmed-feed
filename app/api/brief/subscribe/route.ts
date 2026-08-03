@@ -33,7 +33,7 @@ function buildWelcomeEmail(email: string): {
 
   const html = `<!DOCTYPE html><html><body style="max-width:560px;margin:0 auto;padding:28px 20px;background:${paper};color:${plum};font-family:system-ui,-apple-system,sans-serif">
     <p style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:600;color:${plum}">The Stewardship Brief</p>
-    <p style="margin:0 0 20px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Morning email confirmed</p>
+    <p style="margin:0 0 20px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">Daily email confirmed</p>
     <p style="font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;margin:0 0 16px">
       You’re on the list. Look for the daily brief — headlines and one bottom line each.
     </p>

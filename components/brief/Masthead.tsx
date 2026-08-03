@@ -8,8 +8,8 @@ type Props = {
 export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
-      <div className="mx-auto max-w-6xl px-4 pt-6 pb-5 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center text-center">
+      <div className="mx-auto max-w-6xl px-4 pt-6 pb-6 sm:px-6 lg:px-8">
+        <div className="brief-masthead-settle flex flex-col items-center text-center">
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
@@ -18,14 +18,31 @@ export default function Masthead({ dateLabel }: Props) {
             priority
             className="h-auto w-full max-w-[646px] max-h-[136px] object-contain object-center"
           />
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />
-            <p className={`${brief.sans} text-sm ${brief.muted}`}>{dateLabel}</p>
-            <span className="hidden sm:block h-px w-12 bg-[#D8D4C8]" />
+
+          {/* Edition line — quiet steel accent borrowed from About */}
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <span className="h-px w-8 bg-[#7BC1D4] sm:w-12" aria-hidden />
+            <p
+              className={`${brief.sans} text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-[#2A79A7]`}
+            >
+              {dateLabel}
+            </p>
+            <span className="h-px w-8 bg-[#7BC1D4] sm:w-12" aria-hidden />
           </div>
+
+          <p
+            className={`mt-3 max-w-md ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
+          >
+            The studies most likely to change practice.
+          </p>
         </div>
       </div>
-      <div className={`mx-auto max-w-6xl border-b-2 ${brief.rule}`} />
+
+      {/* Steel hairline over plum rule — ties home to About without a hero band */}
+      <div className="mx-auto max-w-6xl">
+        <div className="h-px bg-[#7BC1D4]/55" aria-hidden />
+        <div className={`border-b-2 ${brief.rule}`} />
+      </div>
     </header>
   );
 }

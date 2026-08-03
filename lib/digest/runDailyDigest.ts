@@ -216,7 +216,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     : { items: [] as Awaited<ReturnType<typeof getDigestItems>>["items"] };
 
   // Legacy ASP-format emails stay off unless DIGEST_SEND_LEGACY=1.
-  // The morning subscriber email is The Stewardship Brief (runBriefDigest below).
+  // The daily subscriber email is The Stewardship Brief (runBriefDigest below).
   const sendLegacy = process.env.DIGEST_SEND_LEGACY === "1";
 
   const emailPubmed = sendLegacy
