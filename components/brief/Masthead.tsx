@@ -30,11 +30,6 @@ export default function Masthead({ dateLabel }: Props) {
             <span className="h-px w-8 bg-[#7BC1D4] sm:w-12" aria-hidden />
           </div>
 
-          <p
-            className={`mt-3 max-w-md ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
-          >
-            The studies most likely to change practice.
-          </p>
         </div>
       </div>
 

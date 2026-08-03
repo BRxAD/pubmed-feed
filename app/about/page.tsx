@@ -41,8 +41,8 @@ export default function AboutPage() {
     <BriefSitePage active="/about">
       <PageHero
         kicker="About"
-        title="Detect the signal amongst the noise."
-        lede="Antimicrobial stewardship research grows every week. The Brief exists to surface the work most likely to change practice."
+        title="Find the signal in the noise."
+        lede="Hundreds of stewardship papers drop every month—The Stewardship Brief delivers only the practice-changing research."
         image={{
           url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1400&q=80",
           alt: "Antibiotic tablets in blister packaging",
@@ -78,25 +78,16 @@ export default function AboutPage() {
             <p
               className={`${brief.serif} text-[1.45rem] leading-[1.5] tracking-[-0.01em] sm:text-[1.6rem]`}
             >
-              Antimicrobial stewardship is a rapidly developing field. Lots of
-              new research informs our practice, but some is more influential
-              than others.
+              Keeping up with the rapid pace of antimicrobial stewardship
+              research is a challenge. The Stewardship Brief solves this by
+              using AI to instantly process, classify, and rank new literature.
             </p>
             <p
               className={`mt-6 max-w-[62ch] ${brief.deck} text-[0.9375rem] leading-[1.75]`}
             >
-              To keep up with this growing body of literature and identify the
-              most impactful articles,{" "}
-              <span className="font-medium">The Stewardship Brief</span> aims to
-              leverage AI to intake, summarize, classify, and rank new research
-              in the field.
-            </p>
-            <p
-              className={`mt-4 max-w-[62ch] ${brief.sans} text-[0.9375rem] leading-[1.75] ${brief.muted}`}
-            >
-              The result is a short daily read: a lead story, the studies worth
-              knowing about, and a running list of the highest-priority work
-              from the past twelve months.
+              The result is a concise daily brief: a highlighted lead story, a
+              summary of need-to-know studies, and a curated list of the most
+              important work from the past year.
             </p>
           </div>
 
