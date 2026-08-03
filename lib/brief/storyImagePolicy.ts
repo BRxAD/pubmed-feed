@@ -1,52 +1,31 @@
 /**
  * Brief image + rhythm policy.
  *
- * Flip any flag to `false` (or restore defaults below) to roll back a piece
- * without reverting the whole branch. Previous behavior ≈ all flags that
- * restrict images set to the “legacy” values noted in comments.
+ * Flip flags here to tune without a full revert.
  */
 export const STORY_IMAGE_POLICY = {
-  /**
-   * Lead may fall through strict → thematic → generic stewardship photos.
-   * Legacy: true.
-   */
+  /** Lead: strict → thematic → generic stewardship photos. */
   leadAllowThematic: true,
   leadAllowGenericFallback: true,
 
   /**
-   * Secondary stories: strict/niche matches only — no thematic pass, no generic.
-   * Set both false to restore old “fill most cards” behavior.
-   * Legacy secondary: thematic + generic allowed.
+   * Share of the ranked list (from the top, including lead) that may get a
+   * photo. Lower-ranked / older stories stay text-only.
    */
-  secondaryStrictOnly: true,
-  secondaryAllowGeneric: false,
+  photoTopFraction: 0.5,
 
   /**
-   * Among secondary stories, only show an image on every Nth card (1-based
-   * index in the “also in brief” list). 1 = show every niche match;
-   * 3 ≈ one photo every three stories. Legacy feel: 1.
+   * Within the photo-eligible band (excluding lead), allow thematic + generic
+   * fallbacks the same way as before the sparse experiment.
    */
-  secondaryImageEveryN: 3,
+  secondaryStrictOnly: false,
+  secondaryAllowGeneric: true,
 
   /**
-   * Steel wash + caption on secondary figures so they feel editorial, not stock.
-   * Legacy: false (raw full-bleed crop).
+   * When a secondary story has no photo but has a bottom line, set it as a
+   * pull quote (caption replacement).
    */
-  secondaryImageTreatment: true,
-
-  /**
-   * Every Nth secondary story (when it has a bottom line) gets a larger
-   * pull-quote treatment instead of a photo — typed rhythm break.
-   * 0 = off. Legacy: 0.
-   */
-  pullQuoteEveryN: 5,
-
-  /**
-   * Show journal · JIF under the bottom line when there is no photo —
-   * quiet punctuation so text-only cards don’t feel empty.
-   * Legacy: false (journal only inside More detail).
-   */
-  showJournalWhenNoImage: true,
+  quoteWhenNoImage: true,
 } as const;
 
 export type StoryImagePolicy = typeof STORY_IMAGE_POLICY;

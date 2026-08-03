@@ -141,13 +141,12 @@ export default function BriefPage({
                 (the old paired-row grid did that on desktop).
               */}
               <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
-                {rest.map((s, i) => {
-                  const pullN = STORY_IMAGE_POLICY.pullQuoteEveryN;
+                {rest.map((s) => {
+                  const hasImage = Boolean(s.image);
                   const isPull =
-                    pullN > 0 &&
-                    Boolean(s.item.bottomLine) &&
-                    !s.image &&
-                    (i + 1) % pullN === 0;
+                    STORY_IMAGE_POLICY.quoteWhenNoImage &&
+                    !hasImage &&
+                    Boolean(s.item.bottomLine);
 
                   return (
                     <div
@@ -159,11 +158,7 @@ export default function BriefPage({
                         image={s.image}
                         bare
                         pullQuote={isPull}
-                        treatedImage={
-                          Boolean(s.image) &&
-                          STORY_IMAGE_POLICY.secondaryImageTreatment
-                        }
-                        showJournal={STORY_IMAGE_POLICY.showJournalWhenNoImage}
+                        compact={!hasImage}
                         saved={saved.has(s.item.pmid)}
                         onToggleSave={toggleSave}
                         onImageError={() => markBroken(s.item.pmid)}

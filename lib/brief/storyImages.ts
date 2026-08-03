@@ -343,9 +343,8 @@ export async function matchStoryImage(
  * Two-tier assignment with hard uniqueness on catalog id AND url.
  * Prefer null over a weak / irrelevant match.
  *
- * Lead (index 0): strict → optional thematic → optional generic.
- * Secondary: strict/niche only by default; only every Nth secondary gets a
- * match attempt so unique catalog photos aren’t burned on hidden slots.
+ * Top ~photoTopFraction of the ranked list may get photos (lead included).
+ * Remaining lower-ranked stories stay text-only.
  */
 export async function assignStoryImages(
   items: BriefItem[]
@@ -353,16 +352,23 @@ export async function assignStoryImages(
   const used: UsageTracker = { ids: new Set(), urls: new Set() };
   const out: Record<string, StoryImageMatch | null> = {};
   const policy = STORY_IMAGE_POLICY;
-  const everyN = Math.max(1, policy.secondaryImageEveryN);
+  const photoSlots = Math.max(
+    1,
+    Math.ceil(items.length * policy.photoTopFraction)
+  );
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
-    const isLead = i === 0;
     out[item.pmid] = null;
 
+    if (i >= photoSlots) continue;
+
+    const isLead = i === 0;
+    out[item.pmid] = await matchStoryImage(item, used, "strict");
+    if (out[item.pmid]) continue;
+
     if (isLead) {
-      out[item.pmid] = await matchStoryImage(item, used, "strict");
-      if (!out[item.pmid] && policy.leadAllowThematic) {
+      if (policy.leadAllowThematic) {
         out[item.pmid] = await matchStoryImage(item, used, "thematic", {
           allowGenericFallback: policy.leadAllowGenericFallback,
         });
@@ -370,13 +376,7 @@ export async function assignStoryImages(
       continue;
     }
 
-    // Secondary cadence: 0, everyN, 2*everyN, … in the also-in-brief list.
-    const secondaryIndex = i - 1;
-    const cadenceSlot = secondaryIndex % everyN === 0;
-    if (!cadenceSlot) continue;
-
-    out[item.pmid] = await matchStoryImage(item, used, "strict");
-    if (!out[item.pmid] && !policy.secondaryStrictOnly) {
+    if (!policy.secondaryStrictOnly) {
       out[item.pmid] = await matchStoryImage(item, used, "thematic", {
         allowGenericFallback: policy.secondaryAllowGeneric,
       });
