@@ -184,27 +184,49 @@ function StoryImage({
   priority,
   onError,
   className,
+  treated = false,
 }: {
   image: StoryImageMatch;
   sizes: string;
   priority?: boolean;
   onError?: () => void;
   className?: string;
+  /** Steel wash + caption — editorial figure, not raw stock. */
+  treated?: boolean;
 }) {
   return (
-    <div
-      className={`relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4] ${className ?? ""}`}
-    >
-      <Image
-        src={image.url}
-        alt={image.label}
-        fill
-        sizes={sizes}
-        priority={priority}
-        className="object-cover object-center"
-        onError={() => onError?.()}
-      />
-    </div>
+    <figure className={className ?? ""}>
+      <div
+        className={`relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4] ${
+          treated ? "ring-1 ring-[#D8D4C8]" : ""
+        }`}
+      >
+        <Image
+          src={image.url}
+          alt={image.label}
+          fill
+          sizes={sizes}
+          priority={priority}
+          className={`object-cover object-center ${
+            treated ? "brightness-[0.92] contrast-[1.05] saturate-[0.75]" : ""
+          }`}
+          onError={() => onError?.()}
+        />
+        {treated && (
+          <div
+            className="pointer-events-none absolute inset-0 bg-[#2A79A7]/18 mix-blend-multiply"
+            aria-hidden
+          />
+        )}
+      </div>
+      {treated && (
+        <figcaption
+          className={`mt-2 ${brief.sans} text-[0.6875rem] uppercase tracking-[0.1em] ${brief.muted}`}
+        >
+          {image.label}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
@@ -288,7 +310,34 @@ export function FeaturedStory({
   image,
   onImageError,
   bare = false,
-}: StoryProps & { bare?: boolean }) {
+  pullQuote = false,
+  treatedImage = false,
+  showJournal = false,
+}: StoryProps & {
+  bare?: boolean;
+  /** Larger bottom-line treatment — typed rhythm break instead of a photo. */
+  pullQuote?: boolean;
+  /** Steel-wash figure treatment for secondary photos. */
+  treatedImage?: boolean;
+  /** Show journal · JIF when there is no image. */
+  showJournal?: boolean;
+}) {
+  const journalLine =
+    showJournal &&
+    !image &&
+    (item.journal || item.jif != null) ? (
+      <p className={`mt-2 ${brief.sans} text-[0.8125rem] leading-relaxed ${brief.muted}`}>
+        {item.journal && <span>{item.journal}</span>}
+        {item.jif != null && (
+          <span>
+            {item.journal ? " · " : ""}
+            JIF {item.jif.toFixed(1)}
+            {item.jifIsHigh ? " ★" : ""}
+          </span>
+        )}
+      </p>
+    ) : null;
+
   return (
     <article className={`py-6 ${bare ? "" : `border-b ${brief.hairline}`}`}>
       {image && (
@@ -297,6 +346,7 @@ export function FeaturedStory({
           sizes="(max-width: 768px) 100vw, 420px"
           className="mb-4"
           onError={onImageError}
+          treated={treatedImage}
         />
       )}
       <MetaLine item={item} />
@@ -314,11 +364,28 @@ export function FeaturedStory({
       </h2>
       {item.bottomLine && (
         <p
-          className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}
+          className={
+            pullQuote
+              ? `mt-4 ${brief.serif} text-[1.125rem] leading-[1.45] tracking-[-0.01em] ${brief.ink}`
+              : `mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`
+          }
         >
-          {item.bottomLine}
+          {pullQuote ? (
+            <>
+              <span className="text-[#2A79A7]" aria-hidden>
+                “
+              </span>
+              {item.bottomLine}
+              <span className="text-[#2A79A7]" aria-hidden>
+                ”
+              </span>
+            </>
+          ) : (
+            item.bottomLine
+          )}
         </p>
       )}
+      {journalLine}
       <StoryActions
         item={item}
         saved={saved}

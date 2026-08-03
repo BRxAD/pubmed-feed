@@ -17,6 +17,7 @@ import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
 import { brief } from "@/components/brief/briefTheme";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
@@ -140,21 +141,36 @@ export default function BriefPage({
                 (the old paired-row grid did that on desktop).
               */}
               <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
-                {rest.map((s) => (
-                  <div
-                    key={s.item.pmid}
-                    className="break-inside-avoid border-b border-[#D8D4C8]"
-                  >
-                    <FeaturedStory
-                      item={s.item}
-                      image={s.image}
-                      bare
-                      saved={saved.has(s.item.pmid)}
-                      onToggleSave={toggleSave}
-                      onImageError={() => markBroken(s.item.pmid)}
-                    />
-                  </div>
-                ))}
+                {rest.map((s, i) => {
+                  const pullN = STORY_IMAGE_POLICY.pullQuoteEveryN;
+                  const isPull =
+                    pullN > 0 &&
+                    Boolean(s.item.bottomLine) &&
+                    !s.image &&
+                    (i + 1) % pullN === 0;
+
+                  return (
+                    <div
+                      key={s.item.pmid}
+                      className="break-inside-avoid border-b border-[#D8D4C8]"
+                    >
+                      <FeaturedStory
+                        item={s.item}
+                        image={s.image}
+                        bare
+                        pullQuote={isPull}
+                        treatedImage={
+                          Boolean(s.image) &&
+                          STORY_IMAGE_POLICY.secondaryImageTreatment
+                        }
+                        showJournal={STORY_IMAGE_POLICY.showJournalWhenNoImage}
+                        saved={saved.has(s.item.pmid)}
+                        onToggleSave={toggleSave}
+                        onImageError={() => markBroken(s.item.pmid)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}

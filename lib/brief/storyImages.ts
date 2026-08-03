@@ -10,6 +10,7 @@ import {
   STORY_IMAGE_CATALOG,
   type CatalogEntry,
 } from "@/lib/brief/storyImageCatalog";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
 
 export type { StoryImageMatch };
@@ -308,8 +309,15 @@ async function firstReachableMatch(
 export async function matchStoryImage(
   item: StoryImageFields,
   used: UsageTracker = { ids: new Set(), urls: new Set() },
-  mode: ScoreMode = "strict"
+  mode: ScoreMode = "strict",
+  opts: { allowGenericFallback?: boolean } = {}
 ): Promise<StoryImageMatch | null> {
+  const allowGeneric =
+    opts.allowGenericFallback ??
+    (mode === "thematic"
+      ? STORY_IMAGE_POLICY.leadAllowGenericFallback
+      : false);
+
   const threshold =
     mode === "strict" ? IMAGE_MATCH_THRESHOLD : IMAGE_MATCH_THRESHOLD_THEMATIC;
   const ranked = rankCandidates(item, used, mode, threshold);
@@ -320,7 +328,7 @@ export async function matchStoryImage(
   );
   if (matched) return matched;
 
-  if (mode === "thematic") {
+  if (mode === "thematic" && allowGeneric) {
     // Prefer no image over an irrelevant organ/scene photo.
     return firstReachableMatch(
       genericFallbackCandidates(item, used),
@@ -334,20 +342,45 @@ export async function matchStoryImage(
 /**
  * Two-tier assignment with hard uniqueness on catalog id AND url.
  * Prefer null over a weak / irrelevant match.
+ *
+ * Lead (index 0): strict → optional thematic → optional generic.
+ * Secondary: strict/niche only by default; only every Nth secondary gets a
+ * match attempt so unique catalog photos aren’t burned on hidden slots.
  */
 export async function assignStoryImages(
   items: BriefItem[]
 ): Promise<Record<string, StoryImageMatch | null>> {
   const used: UsageTracker = { ids: new Set(), urls: new Set() };
   const out: Record<string, StoryImageMatch | null> = {};
+  const policy = STORY_IMAGE_POLICY;
+  const everyN = Math.max(1, policy.secondaryImageEveryN);
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    const isLead = i === 0;
+    out[item.pmid] = null;
+
+    if (isLead) {
+      out[item.pmid] = await matchStoryImage(item, used, "strict");
+      if (!out[item.pmid] && policy.leadAllowThematic) {
+        out[item.pmid] = await matchStoryImage(item, used, "thematic", {
+          allowGenericFallback: policy.leadAllowGenericFallback,
+        });
+      }
+      continue;
+    }
+
+    // Secondary cadence: 0, everyN, 2*everyN, … in the also-in-brief list.
+    const secondaryIndex = i - 1;
+    const cadenceSlot = secondaryIndex % everyN === 0;
+    if (!cadenceSlot) continue;
+
     out[item.pmid] = await matchStoryImage(item, used, "strict");
-  }
-
-  for (const item of items) {
-    if (out[item.pmid]) continue;
-    out[item.pmid] = await matchStoryImage(item, used, "thematic");
+    if (!out[item.pmid] && !policy.secondaryStrictOnly) {
+      out[item.pmid] = await matchStoryImage(item, used, "thematic", {
+        allowGenericFallback: policy.secondaryAllowGeneric,
+      });
+    }
   }
 
   // Final safety: drop any accidental URL collisions (keep first).
