@@ -216,7 +216,7 @@ export function LeadStory({
   onImageError,
 }: StoryProps) {
   return (
-    <article className="pb-10 mb-10 border-b-2 border-[#2A79A7]/30">
+    <article className="pb-2">
       <p className={`${brief.kicker} mb-4`}>
         <span className="inline-block border-b-2 border-[#FFA69E] pb-0.5">
           Lead story

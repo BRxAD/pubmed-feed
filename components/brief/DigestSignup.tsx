@@ -48,7 +48,7 @@ export default function DigestSignup() {
         id="signup-heading"
         className={`${brief.kicker} mb-2 pb-2 border-b ${brief.hairline}`}
       >
-        Morning email
+        Daily email
       </h2>
       <p className={`${brief.sans} text-sm leading-[1.55] ${brief.ink} mb-4`}>
         Get the daily email — top headlines, one bottom line each.
