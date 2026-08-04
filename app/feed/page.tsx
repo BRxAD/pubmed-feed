@@ -38,7 +38,7 @@ import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   articleExternalUrl,
   parseFeedSource,
-  type FeedSource,
+  type FeedSourceFilter,
 } from "@/lib/feedSource";
 import {
   toPenaltyWeights,
@@ -57,13 +57,13 @@ function buildFeedUrl(params: {
   minRelevance?: number;
   setting?: ArticleSetting | "";
   admin?: boolean;
-  source?: FeedSource;
+  source?: FeedSourceFilter;
   minPriority?: number;
   unratedOnly?: boolean;
 }): string {
   const q = new URLSearchParams();
   q.set("topicId", params.topicId);
-  if (params.source && params.source !== "pubmed") q.set("source", params.source);
+  if (params.source && params.source !== "all") q.set("source", params.source);
   if (params.sort) q.set("sort", params.sort);
   if (params.keyword?.trim()) q.set("keyword", params.keyword.trim());
   if (params.page != null && params.page > 1) q.set("page", String(params.page));
@@ -162,7 +162,7 @@ function ArticleCard({
   isAdmin: boolean;
   weights: RankingWeights;
   scoringOptions: ScoringOptions;
-  source: FeedSource;
+  source: FeedSourceFilter;
   priorityModel: PriorityModel | null;
 }) {
   const journal = item.articles?.journal != null ? String(item.articles.journal) : "";
@@ -173,7 +173,7 @@ function ArticleCard({
     item.articles?.fetched_at ?? item.created_at
   );
   const dateStr = pubDateStr || ingestedStr;
-  const articleUrl = articleExternalUrl(item.pmid, item.source ?? source);
+  const articleUrl = articleExternalUrl(item.pmid, item.source);
 
   const jifEntry = lookupJif(item.articles?.journal);
   const jifIsHigh =
@@ -242,6 +242,11 @@ function ArticleCard({
         {journal && (
           <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 italic">
             {journal}
+          </span>
+        )}
+        {source === "all" && (
+          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            {item.source === "openalex" ? "OpenAlex" : "PubMed"}
           </span>
         )}
         {pubDateStr && (
@@ -768,7 +773,7 @@ export default async function FeedPage({
       >
         <form method="GET" action={BASE_PATH}>
           <input type="hidden" name="topicId" value={topicId} />
-          {source !== "pubmed" && (
+          {source !== "all" && (
             <input type="hidden" name="source" value={source} />
           )}
           {isAdmin && <input type="hidden" name="admin" value="1" />}
@@ -929,11 +934,18 @@ export default async function FeedPage({
         <main className="min-w-0 flex-1 lg:max-w-[720px]">
           {list.length === 0 ? (
             <p className="rounded-xl border border-zinc-200 bg-zinc-50/50 py-12 text-center text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/30 dark:text-zinc-400">
-              No {source === "openalex" ? "OpenAlex" : "PubMed"} articles found for this topic.
+              {source === "openalex"
+                ? "No OpenAlex summaries found for this topic."
+                : source === "pubmed"
+                  ? "No PubMed summaries found for this topic."
+                  : "No summaries found for this topic."}{" "}
               {source === "openalex" && (
+                <>Run OpenAlex ingest first (see docs/OPENALEX_SETUP.md). </>
+              )}
+              {source === "all" && (
                 <>
-                  {" "}
-                  Run OpenAlex ingest first (see docs/OPENALEX_SETUP.md).
+                  The feed lists summarized articles. Raw articles without a
+                  summary will not appear until summarized.{" "}
                 </>
               )}
               {hasFilters && (
@@ -973,15 +985,23 @@ export default async function FeedPage({
                 ))}
               </ul>
 
-              {totalPages > 1 && (
-                <nav
-                  className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-700"
-                  aria-label="Pagination"
-                >
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                    Page {currentPage} of {totalPages}
-                    <span className="ml-2 text-zinc-400">({totalCount} articles)</span>
-                  </span>
+              <nav
+                className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-700"
+                aria-label="Pagination"
+              >
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {totalPages > 1 ? (
+                    <>
+                      Page {currentPage} of {totalPages}
+                      <span className="ml-2 text-zinc-400">
+                        ({totalCount} summaries)
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-zinc-400">{totalCount} summaries</span>
+                  )}
+                </span>
+                {totalPages > 1 && (
                   <div className="flex gap-2">
                     {currentPage > 1 ? (
                       <a
@@ -1008,8 +1028,8 @@ export default async function FeedPage({
                       </span>
                     )}
                   </div>
-                </nav>
-              )}
+                )}
+              </nav>
             </>
           )}
         </main>

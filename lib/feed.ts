@@ -1,7 +1,7 @@
 import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import type { FeedSource } from "@/lib/feedSource";
-import { DEFAULT_FEED_SOURCE } from "@/lib/feedSource";
+import type { FeedSource, FeedSourceFilter } from "@/lib/feedSource";
+import { DEFAULT_FEED_SOURCE_FILTER } from "@/lib/feedSource";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
   computeBreakdown,
@@ -126,14 +126,80 @@ export function parseFeedSort(raw: string | null | undefined): FeedSort {
 
 const PAGE_SIZE = 10;
 
+/**
+ * Supabase/PostgREST silently caps each response (default 1000 rows) even when
+ * .limit() asks for more. Page through with .range() to retrieve the full set.
+ */
+const SUPABASE_FETCH_PAGE = 1000;
+/** Safety ceiling so a runaway table cannot OOM the feed renderer. */
+const SUPABASE_FETCH_SAFETY_MAX = 20_000;
+
+type SummaryRow = Record<string, unknown>;
+
+function applySourceFilter<T extends { eq: Function; or: Function }>(
+  query: T,
+  source: FeedSourceFilter
+): T {
+  if (source === "all") return query;
+  // Older rows may have null source (pre–OpenAlex column); treat as PubMed.
+  if (source === "pubmed") {
+    return query.or("source.eq.pubmed,source.is.null", {
+      foreignTable: "articles",
+    }) as T;
+  }
+  return query.eq("articles.source", source) as T;
+}
+
+/**
+ * Fetch every matching summary row for the topic(s), paging past PostgREST
+ * max-row limits so the feed can list the full Supabase set.
+ */
+async function fetchAllSummariesForTopics(options: {
+  supabase: ReturnType<typeof getSupabaseServerClient>;
+  topicIds: string[];
+  source: FeedSourceFilter;
+  selectColumns: string;
+  cursorCreatedAt?: string | null;
+}): Promise<{ rows: SummaryRow[]; error: { message: string } | null }> {
+  const { supabase, topicIds, source, selectColumns, cursorCreatedAt } =
+    options;
+  const rows: SummaryRow[] = [];
+  let from = 0;
+
+  for (;;) {
+    let query = supabase
+      .from("summaries")
+      .select(selectColumns)
+      .in("topic_id", topicIds)
+      .order("created_at", { ascending: false })
+      .range(from, from + SUPABASE_FETCH_PAGE - 1);
+
+    query = applySourceFilter(query, source);
+
+    if (cursorCreatedAt?.trim()) {
+      query = query.lt("created_at", cursorCreatedAt.trim());
+    }
+
+    const { data, error } = await query;
+    if (error) return { rows, error };
+    const batch = (data ?? []) as unknown as SummaryRow[];
+    rows.push(...batch);
+    if (batch.length < SUPABASE_FETCH_PAGE) break;
+    from += SUPABASE_FETCH_PAGE;
+    if (from >= SUPABASE_FETCH_SAFETY_MAX) break;
+  }
+
+  return { rows, error: null };
+}
+
 export async function getFeedItems(
   topicId: string,
-  limit = PAGE_SIZE,
+  _limit = PAGE_SIZE,
   cursor: string | null = null,
   sort: FeedSort = "ingested",
   filters?: FeedFilterParams,
   page = 1,
-  source: FeedSource = DEFAULT_FEED_SOURCE
+  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER
 ): Promise<{
   items: FeedItem[];
   nextCursor: string | null;
@@ -172,10 +238,6 @@ export async function getFeedItems(
     largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
   };
 
-  // Wide fetch window so re-sorting by ingest time does not drop older
-  // summaries that still belong in the feed.
-  const fetchLimit = 5000;
-
   // Main feed: include both default (stewardship) and AI topic summaries so we don't lose
   // high-relevance articles that were only ingested under the AI topic.
   const defaultTopicId = await getDefaultTopicId();
@@ -191,37 +253,30 @@ export async function getFeedItems(
   const selectColumns =
     "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
 
-  let query = supabase
-    .from("summaries")
-    .select(selectColumns)
-    .in("topic_id", topicIdsToFetch)
-    .eq("articles.source", source)
-    .order("created_at", { ascending: false })
-    .limit(fetchLimit);
-
-  if (cursor?.trim() && sort === "ingested") {
-    query = query.lt("created_at", cursor.trim());
-  }
-
-  let { data: rawItems, error } = await query;
+  let { rows: rawItems, error } = await fetchAllSummariesForTopics({
+    supabase,
+    topicIds: topicIdsToFetch,
+    source,
+    selectColumns,
+    cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
+  });
 
   if (error?.message?.toLowerCase().includes("admin_setting")) {
-    const fallback = await supabase
-      .from("summaries")
-      .select(
-        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
-      )
-      .in("topic_id", topicIdsToFetch)
-      .eq("articles.source", source)
-      .order("created_at", { ascending: false })
-      .limit(Math.max(fetchLimit, isMainFeed ? 3000 : fetchLimit));
-    rawItems = fallback.data as typeof rawItems;
+    const fallback = await fetchAllSummariesForTopics({
+      supabase,
+      topicIds: topicIdsToFetch,
+      source,
+      selectColumns:
+        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)",
+      cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
+    });
+    rawItems = fallback.rows;
     error = fallback.error;
   }
 
   if (error) throw new Error(error.message);
 
-  let items = (rawItems ?? []) as Record<string, unknown>[];
+  let items = rawItems;
 
   // Dedupe by pmid (keep most recent) when main feed merged two topics
   if (isMainFeed && items.length > 0) {
@@ -232,7 +287,6 @@ export async function getFeedItems(
       seen.add(pmid);
       return true;
     });
-    items = items.slice(0, fetchLimit);
   }
 
   const journalNames = [
@@ -477,25 +531,36 @@ export type TrendingKeyword = { keyword: string; count: number };
  */
 export async function getTrendingKeywords(
   topicId: string,
-  source: FeedSource = DEFAULT_FEED_SOURCE
+  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER
 ): Promise<TrendingKeyword[]> {
   const supabase = getSupabaseServerClient();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const since = thirtyDaysAgo.toISOString();
 
-  const { data: rows, error } = await supabase
-    .from("summaries")
-    .select("articles!inner(keywords, source)")
-    .eq("topic_id", topicId)
-    .eq("articles.source", source)
-    .gte("created_at", since)
-    .limit(10000);
-
-  if (error) return [];
+  // Trending is a 30-day window only (sidebar); main feed has no date gate.
+  const rows: SummaryRow[] = [];
+  let from = 0;
+  for (;;) {
+    let trendingQuery = supabase
+      .from("summaries")
+      .select("articles!inner(keywords, source)")
+      .eq("topic_id", topicId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .range(from, from + SUPABASE_FETCH_PAGE - 1);
+    trendingQuery = applySourceFilter(trendingQuery, source);
+    const { data, error } = await trendingQuery;
+    if (error) return [];
+    const batch = (data ?? []) as unknown as SummaryRow[];
+    rows.push(...batch);
+    if (batch.length < SUPABASE_FETCH_PAGE) break;
+    from += SUPABASE_FETCH_PAGE;
+    if (from >= SUPABASE_FETCH_SAFETY_MAX) break;
+  }
 
   const countByKeyword = new Map<string, number>();
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     const a = row as { articles?: { keywords?: string[] | null } | null };
     const keywords = a?.articles?.keywords;
     if (!Array.isArray(keywords)) continue;

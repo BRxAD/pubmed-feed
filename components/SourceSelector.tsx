@@ -2,14 +2,15 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
-import type { FeedSource } from "@/lib/feedSource";
+import type { FeedSourceFilter } from "@/lib/feedSource";
 
 type Props = {
-  source: FeedSource;
+  source: FeedSourceFilter;
   basePath: string;
 };
 
-const OPTIONS: { value: FeedSource; label: string }[] = [
+const OPTIONS: { value: FeedSourceFilter; label: string }[] = [
+  { value: "all", label: "All" },
   { value: "pubmed", label: "PubMed" },
   { value: "openalex", label: "OpenAlex" },
 ];
@@ -19,9 +20,9 @@ export default function SourceSelector({ source, basePath }: Props) {
   const searchParams = useSearchParams();
 
   const onChange = useCallback(
-    (next: FeedSource) => {
+    (next: FeedSourceFilter) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next === "pubmed") {
+      if (next === "all") {
         params.delete("source");
       } else {
         params.set("source", next);

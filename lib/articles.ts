@@ -35,6 +35,7 @@ export async function upsertArticles(
     mesh_terms: r.meshTerms,
     keywords: r.keywords,
     authors: r.authors,
+    source: "pubmed" as const,
   }));
 
   const { data, error } = await supabase
