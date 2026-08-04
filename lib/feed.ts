@@ -163,13 +163,11 @@ async function fetchAllSummariesForTopics(options: {
 }): Promise<{ rows: SummaryRow[]; error: { message: string } | null }> {
   const { supabase, topicIds, source, selectColumns, cursorCreatedAt } =
     options;
-  const rows: SummaryRow[] = [];
-  let from = 0;
 
-  for (;;) {
+  const pageQuery = (from: number, exactCount: boolean) => {
     let query = supabase
       .from("summaries")
-      .select(selectColumns)
+      .select(selectColumns, exactCount ? { count: "exact" } : undefined)
       .in("topic_id", topicIds)
       .order("created_at", { ascending: false })
       .range(from, from + SUPABASE_FETCH_PAGE - 1);
@@ -180,13 +178,32 @@ async function fetchAllSummariesForTopics(options: {
       query = query.lt("created_at", cursorCreatedAt.trim());
     }
 
-    const { data, error } = await query;
-    if (error) return { rows, error };
-    const batch = (data ?? []) as unknown as SummaryRow[];
-    rows.push(...batch);
-    if (batch.length < SUPABASE_FETCH_PAGE) break;
-    from += SUPABASE_FETCH_PAGE;
-    if (from >= SUPABASE_FETCH_SAFETY_MAX) break;
+    return query;
+  };
+
+  // First page reports the true total so the remainder can be fetched in
+  // parallel rather than discovering the end one round-trip at a time.
+  const first = await pageQuery(0, true);
+  if (first.error) return { rows: [], error: first.error };
+
+  const rows = [...((first.data ?? []) as unknown as SummaryRow[])];
+  const total = Math.min(first.count ?? rows.length, SUPABASE_FETCH_SAFETY_MAX);
+  if (rows.length < SUPABASE_FETCH_PAGE || rows.length >= total) {
+    return { rows, error: null };
+  }
+
+  const pending = [];
+  for (
+    let from = SUPABASE_FETCH_PAGE;
+    from < total;
+    from += SUPABASE_FETCH_PAGE
+  ) {
+    pending.push(pageQuery(from, false));
+  }
+
+  for (const result of await Promise.all(pending)) {
+    if (result.error) return { rows, error: result.error };
+    rows.push(...((result.data ?? []) as unknown as SummaryRow[]));
   }
 
   return { rows, error: null };

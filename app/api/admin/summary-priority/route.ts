@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import {
   saveAdminPriority,
   type FeatureSnapshot,
 } from "@/lib/relevanceLearning";
+import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
 
 export const runtime = "nodejs";
 
@@ -63,6 +65,8 @@ export async function POST(request: NextRequest) {
       snapshot,
       supabase,
     });
+
+    revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
 
     return NextResponse.json({ ok: true, topicId, pmid, priority });
   } catch (err) {

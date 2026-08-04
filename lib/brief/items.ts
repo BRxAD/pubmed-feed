@@ -37,6 +37,9 @@ import {
 /** Rolling window for the daily brief (summaries created within this period). */
 export const DEFAULT_BRIEF_DAYS_BACK = 7;
 
+/** PostgREST returns at most ~1000 rows per response; fetch in pages of that size. */
+const ROW_FETCH_PAGE = 1000;
+
 export type BriefItem = {
   pmid: string;
   source: "pubmed";
@@ -138,6 +141,13 @@ export async function getBriefItems(options?: {
    * when article date is missing. Pass a larger value only for special views.
    */
   articleDateWithinDays?: number;
+  /**
+   * Ordering applied before the maxItems cut. "recency" (default) follows the
+   * brief's leadByRecency setting. "priority" ranks purely by effective
+   * priority, so an older-but-higher-rated study is never cut from the pool by
+   * a newer, lower-rated one.
+   */
+  rankBy?: "recency" | "priority";
 }): Promise<BriefFeedResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -183,7 +193,7 @@ export async function getBriefItems(options?: {
   if (minItems > 0) {
     daysBack = Math.max(daysBack, Math.min(maxLookbackDays, 90));
   }
-  const maxItems = Math.min(100, Math.max(1, options?.maxItems ?? 50));
+  const maxItems = Math.min(5000, Math.max(1, options?.maxItems ?? 50));
   const since = isoDaysAgo(daysBack);
   const articleWindow =
     options?.articleDateWithinDays ?? BRIEF_ARTICLE_WINDOW_DAYS;
@@ -206,31 +216,64 @@ export async function getBriefItems(options?: {
   const selectWithoutHeadline =
     "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
 
-  const applyBriefFilters = <T extends { or: Function; gte: Function; order: Function; limit: Function }>(
-    q: T
-  ): T => {
-    let next = q;
-    if (articleWindow > 0) {
-      const articleSince = dateDaysAgo(articleWindow);
-      next = next.or(
-        `release_date.gte.${articleSince},pub_date.gte.${articleSince}`,
-        { foreignTable: "articles" }
-      ) as T;
+  const rowCeiling = articleWindow > 0 || daysBack > 60 ? 20000 : 1000;
+
+  /**
+   * PostgREST caps each response near 1000 rows regardless of .limit(), so page
+   * with .range() until the set is exhausted. Without this the pool is only the
+   * most recently summarized rows, which hides older high-priority studies.
+   */
+  const fetchRows = async (
+    select: string
+  ): Promise<{ rows: unknown[]; error: { message: string } | null }> => {
+    const pageQuery = (from: number, exactCount: boolean) => {
+      let query = supabase
+        .from("summaries")
+        .select(select, exactCount ? { count: "exact" } : undefined)
+        .eq("topic_id", topicId)
+        .eq("articles.source", "pubmed");
+
+      if (articleWindow > 0) {
+        const articleSince = dateDaysAgo(articleWindow);
+        query = query.or(
+          `release_date.gte.${articleSince},pub_date.gte.${articleSince}`,
+          { foreignTable: "articles" }
+        );
+      }
+      if (gateByCreatedAt) {
+        query = query.gte("created_at", since);
+      }
+
+      return query
+        .order("created_at", { ascending: false })
+        .range(from, from + ROW_FETCH_PAGE - 1);
+    };
+
+    // First page also reports the true total so the rest can be fetched at once
+    // instead of discovering the end one round-trip at a time.
+    const first = await pageQuery(0, true);
+    if (first.error) return { rows: [], error: first.error };
+
+    const rows = [...((first.data ?? []) as unknown[])];
+    const total = Math.min(first.count ?? rows.length, rowCeiling);
+    if (rows.length < ROW_FETCH_PAGE || rows.length >= total) {
+      return { rows, error: null };
     }
-    if (gateByCreatedAt) {
-      next = next.gte("created_at", since) as T;
+
+    const pending = [];
+    for (let from = ROW_FETCH_PAGE; from < total; from += ROW_FETCH_PAGE) {
+      pending.push(pageQuery(from, false));
     }
-    const rowLimit = articleWindow > 0 || daysBack > 60 ? 3000 : 1000;
-    return next.order("created_at", { ascending: false }).limit(rowLimit) as T;
+
+    for (const result of await Promise.all(pending)) {
+      if (result.error) return { rows, error: result.error };
+      rows.push(...((result.data ?? []) as unknown[]));
+    }
+
+    return { rows, error: null };
   };
 
-  const withHeadline = await applyBriefFilters(
-    supabase
-      .from("summaries")
-      .select(selectWithHeadline)
-      .eq("topic_id", topicId)
-      .eq("articles.source", "pubmed")
-  );
+  const withHeadline = await fetchRows(selectWithHeadline);
 
   const errMsg = withHeadline.error?.message?.toLowerCase() ?? "";
   if (
@@ -252,17 +295,11 @@ export async function getBriefItems(options?: {
     if (errMsg.includes("authors")) {
       selectFallback = selectFallback.replace(", authors", "");
     }
-    const fallback = await applyBriefFilters(
-      supabase
-        .from("summaries")
-        .select(selectFallback)
-        .eq("topic_id", topicId)
-        .eq("articles.source", "pubmed")
-    );
-    rows = fallback.data;
+    const fallback = await fetchRows(selectFallback);
+    rows = fallback.rows;
     error = fallback.error;
   } else {
-    rows = withHeadline.data;
+    rows = withHeadline.rows;
     error = withHeadline.error;
   }
 
@@ -459,21 +496,24 @@ export async function getBriefItems(options?: {
     candidates.push(item);
   }
 
+  const priorityFirst =
+    options?.rankBy === "priority" || !feedSettings.brief.leadByRecency;
+
   candidates.sort((a, b) => {
     // Default: newest article date first, then highest priority within that day/tie.
-    // Alt (leadByRecency off): highest priority first, then newest date.
-    if (feedSettings.brief.leadByRecency) {
-      const tDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (tDiff !== 0) return tDiff;
+    // Priority-first: highest priority first, then newest date.
+    if (priorityFirst) {
       if (b.effectivePriority !== a.effectivePriority) {
         return b.effectivePriority - a.effectivePriority;
       }
+      const tDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (tDiff !== 0) return tDiff;
     } else {
+      const tDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (tDiff !== 0) return tDiff;
       if (b.effectivePriority !== a.effectivePriority) {
         return b.effectivePriority - a.effectivePriority;
       }
-      const tDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (tDiff !== 0) return tDiff;
     }
     if (b.relevancePercent !== a.relevancePercent) {
       return b.relevancePercent - a.relevancePercent;

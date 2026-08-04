@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import {
   getBriefItems,
   type BriefItem,
@@ -10,6 +11,10 @@ import {
 
 /** Top 10 sidebar uses a full year of article dates (main brief stays 28 days). */
 export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
+
+/** Revalidated on admin rating changes; the TTL only bounds ingest-driven drift. */
+export const TOP_PRIORITY_CACHE_TAG = "brief-top-priority";
+const TOP_PRIORITY_CACHE_SECONDS = 900;
 
 export type TopPriorityItem = Pick<
   BriefItem,
@@ -42,19 +47,25 @@ function citationImpactScore(item: BriefItem): number {
  * priority ≥ 5. Soft setting match so capsules can fill to 10 when classifiers
  * left many rows unclassified.
  *
- * Rank: effective priority → clinical rubric (relevance %) → JIF / citation impact.
+ * Rank: effective priority → human rating over ML → clinical rubric
+ * (relevance %) → JIF / citation impact.
+ *
+ * The 12-month article window is the only date gate: the candidate pool is
+ * ranked by priority (never by date) so an older high-priority study cannot be
+ * pushed out by a newer, lower-rated one.
  */
-export async function getTopPriorityYearItems(
-  setting: BriefSettingFilter = ""
+async function rankTopPriorityYearItems(
+  setting: BriefSettingFilter
 ): Promise<TopPriorityItem[]> {
   // Fetch without hard setting filter, then soft-filter — classified nulls that
   // still score for the capsule would otherwise leave Top 10 underfilled.
   const result = await getBriefItems({
-    daysBack: 400,
-    maxItems: 500,
+    daysBack: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
+    maxItems: 5000,
     setting: "",
     skipHeadlines: true,
     maxLookbackDays: 730,
+    rankBy: "priority",
     articleDateWithinDays: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
   });
 
@@ -68,6 +79,10 @@ export async function getTopPriorityYearItems(
     if (b.effectivePriority !== a.effectivePriority) {
       return b.effectivePriority - a.effectivePriority;
     }
+    // Same score: a human rating outranks an ML estimate.
+    const humanDiff =
+      Number(b.adminPriority != null) - Number(a.adminPriority != null);
+    if (humanDiff !== 0) return humanDiff;
     if (b.relevancePercent !== a.relevancePercent) {
       return b.relevancePercent - a.relevancePercent;
     }
@@ -89,4 +104,20 @@ export async function getTopPriorityYearItems(
     jif: item.jif,
     sjrScimago: item.sjrScimago,
   }));
+}
+
+/**
+ * Ranking a full year of studies means scoring every candidate, which is too
+ * costly to repeat per request. Cache it; admin rating changes bust the tag.
+ */
+const loadTopPriorityYearItems = unstable_cache(
+  rankTopPriorityYearItems,
+  ["brief-top-priority-year"],
+  { revalidate: TOP_PRIORITY_CACHE_SECONDS, tags: [TOP_PRIORITY_CACHE_TAG] }
+);
+
+export async function getTopPriorityYearItems(
+  setting: BriefSettingFilter = ""
+): Promise<TopPriorityItem[]> {
+  return loadTopPriorityYearItems(setting);
 }
