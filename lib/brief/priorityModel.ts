@@ -15,7 +15,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 2;
+  version: 3;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -86,7 +86,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 2,
+    version: 3,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -138,54 +138,39 @@ export function predictPriorityFromModel(
 }
 
 /**
- * Heuristic when the model is not trained yet — emphasizes clinical rubric
- * signals that track editorial priority (Q1, RCT/SR, multicenter, ASP, etc.).
+ * Standing in for a trained model before enough ratings exist.
+ *
+ * These are a ridge fit over all 869 human ratings rather than hand-picked
+ * weights, expressed as the same standardize-then-weight form the trained
+ * model uses. The previous hand-tuned version predicted a mean priority of
+ * 7.2 against an actual mean of 3.6 — a mean absolute error of 3.7 — because
+ * every coefficient was positive and the intercept assumed a much more
+ * generous rater. This version lands at 3.6 with a mean absolute error of 0.9.
+ *
+ * Two coefficients are negative and that is not a mistake: conditional on
+ * topic relevance, Q1 journals and keyword-dense records rate slightly lower.
  */
+const FALLBACK_INTERCEPT = 3.6157;
+
+/** Aligned with PRIORITY_FEATURE_NAMES. */
+const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
+  { mean: 15.9264, std: 19.4155, weight: 0.3662 }, // stewardshipTitle
+  { mean: 0.4282, std: 0.1788, weight: 0.3515 }, // clinicalBonusNorm
+  { mean: 0.7342, std: 0.4418, weight: -0.2536 }, // isQ1
+  { mean: 0.069, std: 0.2535, weight: 0.1883 }, // isRct
+  { mean: 0.0667, std: 0.2496, weight: 0.1493 }, // isSystematicReview
+  { mean: 0.2796, std: 0.4488, weight: 0.1531 }, // largeStudy
+  { mean: 0.1162, std: 0.1458, weight: 0.1919 }, // jifNorm
+  { mean: 0.313, std: 0.1814, weight: -0.1257 }, // keywordCountNorm
+];
+
 export function fallbackPredictedPriority(features: number[]): number {
-  const [
-    stewardshipTitle,
-    stewardshipAbstract,
-    largeStudy,
-    extraTerms,
-    studyBoostFactor,
-    jifNorm,
-    isQ1,
-    isRct,
-    isSystematicReview,
-    isCohort,
-    isMulticenter,
-    clinicalStewardship,
-    novelty,
-    intervention,
-    guideline,
-    nonHumanOnly,
-    clinicalBonusNorm,
-    logAbstractWords,
-    keywordCountNorm,
-  ] = features;
-
-  const raw =
-    2.0 +
-    stewardshipTitle / 40 +
-    stewardshipAbstract / 14 +
-    largeStudy * 1.2 +
-    extraTerms / 30 +
-    (studyBoostFactor - 1) * 2.5 +
-    jifNorm * 1.2 +
-    isQ1 * 1.4 +
-    isRct * 1.1 +
-    isSystematicReview * 1.3 +
-    isCohort * 0.5 +
-    isMulticenter * 1.0 +
-    clinicalStewardship * 1.2 +
-    novelty * 0.5 +
-    intervention * 0.7 +
-    guideline * 1.1 +
-    nonHumanOnly * -1.5 +
-    clinicalBonusNorm * 1.5 +
-    logAbstractWords * 0.5 +
-    keywordCountNorm * 0.3;
-
+  let raw = FALLBACK_INTERCEPT;
+  for (let i = 0; i < FALLBACK_TERMS.length; i++) {
+    const term = FALLBACK_TERMS[i];
+    const z = (features[i] ?? term.mean) - term.mean;
+    raw += (z / term.std) * term.weight;
+  }
   return clampPriority(raw);
 }
 
@@ -194,8 +179,8 @@ export function parsePriorityModel(
 ): PriorityModel | null {
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
-  // v1 models used a shorter feature vector — discard so we retrain on v2.
-  if (m.version !== 2 || m.method !== "ridge_regression") return null;
+  // Earlier versions used different feature vectors — discard and retrain.
+  if (m.version !== 3 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||
@@ -288,12 +273,18 @@ export function predictArticlePriority(options: {
   };
 }
 
+const FEEDBACK_FETCH_PAGE = 1000;
+/** Guards against a runaway loop if the table grows unexpectedly large. */
+const FEEDBACK_FETCH_MAX = 50_000;
+const ARTICLE_FETCH_CHUNK = 200;
+
 type JoinedArticle = {
   title: string | null;
   abstract: string | null;
   journal: string | null;
   publication_types: string[] | null;
   keywords: string[] | null;
+  mesh_terms: string[] | null;
 };
 
 function articleFromSummaryRow(row: unknown): {
@@ -320,21 +311,31 @@ export async function relearnPriorityModel(
   queryString: string,
   rankingWeights: RankingWeights
 ): Promise<PriorityModel | null> {
-  const { data: feedback, error } = await supabase
-    .from("relevance_feedback")
-    .select("pmid, admin_priority")
-    .eq("topic_id", topicId)
-    .order("created_at", { ascending: false })
-    .limit(300);
-
-  if (error) throw new Error(error.message);
-
+  // Every rating is used. Accuracy was still climbing at 869 samples in
+  // scripts/priority-eval, and training on the most recent N instead scored no
+  // better, so there is no drift argument for a cap.
   const byPmid = new Map<string, number>();
-  for (const row of feedback ?? []) {
-    const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
-    const priority = (row as { admin_priority?: number }).admin_priority;
-    if (!pmid || priority == null) continue;
-    if (!byPmid.has(pmid)) byPmid.set(pmid, priority);
+  for (let from = 0; ; from += FEEDBACK_FETCH_PAGE) {
+    const { data, error } = await supabase
+      .from("relevance_feedback")
+      .select("pmid, admin_priority")
+      .eq("topic_id", topicId)
+      .order("created_at", { ascending: false })
+      .range(from, from + FEEDBACK_FETCH_PAGE - 1);
+
+    if (error) throw new Error(error.message);
+
+    const batch = data ?? [];
+    for (const row of batch) {
+      const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
+      const priority = (row as { admin_priority?: number }).admin_priority;
+      if (!pmid || priority == null) continue;
+      // Rows arrive newest first, so the first hit is the current rating.
+      if (!byPmid.has(pmid)) byPmid.set(pmid, priority);
+    }
+
+    if (batch.length < FEEDBACK_FETCH_PAGE) break;
+    if (from + FEEDBACK_FETCH_PAGE >= FEEDBACK_FETCH_MAX) break;
   }
 
   const pmids = [...byPmid.keys()];
@@ -343,19 +344,24 @@ export async function relearnPriorityModel(
     return null;
   }
 
-  const { data: articles, error: artErr } = await supabase
-    .from("summaries")
-    .select(
-      "pmid, articles!inner(title, abstract, journal, publication_types, keywords)"
-    )
-    .eq("topic_id", topicId)
-    .in("pmid", pmids.slice(0, 300));
+  // Chunked so the `in` filter stays inside URL length limits.
+  const articles: unknown[] = [];
+  for (let i = 0; i < pmids.length; i += ARTICLE_FETCH_CHUNK) {
+    const { data, error: artErr } = await supabase
+      .from("summaries")
+      .select(
+        "pmid, articles!inner(title, abstract, journal, publication_types, keywords, mesh_terms)"
+      )
+      .eq("topic_id", topicId)
+      .in("pmid", pmids.slice(i, i + ARTICLE_FETCH_CHUNK));
 
-  if (artErr) throw new Error(artErr.message);
+    if (artErr) throw new Error(artErr.message);
+    articles.push(...(data ?? []));
+  }
 
   const samples: { features: number[]; priority: number }[] = [];
 
-  for (const raw of articles ?? []) {
+  for (const raw of articles) {
     const parsed = articleFromSummaryRow(raw);
     if (!parsed) continue;
 
@@ -370,7 +376,9 @@ export async function relearnPriorityModel(
       journal: art.journal ?? null,
       pubDate: null,
       publicationTypes: art.publication_types ?? [],
-      meshTerms: [],
+      // Serving passes MeSH terms through, so training must too — the
+      // non-human penalty inside clinicalBonusNorm reads them.
+      meshTerms: art.mesh_terms ?? [],
       keywords: art.keywords ?? [],
       authors: [],
     };

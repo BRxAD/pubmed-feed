@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# priority model evaluation outputs (regenerate with npm run eval:priority)
+/scripts/priority-eval/data/

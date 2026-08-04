@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "paths": {
+      "@/*": ["../../*"],
+      "server-only": ["./server-only-stub.ts"]
+    }
+  },
+  "include": ["./**/*.ts", "../*.ts", "../../lib/**/*.ts"]
+}

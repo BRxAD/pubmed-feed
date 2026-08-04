@@ -2,10 +2,19 @@ import "server-only";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { computeRelevancePenalty } from "@/lib/relevancePenalties";
 import type { PenaltyWeights } from "@/lib/brief/penaltyWeights";
+import {
+  CLINICAL_TERM_SETS,
+  DEFAULT_CLINICAL_TERM_SET,
+  matchesClinical,
+  type ClinicalTermSet,
+  type ClinicalTermSetVersion,
+} from "@/lib/brief/clinicalTerms";
 
 export type ScoringOptions = Partial<PenaltyWeights> & {
   smallSampleMax?: number;
   largeStudyThreshold?: number;
+  /** Which clinical rubric vocabulary to score with (defaults to v1). */
+  clinicalTermSet?: ClinicalTermSetVersion;
 };
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
@@ -290,7 +299,14 @@ export function computeBreakdown(
       countTermMatches(extra, meshKwSet) * 3;
   }
 
-  const clinical = scoreClinicalRubric(rec, weights, jifIsHigh);
+  const clinical = scoreClinicalRubric(
+    rec,
+    weights,
+    jifIsHigh,
+    CLINICAL_TERM_SETS[
+      scoringOptions?.clinicalTermSet ?? DEFAULT_CLINICAL_TERM_SET
+    ]
+  );
   const clinicalBonus = clinical.points;
   const clinicalFlags = clinical.details.map((d) => d.label);
   const clinicalDetails = clinical.details;
@@ -353,18 +369,19 @@ export function computeBreakdown(
 function scoreClinicalRubric(
   rec: PubMedRecord,
   weights: RankingWeights,
-  isQ1: boolean
+  isQ1: boolean,
+  termSet: ClinicalTermSet
 ): {
   points: number;
   details: Array<{ label: string; settingPoints: number; scorePoints: number }>;
 } {
-  const title = (rec.title ?? "").toLowerCase();
-  const abstract = (rec.abstract ?? "").toLowerCase();
-  const text = `${title} ${abstract}`;
+  const rawText = `${rec.title ?? ""} ${rec.abstract ?? ""}`;
+  const text = rawText.toLowerCase();
   const pubs = (rec.publicationTypes ?? []).map((p) => normalizeText(p));
   const meshKw = [...(rec.meshTerms ?? []), ...(rec.keywords ?? [])]
     .join(" ")
     .toLowerCase();
+  const ctx = { lowerText: text, rawText, pubTypes: pubs };
   const details: Array<{
     label: string;
     settingPoints: number;
@@ -384,92 +401,45 @@ function scoreClinicalRubric(
     add("Q1 journal", weights.q1Journal);
   }
 
-  const isRct =
-    pubs.some(
-      (p) =>
-        p.includes("randomized") ||
-        p.includes("randomised") ||
-        p.includes("controlled trial")
-    ) ||
-    /\brandomi[sz]ed\b/.test(text) ||
-    /\brct\b/.test(text);
-  const isSr =
-    pubs.some(
-      (p) =>
-        p.includes("systematic review") ||
-        p.includes("meta-analysis") ||
-        p.includes("meta analysis")
-    ) ||
-    text.includes("systematic review") ||
-    text.includes("meta-analysis") ||
-    text.includes("meta analysis");
+  const isRct = matchesClinical(termSet.rct, ctx);
+  const isSr = matchesClinical(termSet.systematicReview, ctx);
   if ((isRct || isSr) && weights.rctOrSr) {
     add(isRct ? "RCT" : "Systematic review", weights.rctOrSr);
   }
 
-  if (
-    weights.multicenter &&
-    (/\bmulti[-\s]?cent(?:er|re)\b/.test(text) ||
-      /\bmultiple\s+(?:hospitals?|sites?|centers?|centres?)\b/.test(text) ||
-      pubs.some((p) => p.includes("multicenter") || p.includes("multicentre")))
-  ) {
+  if (weights.multicenter && matchesClinical(termSet.multicenter, ctx)) {
     add("Multicenter", weights.multicenter);
   }
 
   const clinicalStewardship =
     hasStewardshipPhrase(text) ||
-    (hasStewardshipWord(text) &&
-      (/\b(patient|clinical|hospital|prescrib|stewardship|antibiotic use)\b/.test(
-        text
-      ) ||
-        /\bhuman\b/.test(text)));
+    matchesClinical(termSet.stewardshipExtra, ctx) ||
+    (hasStewardshipWord(text) && termSet.stewardshipContext.test(text));
   if (clinicalStewardship && weights.clinicalStewardship) {
     add("Clinical stewardship", weights.clinicalStewardship);
   }
 
-  if (
-    weights.novelty &&
-    /\b(novel|first (?:report|description|study)|newly described|unprecedented)\b/.test(
-      text
-    )
-  ) {
+  if (weights.novelty && matchesClinical(termSet.novelty, ctx)) {
     add("Novelty", weights.novelty);
   }
 
-  if (
-    weights.cohort &&
-    (pubs.some((p) => p.includes("cohort")) ||
-      /\bcohort\b/.test(text) ||
-      text.includes("retrospective cohort") ||
-      text.includes("prospective cohort"))
-  ) {
+  if (weights.cohort && matchesClinical(termSet.cohort, ctx)) {
     add("Cohort", weights.cohort);
   }
 
-  if (
-    weights.intervention &&
-    /\b(intervention|implemented|implementation|stewardship program|bundle|protocol)\b/.test(
-      text
-    )
-  ) {
+  if (weights.intervention && matchesClinical(termSet.intervention, ctx)) {
     add("Intervention", weights.intervention);
   }
 
   const nonHumanOnly =
-    (/\b(veterinary|livestock|poultry|swine|canine|feline|animal model)\b/.test(
-      text
-    ) ||
-      /\banimals\b/.test(meshKw)) &&
-    !/\b(human|patient|patients|clinical)\b/.test(text);
+    (matchesClinical(termSet.nonHuman, ctx) ||
+      termSet.nonHumanMesh.test(meshKw)) &&
+    !termSet.humanGuard.test(text);
   if (nonHumanOnly && weights.nonHumanPenalty) {
     add("Non-human only", weights.nonHumanPenalty);
   }
 
-  if (
-    weights.guideline &&
-    (pubs.some((p) => p.includes("guideline") || p.includes("practice guideline")) ||
-      /\b(guideline|consensus statement|practice recommendation)\b/.test(text))
-  ) {
+  if (weights.guideline && matchesClinical(termSet.guideline, ctx)) {
     add("Guideline", weights.guideline);
   }
 

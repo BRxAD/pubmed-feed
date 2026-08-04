@@ -9,7 +9,6 @@ import {
 } from "@/lib/feed";
 import {
   computeBreakdown,
-  CLINICAL_POINT_SCALE,
   type RankingWeights,
   type ScoringOptions,
 } from "@/lib/ranking";
@@ -33,7 +32,8 @@ import AdminPrioritySelector from "@/components/AdminPrioritySelector";
 import AdminSettingSelector from "@/components/AdminSettingSelector";
 import SourceSelector from "@/components/SourceSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
-import { loadPriorityModel, predictArticlePriority, type PriorityModel } from "@/lib/brief/priorityModel";
+import { loadPriorityModel, type PriorityModel } from "@/lib/brief/priorityModel";
+import { explainArticlePriority } from "@/lib/brief/priorityExplain";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   articleExternalUrl,
@@ -132,6 +132,12 @@ function formatDate(raw: string | null | undefined): string {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Feature values span 0/1 flags, 0–1 ratios, and raw term counts in the tens. */
+function formatFeatureValue(v: number): string {
+  if (Number.isInteger(v)) return String(v);
+  return Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+}
+
 // ── Article Card ─────────────────────────────────────────────────────────────
 
 function ArticleCard({
@@ -192,7 +198,7 @@ function ArticleCard({
   const normalizedScore = normalizeScoreTo100(score);
 
   const priorityPrediction = isAdmin
-    ? predictArticlePriority({
+    ? explainArticlePriority({
         rec: makeRec(item),
         queryString: query_string,
         weights,
@@ -374,184 +380,101 @@ function ArticleCard({
         <div className="mt-4 rounded-lg border border-amber-200/60 bg-amber-50/60 p-3 text-xs dark:border-amber-800/40 dark:bg-amber-950/30">
           <div className="mb-2 flex items-center gap-2">
             <p className="font-semibold text-amber-700 dark:text-amber-400">
-              Admin · Relevance (Brief settings)
+              Admin · Priority model
             </p>
-            <div
-              className="h-1.5 w-20 rounded-full bg-zinc-200 dark:bg-zinc-600"
-              role="presentation"
-              aria-hidden
-            >
-              <div
-                className="h-full rounded-full bg-amber-500 dark:bg-amber-400"
-                style={{ width: `${normalizedScore}%` }}
-              />
-            </div>
-            <span className="tabular-nums font-semibold text-amber-700 dark:text-amber-400">
-              {normalizedScore}/100
-            </span>
-            <span className="tabular-nums text-zinc-400">
-              raw {Math.round(score * 10) / 10}
-            </span>
+            {priorityPrediction && (
+              <>
+                <div
+                  className="h-1.5 w-20 rounded-full bg-zinc-200 dark:bg-zinc-600"
+                  role="presentation"
+                  aria-hidden
+                >
+                  <div
+                    className="h-full rounded-full bg-amber-500 dark:bg-amber-400"
+                    style={{
+                      width: `${(priorityPrediction.priority / 10) * 100}%`,
+                    }}
+                  />
+                </div>
+                <span className="tabular-nums font-semibold text-amber-700 dark:text-amber-400">
+                  {priorityPrediction.priority}/10
+                </span>
+                <span className="tabular-nums text-zinc-400">
+                  {priorityPrediction.source === "model" ? "ML" : "estimate"}
+                  {" · "}
+                  relevance {normalizedScore}/100
+                </span>
+              </>
+            )}
           </div>
 
-          {/* Score breakdown — all variables from current settings */}
+          {/* Priority model — the features that drive predicted priority */}
           <div className="mb-2 space-y-1.5 text-zinc-500 dark:text-zinc-400">
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-              <span>
-                Title stewardship{" "}
-                <span className="text-zinc-400">(wt {weights.stewardshipTitle})</span>:{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  {breakdown.stewardshipTitle > 0
-                    ? `+${breakdown.stewardshipTitle}`
-                    : "0"}
-                </strong>
-              </span>
-              <span>
-                Abstract{" "}
-                <span className="text-zinc-400">(wt {weights.stewardshipAbstract})</span>:{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  {breakdown.stewardshipAbstract > 0
-                    ? `+${breakdown.stewardshipAbstract}`
-                    : "0"}
-                </strong>
-              </span>
-              <span>
-                Large study{" "}
-                <span className="text-zinc-400">(wt {weights.largeStudy})</span>:{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  {breakdown.largeStudy > 0 ? `+${breakdown.largeStudy}` : "0"}
-                </strong>
-              </span>
-              <span>
-                Extra terms:{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  {breakdown.extraTerms > 0 ? `+${breakdown.extraTerms}` : "0"}
-                </strong>
-              </span>
+            <div className="text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400">
+              {priorityPrediction?.source === "model"
+                ? `Priority model · ${priorityPrediction.contributions.length} features · sorted by effect`
+                : "Priority model · not trained"}
             </div>
-
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-              <span className="w-full text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400">
-                Clinical rubric (setting pts ×{CLINICAL_POINT_SCALE} = score pts)
-              </span>
-              {(
-                [
-                  ["Q1 journal", "Q1 journal", weights.q1Journal],
-                  ["RCT", "RCT / SR", weights.rctOrSr],
-                  ["Systematic review", "RCT / SR", weights.rctOrSr],
-                  ["Multicenter", "Multicenter", weights.multicenter],
-                  ["Clinical stewardship", "Clinical stewardship", weights.clinicalStewardship],
-                  ["Novelty", "Novelty", weights.novelty],
-                  ["Cohort", "Cohort", weights.cohort],
-                  ["Intervention", "Intervention", weights.intervention],
-                  ["Guideline", "Guideline", weights.guideline],
-                  ["Non-human only", "Non-human", weights.nonHumanPenalty],
-                ] as const
-              )
-                .filter((row, i, arr) => {
-                  // Deduplicate RCT/SR display row
-                  if (row[0] === "Systematic review") return false;
-                  if (row[0] === "RCT") return true;
-                  return arr.findIndex((r) => r[1] === row[1]) === i;
-                })
-                .map(([, displayLabel, settingPts]) => {
-                  const hit = breakdown.clinicalDetails.find((d) => {
-                    if (displayLabel === "RCT / SR") {
-                      return d.label === "RCT" || d.label === "Systematic review";
-                    }
-                    if (displayLabel === "Non-human") {
-                      return d.label === "Non-human only";
-                    }
-                    return d.label === displayLabel;
-                  });
-                  const off = settingPts === 0;
-                  return (
-                    <span
-                      key={displayLabel}
-                      className={off ? "opacity-45" : undefined}
-                    >
-                      {displayLabel}{" "}
-                      <span className="text-zinc-400">
-                        ({settingPts > 0 ? `+${settingPts}` : String(settingPts)}
-                        {off ? " off" : ""})
-                      </span>
-                      :{" "}
-                      <strong
-                        className={
-                          hit
-                            ? hit.scorePoints < 0
-                              ? "text-red-700 dark:text-red-400"
-                              : "text-zinc-700 dark:text-zinc-300"
-                            : "text-zinc-400"
-                        }
+            {priorityPrediction?.source === "model" ? (
+              <div className="overflow-hidden rounded-md border border-zinc-200/70 dark:border-zinc-700/60">
+                <table className="w-full table-fixed border-collapse text-left">
+                  <thead>
+                    <tr className="bg-zinc-100/70 text-[0.65rem] uppercase tracking-wide text-zinc-400 dark:bg-zinc-800/60">
+                      <th className="px-2 py-1 font-medium">Feature</th>
+                      <th className="w-16 px-2 py-1 text-right font-medium">Value</th>
+                      <th className="w-16 px-2 py-1 text-right font-medium">Weight</th>
+                      <th className="w-16 px-2 py-1 text-right font-medium">Effect</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priorityPrediction.contributions.map((f) => (
+                      <tr
+                        key={f.name}
+                        className="border-t border-zinc-200/60 dark:border-zinc-700/50"
                       >
-                        {hit
-                          ? `${hit.scorePoints > 0 ? "+" : ""}${hit.scorePoints}`
-                          : "—"}
-                      </strong>
-                    </span>
-                  );
-                })}
-              {breakdown.clinicalBonus !== 0 && (
-                <span>
-                  Clinical total:{" "}
-                  <strong className="text-zinc-700 dark:text-zinc-300">
-                    {breakdown.clinicalBonus > 0 ? "+" : ""}
-                    {breakdown.clinicalBonus}
-                  </strong>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-              <span>
-                Study boost{" "}
-                <span className="text-zinc-400">
-                  ({weights.studyTypeBoost ? "on" : "off"})
-                </span>
-                :{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  ×{breakdown.studyBoostFactor.toFixed(2)}
-                </strong>
-              </span>
-              <span>
-                JIF ×1.2{" "}
-                <span className="text-zinc-400">
-                  ({weights.jifMultiplier ? "on" : "off"})
-                </span>
-                :{" "}
-                <strong
-                  className={
-                    breakdown.jifBoostFactor > 1
-                      ? "text-green-700 dark:text-green-400"
-                      : "text-zinc-700 dark:text-zinc-300"
-                  }
-                >
-                  ×{breakdown.jifBoostFactor.toFixed(2)}
-                </strong>
-              </span>
-              <span>
-                Down-rate:{" "}
-                <strong
-                  className={
-                    breakdown.penaltyFactor < 1
-                      ? "text-red-700 dark:text-red-400"
-                      : "text-zinc-700 dark:text-zinc-300"
-                  }
-                >
-                  ×{breakdown.penaltyFactor.toFixed(2)}
-                  {breakdown.penaltyReasons.length > 0
-                    ? ` (${breakdown.penaltyReasons.join("; ")})`
-                    : ""}
-                </strong>
-              </span>
-              <span>
-                Base:{" "}
-                <strong className="text-zinc-700 dark:text-zinc-300">
-                  {Math.round(breakdown.baseScore * 10) / 10}
-                </strong>
-              </span>
-            </div>
+                        <td className="px-2 py-1 text-zinc-600 dark:text-zinc-300">
+                          {f.label}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {formatFeatureValue(f.value)}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums text-zinc-400">
+                          {f.weight >= 0 ? "+" : ""}
+                          {f.weight.toFixed(2)}
+                        </td>
+                        <td
+                          className={`px-2 py-1 text-right tabular-nums font-semibold ${
+                            f.contribution > 0.005
+                              ? "text-green-700 dark:text-green-400"
+                              : f.contribution < -0.005
+                                ? "text-red-700 dark:text-red-400"
+                                : "text-zinc-400"
+                          }`}
+                        >
+                          {f.contribution >= 0 ? "+" : ""}
+                          {f.contribution.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-zinc-300 bg-zinc-50/80 dark:border-zinc-600 dark:bg-zinc-800/40">
+                      <td
+                        className="px-2 py-1 text-zinc-500 dark:text-zinc-400"
+                        colSpan={3}
+                      >
+                        Baseline {priorityPrediction.bias?.toFixed(2)} + effects
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums font-semibold text-zinc-700 dark:text-zinc-200">
+                        {priorityPrediction.priority}/10
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-zinc-400">
+                No trained model yet — predicted priority is a heuristic estimate.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-zinc-500 dark:text-zinc-400">

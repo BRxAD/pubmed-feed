@@ -8,27 +8,32 @@ import { isQ1Journal } from "@/lib/scimago";
 /**
  * Feature names for priority ML. Intentionally excludes finalScore /
  * algorithmicScore so predicted priority is not a rescaling of relevance.
- * Clinical rubric flags align with editorial priority ratings.
+ *
+ * Chosen by greedy forward selection against 869 human ratings. These eight
+ * score marginally better than the previous nineteen (Spearman 0.565 vs 0.559)
+ * on far fewer parameters. What was dropped and why:
+ *
+ *   studyBoostFactor      constant across the whole corpus
+ *   clinicalStewardship   fires on 93% of articles, so it separates nothing
+ *   logAbstractWords      rank correlation 0.045, negative permutation importance
+ *   stewardshipAbstract   adds nothing once the title score is present
+ *   isCohort, isMulticenter, novelty, intervention, guideline, nonHumanOnly
+ *                         already summed into clinicalBonusNorm; keeping both
+ *                         forms double-counted them and added collinearity
+ *
+ * Note that isQ1 and jifNorm are near-useless on their own (rank correlation
+ * -0.07 and 0.00) but earn real weight here as suppressor variables: they only
+ * become informative once topic relevance is held constant, and both take a
+ * negative coefficient. Do not prune them on univariate evidence.
  */
 export const PRIORITY_FEATURE_NAMES = [
   "stewardshipTitle",
-  "stewardshipAbstract",
-  "largeStudy",
-  "extraTerms",
-  "studyBoostFactor",
-  "jifNorm",
+  "clinicalBonusNorm",
   "isQ1",
   "isRct",
   "isSystematicReview",
-  "isCohort",
-  "isMulticenter",
-  "clinicalStewardship",
-  "novelty",
-  "intervention",
-  "guideline",
-  "nonHumanOnly",
-  "clinicalBonusNorm",
-  "logAbstractWords",
+  "largeStudy",
+  "jifNorm",
   "keywordCountNorm",
 ] as const;
 
@@ -83,8 +88,6 @@ export function extractPriorityFeatures(
 ): number[] {
   const jifEntry = lookupJif(rec.journal);
   const jif = jifEntry?.jif ?? 0;
-  const abstract = rec.abstract?.trim() ?? "";
-  const abstractWords = abstract ? abstract.split(/\s+/).length : 0;
   const keywordCount = rec.keywords?.length ?? 0;
   const pub = publicationTypeFlags(rec);
 
@@ -94,18 +97,10 @@ export function extractPriorityFeatures(
   const isSystematicReview =
     pub.isSystematicReview ||
     hasClinicalLabel(breakdown, "Systematic review");
-  const isCohort = pub.isCohort || hasClinicalLabel(breakdown, "Cohort");
-  const isMulticenter = hasClinicalLabel(breakdown, "Multicenter");
-  const clinicalStewardship = hasClinicalLabel(
-    breakdown,
-    "Clinical stewardship"
-  );
-  const novelty = hasClinicalLabel(breakdown, "Novelty");
-  const intervention = hasClinicalLabel(breakdown, "Intervention");
-  const guideline = hasClinicalLabel(breakdown, "Guideline");
-  const nonHumanOnly = hasClinicalLabel(breakdown, "Non-human only");
 
-  // Typical clinical bonus range ≈ −20…120 with scale 10
+  // Typical clinical bonus range ≈ −20…120 with scale 10. This aggregates the
+  // multicenter, novelty, cohort, intervention, guideline and non-human flags,
+  // which is why they are not also present as individual features.
   const clinicalBonusNorm = Math.max(
     -1,
     Math.min(1, breakdown.clinicalBonus / (12 * CLINICAL_POINT_SCALE))
@@ -113,23 +108,12 @@ export function extractPriorityFeatures(
 
   return [
     breakdown.stewardshipTitle,
-    breakdown.stewardshipAbstract,
-    breakdown.largeStudy > 0 ? 1 : 0,
-    breakdown.extraTerms,
-    breakdown.studyBoostFactor,
-    Math.min(1, jif / 25),
+    clinicalBonusNorm,
     isQ1 ? 1 : 0,
     isRct ? 1 : 0,
     isSystematicReview ? 1 : 0,
-    isCohort ? 1 : 0,
-    isMulticenter ? 1 : 0,
-    clinicalStewardship ? 1 : 0,
-    novelty ? 1 : 0,
-    intervention ? 1 : 0,
-    guideline ? 1 : 0,
-    nonHumanOnly ? 1 : 0,
-    clinicalBonusNorm,
-    Math.log1p(abstractWords) / 10,
+    breakdown.largeStudy > 0 ? 1 : 0,
+    Math.min(1, jif / 25),
     Math.min(1, keywordCount / 15),
   ];
 }
