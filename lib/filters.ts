@@ -350,9 +350,18 @@ function matchesKeyword(item: FeedItem, keyword: string): boolean {
   const title = (item.articles?.title ?? "").toLowerCase();
   const abstract = (item.articles?.abstract ?? "").toLowerCase();
   const summary = (item.summary_text ?? "").toLowerCase();
+  const journal = (item.articles?.journal ?? "").toLowerCase();
   const labels = [item.label, item.subheading].filter(Boolean).join(" ").toLowerCase();
   const keywords = (item.articles?.keywords ?? []).join(" ").toLowerCase();
-  const searchable = [title, abstract, summary, labels, keywords, pmid].join(" ");
+  const searchable = [
+    title,
+    abstract,
+    summary,
+    journal,
+    labels,
+    keywords,
+    pmid,
+  ].join(" ");
   if (canonical === STEWARDSHIP_CANONICAL) {
     return (
       searchable.includes("antimicrobial stewardship") ||

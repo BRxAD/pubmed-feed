@@ -784,15 +784,15 @@ export default async function FeedPage({
               ))}
             </div>
 
-            {/* Keyword */}
+            {/* Keyword / journal / PMID */}
             <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              <span>Keyword</span>
+              <span>Search</span>
               <input
                 type="text"
                 name="keyword"
                 defaultValue={keyword}
-                placeholder="Keyword or PMID…"
-                className="w-44 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                placeholder="Keyword, journal, or PMID…"
+                className="w-56 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </label>
 
