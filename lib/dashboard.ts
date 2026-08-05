@@ -13,11 +13,16 @@ import {
 import {
   canonicalKeywordForGrouping,
   getItemSetting,
+  getItemSettings,
   isTrendingBlocklisted,
   keywordDisplayForm,
   normalizeScoreTo100,
 } from "@/lib/filters";
-import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  ARTICLE_SETTING_LABELS,
+  ARTICLE_SETTING_ORDER,
+  type ArticleSetting,
+} from "@/lib/classifySetting";
 import { computeBreakdown, type ScoringOptions } from "@/lib/ranking";
 import {
   mergeFeedSettings,
@@ -45,13 +50,8 @@ import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 
-export const SETTING_LABELS: Record<ArticleSetting, string> = {
-  hospital: "Hospital",
-  community: "Community",
-  "long-term care": "Long-term care",
-  animal: "Animal / Veterinary",
-  environment: "Environment",
-};
+export const SETTING_LABELS: Record<ArticleSetting, string> =
+  ARTICLE_SETTING_LABELS;
 
 export type DashboardDateRange = {
   from: string; // YYYY-MM-DD
@@ -479,20 +479,25 @@ export async function getDashboardData(options?: {
   const totalOnFeed = allFeed.length;
   const inRange = allFeed.filter((item) => articleInDateRange(item, range));
 
-  // Setting breakdown
+  // Setting breakdown (multi-label: one article can increment several buckets)
   const settingCounts = new Map<ArticleSetting | "unclassified", number>();
   const settingOrder: Array<ArticleSetting | "unclassified"> = [
-    "hospital",
-    "community",
-    "long-term care",
-    "animal",
-    "environment",
+    ...ARTICLE_SETTING_ORDER,
     "unclassified",
   ];
   for (const s of settingOrder) settingCounts.set(s, 0);
   for (const item of inRange) {
-    const s = getItemSetting(item) ?? "unclassified";
-    settingCounts.set(s, (settingCounts.get(s) ?? 0) + 1);
+    const labels = getItemSettings(item);
+    if (labels.length === 0) {
+      settingCounts.set(
+        "unclassified",
+        (settingCounts.get("unclassified") ?? 0) + 1
+      );
+      continue;
+    }
+    for (const s of labels) {
+      settingCounts.set(s, (settingCounts.get(s) ?? 0) + 1);
+    }
   }
   const settingBreakdown: SettingBucket[] = settingOrder.map((s) => ({
     setting: s,

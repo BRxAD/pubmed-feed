@@ -1,19 +1,65 @@
 /**
- * Deterministic setting classification for antimicrobial stewardship articles.
+ * Deterministic multi-label setting classification for stewardship articles.
  * Uses weighted term/phrase matching against title, abstract, and keywords/MeSH.
- * Returns null when evidence is insufficient for 90%+ confidence.
  *
- * NO OpenAI call — this is fast, free, and reproducible.
+ * An article may receive 2+ settings when evidence supports each (e.g. ED →
+ * hospital + community). Returns [] when no label clears the score floor.
+ *
+ * NO OpenAI call — fast, free, and reproducible.
  */
 
 export type ArticleSetting =
   | "hospital"
   | "community"
   | "long-term care"
+  | "dentistry"
+  | "one-health"
+  | "global-health"
   | "animal"
   | "environment";
 
-// ── Term lists ────────────────────────────────────────────────────────────────
+/** Stable display order for UI / dashboards. */
+export const ARTICLE_SETTING_ORDER: ArticleSetting[] = [
+  "hospital",
+  "community",
+  "long-term care",
+  "dentistry",
+  "one-health",
+  "global-health",
+  "animal",
+  "environment",
+];
+
+export const ARTICLE_SETTING_LABELS: Record<ArticleSetting, string> = {
+  hospital: "Hospital / Inpatient",
+  community: "Outpatient / Community",
+  "long-term care": "Long-term care",
+  dentistry: "Dentistry",
+  "one-health": "One Health",
+  "global-health": "Global Health",
+  animal: "Animal / Veterinary",
+  environment: "Environment",
+};
+
+// ── Shared: emergency department → hospital AND community ─────────────────────
+
+const ED_PHRASES = [
+  "emergency department",
+  "emergency departments",
+  "emergency room",
+  "emergency rooms",
+  "ed visit",
+  "ed visits",
+  "emergency dept",
+  "accident and emergency",
+  "a&e",
+  "emergency medicine",
+  "emergency care",
+];
+
+const ED_WORDS = ["ed"];
+
+// ── Hospital / inpatient ──────────────────────────────────────────────────────
 
 const HOSPITAL_PHRASES = [
   "intensive care unit",
@@ -21,6 +67,7 @@ const HOSPITAL_PHRASES = [
   "hospital-acquired",
   "healthcare-acquired",
   "healthcare associated",
+  "healthcare-associated",
   "hospital acquired",
   "nosocomial",
   "tertiary care",
@@ -29,32 +76,44 @@ const HOSPITAL_PHRASES = [
   "critical care",
   "inpatient",
   "hospitalized",
+  "hospitalisation",
   "hospitalization",
   "hospital ward",
   "medical ward",
   "surgical ward",
   "operating room",
+  "operating theatre",
   "academic medical center",
+  "academic medical centre",
   "teaching hospital",
   "acute hospital",
   "inpatient setting",
+  "inpatient care",
+  "hospitalist",
+  "ward round",
+  "length of stay",
 ];
 
-// Single words that are strong hospital signals when in keywords/MeSH
 const HOSPITAL_WORDS = [
   "hospital",
   "hospitals",
   "inpatients",
+  "inpatient",
   "ward",
   "wards",
   "admitted",
   "admission",
   "admissions",
+  "icu",
+  "nosocomial",
 ];
+
+// ── Outpatient / community (ED scored separately into both) ───────────────────
 
 const COMMUNITY_PHRASES = [
   "primary care",
   "outpatient",
+  "outpatients",
   "community-acquired",
   "community acquired",
   "community-onset",
@@ -65,28 +124,38 @@ const COMMUNITY_PHRASES = [
   "community pharmacy",
   "retail pharmacy",
   "family practice",
+  "family medicine",
   "outpatient clinic",
   "outpatient setting",
   "primary health care",
+  "primary healthcare",
   "walk-in clinic",
   "urgent care",
-  "emergency department",
-  "emergency room",
-  "ed visit",
   "community setting",
+  "community-based",
+  "community based",
+  "office-based",
+  "clinic-based",
+  "ambulatory setting",
 ];
 
 const COMMUNITY_WORDS = [
   "community",
   "outpatient",
+  "outpatients",
   "ambulatory",
+  "gp",
 ];
+
+// ── Long-term care ────────────────────────────────────────────────────────────
 
 const LTC_PHRASES = [
   "long-term care",
   "long term care",
   "nursing home",
+  "nursing homes",
   "care home",
+  "care homes",
   "residential care",
   "skilled nursing facility",
   "skilled nursing",
@@ -100,14 +169,94 @@ const LTC_PHRASES = [
   "post-acute care",
   "post acute care",
   "extended care",
+  "nursing home resident",
+  "ltc facility",
+  "ltcf",
 ];
 
-const LTC_WORDS = [
-  "ltc",
-  "snf",
+const LTC_WORDS = ["ltc", "snf", "ltcf"];
+
+// ── Dentistry ─────────────────────────────────────────────────────────────────
+
+const DENTISTRY_PHRASES = [
+  "dental clinic",
+  "dental practice",
+  "dental office",
+  "oral health",
+  "oral hygiene",
+  "periodontal",
+  "periodontitis",
+  "endodontic",
+  "dental caries",
+  "dental surgery",
+  "dental antimicrobial",
+  "antibiotic prescribing in dentistry",
+  "dental stewardship",
+  "odontogenic",
+  "maxillofacial",
+  "oral surgery",
 ];
 
-// ── Animal / veterinary ───────────────────────────────────────────────────────
+const DENTISTRY_WORDS = [
+  "dental",
+  "dentist",
+  "dentists",
+  "dentistry",
+  "periodontal",
+  "endodontic",
+  "odontogenic",
+];
+
+// ── One Health (human–animal–environment interface) ───────────────────────────
+
+const ONE_HEALTH_PHRASES = [
+  "one health",
+  "one-health",
+  "human-animal",
+  "human animal interface",
+  "animal-human",
+  "zoonotic transmission",
+  "zoonotic disease",
+  "shared between humans and animals",
+  "farm-to-fork",
+  "farm to fork",
+  "antimicrobial use in agriculture",
+  "antibiotic use in livestock",
+  "veterinary and human",
+  "human and veterinary",
+];
+
+const ONE_HEALTH_WORDS = ["zoonosis", "zoonotic", "zoonoses"];
+
+// ── Global health / policy / LMIC systems ─────────────────────────────────────
+
+const GLOBAL_HEALTH_PHRASES = [
+  "global health",
+  "global antimicrobial",
+  "low- and middle-income",
+  "low and middle income",
+  "low-income countr",
+  "middle-income countr",
+  "lmic",
+  "lmics",
+  "national action plan",
+  "national antimicrobial",
+  "who african region",
+  "world health organization",
+  "world health organisation",
+  "international surveillance",
+  "global surveillance",
+  "country-level",
+  "nationwide surveillance",
+  "low resource setting",
+  "resource-limited",
+  "developing countr",
+  "global burden",
+];
+
+const GLOBAL_HEALTH_WORDS = ["lmic", "lmics"];
+
+// ── Animal / veterinary (clinical vet / livestock without One Health framing) ─
 
 const ANIMAL_PHRASES = [
   "veterinary",
@@ -118,16 +267,15 @@ const ANIMAL_PHRASES = [
   "animal husbandry",
   "animal health",
   "animal model",
-  "one health",
-  "zoonotic",
-  "zoonosis",
-  "agricultural",
   "poultry farm",
   "swine farm",
   "dairy farm",
   "pet owner",
   "small animal",
   "large animal",
+  "veterinary clinic",
+  "veterinary hospital",
+  "veterinary practice",
 ];
 
 const ANIMAL_WORDS = [
@@ -149,8 +297,6 @@ const ANIMAL_WORDS = [
   "horse",
   "agriculture",
   "farm",
-  "zoonotic",
-  "zoonosis",
 ];
 
 // ── Environment ───────────────────────────────────────────────────────────────
@@ -171,9 +317,7 @@ const ENVIRONMENT_PHRASES = [
   "river water",
   "effluent",
   "antibiotic resistance genes",
-  "resistome",
-  "metagenomics",
-  "whole genome sequencing",
+  "environmental resistome",
 ];
 
 const ENVIRONMENT_WORDS = [
@@ -188,10 +332,6 @@ const ENVIRONMENT_WORDS = [
 
 // ── Scoring helpers ───────────────────────────────────────────────────────────
 
-/**
- * Score free text (title + abstract) against a setting's phrase and word lists.
- * Phrases = 3 pts each; isolated words = 1 pt each.
- */
 function scoreText(
   text: string,
   phrases: string[],
@@ -204,7 +344,6 @@ function scoreText(
     if (lower.includes(phrase)) score += 3;
   }
 
-  // Word-boundary matching to avoid partial hits (e.g. "community" inside "immunocompromised")
   const wordTokens = new Set(lower.split(/\W+/).filter(Boolean));
   for (const word of words) {
     if (wordTokens.has(word)) score += 1;
@@ -213,10 +352,6 @@ function scoreText(
   return score;
 }
 
-/**
- * Score keyword/MeSH terms — these are curated labels so they carry more weight.
- * Phrase match in a keyword = 4 pts; word match = 2 pts.
- */
 function scoreKeywords(
   kws: string[],
   phrases: string[],
@@ -236,24 +371,28 @@ function scoreKeywords(
   return score;
 }
 
+function scoreSetting(
+  text: string,
+  kws: string[],
+  phrases: string[],
+  words: string[]
+): number {
+  return (
+    scoreText(text, phrases, words) + scoreKeywords(kws, phrases, words)
+  );
+}
+
+/**
+ * Minimum raw score for a setting to be included in the multi-label result.
+ * Lower than the old single-label gate so ED + dual settings can surface.
+ */
+const MIN_SCORE = 3;
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Minimum raw score the top setting must reach before classification is attempted.
- * Prevents classifying articles that only have incidental mentions.
- */
-const MIN_SCORE = 4;
-
-/**
- * The top setting's score must be this many times the second-highest for the
- * classification to be considered ≥90% confident. A ratio of 3 means the
- * top setting needs 3× as much evidence as the next-best candidate.
- */
-const CONFIDENCE_RATIO = 3.0;
-
-/**
  * Score all settings (for soft matching / debugging).
- * Does not apply MIN_SCORE or CONFIDENCE_RATIO gates.
+ * ED evidence is added to both hospital and community.
  */
 export function scoreAllSettings(params: {
   title?: string | null;
@@ -267,44 +406,71 @@ export function scoreAllSettings(params: {
     ...(params.meshTerms ?? []),
   ];
 
+  const ed =
+    scoreSetting(text, kws, ED_PHRASES, ED_WORDS);
+
   return {
     hospital:
-      scoreText(text, HOSPITAL_PHRASES, HOSPITAL_WORDS) +
-      scoreKeywords(kws, HOSPITAL_PHRASES, HOSPITAL_WORDS),
+      scoreSetting(text, kws, HOSPITAL_PHRASES, HOSPITAL_WORDS) + ed,
     community:
-      scoreText(text, COMMUNITY_PHRASES, COMMUNITY_WORDS) +
-      scoreKeywords(kws, COMMUNITY_PHRASES, COMMUNITY_WORDS),
-    "long-term care":
-      scoreText(text, LTC_PHRASES, LTC_WORDS) +
-      scoreKeywords(kws, LTC_PHRASES, LTC_WORDS),
-    animal:
-      scoreText(text, ANIMAL_PHRASES, ANIMAL_WORDS) +
-      scoreKeywords(kws, ANIMAL_PHRASES, ANIMAL_WORDS),
-    environment:
-      scoreText(text, ENVIRONMENT_PHRASES, ENVIRONMENT_WORDS) +
-      scoreKeywords(kws, ENVIRONMENT_PHRASES, ENVIRONMENT_WORDS),
+      scoreSetting(text, kws, COMMUNITY_PHRASES, COMMUNITY_WORDS) + ed,
+    "long-term care": scoreSetting(text, kws, LTC_PHRASES, LTC_WORDS),
+    dentistry: scoreSetting(text, kws, DENTISTRY_PHRASES, DENTISTRY_WORDS),
+    "one-health": scoreSetting(
+      text,
+      kws,
+      ONE_HEALTH_PHRASES,
+      ONE_HEALTH_WORDS
+    ),
+    "global-health": scoreSetting(
+      text,
+      kws,
+      GLOBAL_HEALTH_PHRASES,
+      GLOBAL_HEALTH_WORDS
+    ),
+    animal: scoreSetting(text, kws, ANIMAL_PHRASES, ANIMAL_WORDS),
+    environment: scoreSetting(
+      text,
+      kws,
+      ENVIRONMENT_PHRASES,
+      ENVIRONMENT_WORDS
+    ),
   };
 }
 
+/**
+ * Multi-label classification: every setting at or above MIN_SCORE.
+ * Ordered by score (desc), then ARTICLE_SETTING_ORDER.
+ */
+export function classifyArticleSettings(params: {
+  title?: string | null;
+  abstract?: string | null;
+  keywords?: string[] | null;
+  meshTerms?: string[] | null;
+}): ArticleSetting[] {
+  const scores = scoreAllSettings(params);
+
+  return (Object.entries(scores) as [ArticleSetting, number][])
+    .filter(([, score]) => score >= MIN_SCORE)
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return (
+        ARTICLE_SETTING_ORDER.indexOf(a[0]) -
+        ARTICLE_SETTING_ORDER.indexOf(b[0])
+      );
+    })
+    .map(([setting]) => setting);
+}
+
+/**
+ * Primary setting (highest score at/above floor), or null.
+ * Prefer classifyArticleSettings when multi-label is needed.
+ */
 export function classifyArticleSetting(params: {
   title?: string | null;
   abstract?: string | null;
   keywords?: string[] | null;
   meshTerms?: string[] | null;
 }): ArticleSetting | null {
-  const scores = scoreAllSettings(params);
-
-  const ranked = (
-    Object.entries(scores) as [ArticleSetting, number][]
-  ).sort((a, b) => b[1] - a[1]);
-
-  const [top, second] = ranked;
-
-  // Not enough evidence
-  if (top[1] < MIN_SCORE) return null;
-
-  // Ambiguous — two settings score similarly
-  if (second[1] > 0 && top[1] / second[1] < CONFIDENCE_RATIO) return null;
-
-  return top[0];
+  return classifyArticleSettings(params)[0] ?? null;
 }

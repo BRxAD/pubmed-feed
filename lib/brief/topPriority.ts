@@ -27,6 +27,7 @@ export type TopPriorityItem = Pick<
   | "pubmedUrl"
   | "date"
   | "setting"
+  | "settings"
   | "jif"
   | "sjrScimago"
 >;
@@ -103,6 +104,7 @@ async function rankTopPriorityYearItems(
     pubmedUrl: item.pubmedUrl,
     date: item.date,
     setting: item.setting,
+    settings: item.settings,
     jif: item.jif,
     sjrScimago: item.sjrScimago,
   }));

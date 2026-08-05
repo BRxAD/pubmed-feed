@@ -49,6 +49,7 @@ type StoryImageFields = Pick<
   | "bottomLine"
   | "keywords"
   | "setting"
+  | "settings"
   | "methods"
   | "results"
   | "studyLabel"
@@ -104,6 +105,7 @@ function storyCorpus(item: StoryImageFields): string {
       ...(item.keywords ?? []),
       ...(item.meshTerms ?? []),
       item.setting ?? "",
+      ...(item.settings ?? []),
     ].join(" ")
   );
   return expandStoryCorpus(raw);
@@ -118,7 +120,7 @@ type ScoreMode = "strict" | "thematic";
 
 function scoreEntry(
   corpus: string,
-  setting: ArticleSetting | null,
+  settings: ArticleSetting[],
   entry: CatalogEntry,
   mode: ScoreMode
 ): number {
@@ -151,7 +153,9 @@ function scoreEntry(
 
   let score = Math.min(1, matchedWeight / 4.0);
 
-  if (setting && entry.settings?.includes(setting) && matchedCount >= 2) {
+  const settingHit =
+    entry.settings?.some((s) => settings.includes(s)) ?? false;
+  if (settingHit && matchedCount >= 2) {
     score = Math.min(1, score + (mode === "strict" ? 0.08 : 0.06));
   }
 
@@ -202,7 +206,13 @@ function rankCandidates(
   for (const entry of STORY_IMAGE_CATALOG) {
     if (!isUnused(entry, used)) continue;
     if (isBlockedCatalogEntry(entry)) continue;
-    const confidence = scoreEntry(corpus, item.setting, entry, mode);
+    const settings =
+      item.settings?.length > 0
+        ? item.settings
+        : item.setting
+          ? [item.setting]
+          : [];
+    const confidence = scoreEntry(corpus, settings, entry, mode);
     if (confidence > threshold) {
       ranked.push({ entry, confidence });
     }
@@ -223,7 +233,7 @@ function genericFallbackCandidates(
     corpusHas(corpus, "stewardship") ||
     corpusHas(corpus, "antimicrobial") ||
     corpusHas(corpus, "prescribing") ||
-    Boolean(item.setting);
+    Boolean(item.setting) || (item.settings?.length ?? 0) > 0;
 
   if (!stewardshipCue) return [];
 

@@ -8,6 +8,9 @@ const VALID: ReadonlySet<string> = new Set([
   "hospital",
   "community",
   "long-term care",
+  "dentistry",
+  "one-health",
+  "global-health",
   "animal",
   "environment",
 ]);
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
           {
             ok: false,
             error:
-              "setting must be hospital, community, long-term care, animal, environment, or null",
+              "setting must be hospital, community, long-term care, dentistry, one-health, global-health, animal, environment, or null",
           },
           { status: 400 }
         );

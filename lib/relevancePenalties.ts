@@ -1,5 +1,5 @@
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
-import { classifyArticleSetting } from "@/lib/classifySetting";
+import { classifyArticleSettings } from "@/lib/classifySetting";
 import {
   DEFAULT_PENALTY_WEIGHTS,
   type PenaltyWeights,
@@ -88,13 +88,21 @@ export function isOneHealthStudy(rec: PubMedRecord): boolean {
 export function isVeterinaryOnlyStudy(rec: PubMedRecord): boolean {
   if (isOneHealthStudy(rec)) return false;
 
-  const setting = classifyArticleSetting({
+  const settings = classifyArticleSettings({
     title: rec.title,
     abstract: rec.abstract,
     keywords: rec.keywords,
     meshTerms: rec.meshTerms,
   });
-  if (setting === "animal") return true;
+  // Pure animal/vet without One Health framing
+  if (
+    settings.includes("animal") &&
+    !settings.includes("one-health") &&
+    !settings.includes("hospital") &&
+    !settings.includes("community")
+  ) {
+    return true;
+  }
 
   const text = studyText(rec);
   if (VET_ONLY_RE.test(text) && !HUMAN_CLINICAL_RE.test(text)) return true;

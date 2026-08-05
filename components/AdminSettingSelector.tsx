@@ -2,29 +2,35 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  ARTICLE_SETTING_LABELS,
+  ARTICLE_SETTING_ORDER,
+  type ArticleSetting,
+} from "@/lib/classifySetting";
 
 type Props = {
   topicId: string;
   pmid: string;
-  /** Auto-classified setting (shown as hint). */
-  autoSetting: ArticleSetting | null;
+  /** Auto-classified settings (shown as hint). */
+  autoSettings?: ArticleSetting[];
+  /** @deprecated Prefer autoSettings — primary auto label. */
+  autoSetting?: ArticleSetting | null;
   /** Saved override, if any. */
   initialSetting: ArticleSetting | null;
 };
 
 const OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Auto (classifier)" },
-  { value: "hospital", label: "Hospital" },
-  { value: "community", label: "Community / Outpatient" },
-  { value: "long-term care", label: "Long-term care" },
-  { value: "animal", label: "Animal / Vet (Global Health)" },
-  { value: "environment", label: "Environment (Global Health)" },
+  ...ARTICLE_SETTING_ORDER.map((value) => ({
+    value,
+    label: ARTICLE_SETTING_LABELS[value],
+  })),
 ];
 
 export default function AdminSettingSelector({
   topicId,
   pmid,
+  autoSettings,
   autoSetting,
   initialSetting,
 }: Props) {
@@ -67,8 +73,16 @@ export default function AdminSettingSelector({
     [topicId, pmid, router]
   );
 
+  const autoList =
+    autoSettings && autoSettings.length > 0
+      ? autoSettings
+      : autoSetting
+        ? [autoSetting]
+        : [];
   const autoLabel =
-    OPTIONS.find((o) => o.value === autoSetting)?.label ?? "unclassified";
+    autoList.length > 0
+      ? autoList.map((s) => ARTICLE_SETTING_LABELS[s] ?? s).join(" · ")
+      : "unclassified";
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">

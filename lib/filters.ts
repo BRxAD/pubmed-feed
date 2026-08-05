@@ -1,6 +1,7 @@
 import type { FeedItem } from "@/lib/feed";
 import {
   classifyArticleSetting,
+  classifyArticleSettings,
   type ArticleSetting,
 } from "@/lib/classifySetting";
 
@@ -372,23 +373,43 @@ function matchesKeyword(item: FeedItem, keyword: string): boolean {
 }
 
 /**
- * Effective setting for a feed item: manual override wins, else auto-classify.
+ * All effective settings for a feed item.
+ * Manual admin override wins as a single label; else multi-label auto-classify.
  */
-export function getItemSetting(item: FeedItem): ArticleSetting | null {
-  if (item.admin_setting) return item.admin_setting;
-  return classifyArticleSetting({
+export function getItemSettings(item: FeedItem): ArticleSetting[] {
+  if (item.admin_setting) return [item.admin_setting];
+  return classifyArticleSettings({
     title: item.articles?.title,
     abstract: item.articles?.abstract,
     keywords: item.articles?.keywords ?? [],
+    meshTerms: item.articles?.mesh_terms ?? [],
   });
 }
 
-/** Auto-classification only (ignores admin_setting). */
+/**
+ * Primary setting (highest-scoring label), or null.
+ */
+export function getItemSetting(item: FeedItem): ArticleSetting | null {
+  return getItemSettings(item)[0] ?? null;
+}
+
+/** Auto-classification only (ignores admin_setting) — multi-label. */
+export function getAutoItemSettings(item: FeedItem): ArticleSetting[] {
+  return classifyArticleSettings({
+    title: item.articles?.title,
+    abstract: item.articles?.abstract,
+    keywords: item.articles?.keywords ?? [],
+    meshTerms: item.articles?.mesh_terms ?? [],
+  });
+}
+
+/** Auto primary only (ignores admin_setting). */
 export function getAutoItemSetting(item: FeedItem): ArticleSetting | null {
   return classifyArticleSetting({
     title: item.articles?.title,
     abstract: item.articles?.abstract,
     keywords: item.articles?.keywords ?? [],
+    meshTerms: item.articles?.mesh_terms ?? [],
   });
 }
 
@@ -405,7 +426,7 @@ export function applyFiltersToFeedItems(
   }
   if (params.setting) {
     const target = params.setting;
-    out = out.filter((item) => getItemSetting(item) === target);
+    out = out.filter((item) => getItemSettings(item).includes(target));
   }
   return out;
 }

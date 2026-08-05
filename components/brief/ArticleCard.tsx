@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
-import { briefSettingLabel } from "@/lib/brief/settingFilter";
+import { briefSettingsLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { pickPhotoQuote } from "@/lib/brief/photoQuote";
@@ -34,7 +34,7 @@ type StoryProps = {
 };
 
 function MetaLine({ item }: { item: BriefItem }) {
-  const settingLabel = briefSettingLabel(item.setting);
+  const settingLabel = briefSettingsLabel(item.settings, item.setting);
   const dateLabel = formatDate(item.date);
   const parts: string[] = [];
   if (settingLabel) parts.push(settingLabel);

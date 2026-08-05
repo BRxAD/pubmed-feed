@@ -43,6 +43,9 @@ const VALID_ADMIN_SETTINGS = new Set<ArticleSetting>([
   "hospital",
   "community",
   "long-term care",
+  "dentistry",
+  "one-health",
+  "global-health",
   "animal",
   "environment",
 ]);

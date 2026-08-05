@@ -7,6 +7,7 @@ import {
   normalizeScoreTo100,
   parseSummaryBullets,
   getItemSetting,
+  getItemSettings,
   formatStudyLabel,
 } from "@/lib/filters";
 import type { ArticleSetting } from "@/lib/classifySetting";
@@ -56,7 +57,10 @@ export type BriefItem = {
   date: string | null;
   createdAt: string;
   isNew: boolean;
+  /** Primary (highest-scoring) setting. */
   setting: ArticleSetting | null;
+  /** All settings that cleared the classifier floor (multi-label). */
+  settings: ArticleSetting[];
   studyLabel: string | null;
   methods: string | null;
   results: string | null;
@@ -520,6 +524,7 @@ export async function getBriefItems(options?: {
       createdAt: row.created_at,
       isNew: isWithinHours(row.created_at, 24),
       setting: getItemSetting(feedLike),
+      settings: getItemSettings(feedLike),
       studyLabel: studyLabel || null,
       methods: bullets?.methods ?? null,
       results: bullets?.results ?? null,

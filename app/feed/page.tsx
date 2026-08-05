@@ -18,10 +18,14 @@ import {
   keywordColorClasses,
   studyAccentClass,
   parseSummaryBullets,
-  getItemSetting,
-  getAutoItemSetting,
+  getItemSettings,
+  getAutoItemSettings,
   type ArticleSetting,
 } from "@/lib/filters";
+import {
+  ARTICLE_SETTING_LABELS,
+  ARTICLE_SETTING_ORDER,
+} from "@/lib/classifySetting";
 import { lookupJif, isHighImpactJournal } from "@/lib/jif";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import AdminToggle from "@/components/AdminToggle";
@@ -77,18 +81,17 @@ function buildFeedUrl(params: {
   return `${BASE_PATH}?${q.toString()}`;
 }
 
-const SETTING_LABELS: Record<ArticleSetting, string> = {
-  hospital: "Hospital",
-  community: "Community",
-  "long-term care": "Long-term care",
-  animal: "Animal / Vet",
-  environment: "Environment",
-};
-
 const SETTING_BADGE_CLASSES: Record<ArticleSetting, string> = {
   hospital: "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  community: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  "long-term care": "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  community:
+    "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  "long-term care":
+    "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  dentistry: "bg-pink-50 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
+  "one-health":
+    "bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  "global-health":
+    "bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
   animal: "bg-lime-50 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300",
   environment: "bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
 };
@@ -228,7 +231,7 @@ function ArticleCard({
 
   const bullets = parseSummaryBullets(item.summary_text);
   const jifStr = jifEntry ? jifEntry.jif.toFixed(1) : null;
-  const itemSetting = getItemSetting(item);
+  const itemSettings = getItemSettings(item);
 
   return (
     <article
@@ -289,13 +292,14 @@ function ArticleCard({
               : ""}
           </span>
         )}
-        {itemSetting && (
+        {itemSettings.map((s) => (
           <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SETTING_BADGE_CLASSES[itemSetting]}`}
+            key={s}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SETTING_BADGE_CLASSES[s]}`}
           >
-            {SETTING_LABELS[itemSetting]}
+            {ARTICLE_SETTING_LABELS[s]}
           </span>
-        )}
+        ))}
       </div>
 
       {/* Summary bullets */}
@@ -548,7 +552,7 @@ function ArticleCard({
           <AdminSettingSelector
             topicId={topicId}
             pmid={item.pmid}
-            autoSetting={getAutoItemSetting(item)}
+            autoSettings={getAutoItemSettings(item)}
             initialSetting={item.admin_setting}
           />
         </div>
@@ -559,9 +563,7 @@ function ArticleCard({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-const VALID_SETTINGS = new Set<ArticleSetting>([
-  "hospital", "community", "long-term care", "animal", "environment",
-]);
+const VALID_SETTINGS = new Set<ArticleSetting>(ARTICLE_SETTING_ORDER);
 
 function parseSettingParam(raw: string | undefined): ArticleSetting | "" {
   if (!raw) return "";
@@ -805,11 +807,11 @@ export default async function FeedPage({
                 className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               >
                 <option value="">All settings</option>
-                <option value="hospital">Hospital</option>
-                <option value="community">Community</option>
-                <option value="long-term care">Long-term care</option>
-                <option value="animal">Animal / Veterinary</option>
-                <option value="environment">Environment</option>
+                {ARTICLE_SETTING_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {ARTICLE_SETTING_LABELS[s]}
+                  </option>
+                ))}
               </select>
             </label>
 
