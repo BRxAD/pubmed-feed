@@ -54,7 +54,7 @@ export type RatingBucket = {
   rating: number;
   /** Human admin_priority count at this score. */
   human: number;
-  /** ML-predicted priority count (articles without a human rating). */
+  /** ML-predicted priority count at this score (all articles in range). */
   ml: number;
 };
 
@@ -449,10 +449,11 @@ export async function getDashboardData(options?: {
       humanHist[item.admin_priority - 1] += 1;
       humanRatedCount += 1;
     } else {
-      const bucket = Math.min(10, Math.max(1, predicted.priority));
-      mlHist[bucket - 1] += 1;
       mlPredictedCount += 1;
     }
+    // ML distribution includes every article (human-rated and ML-only).
+    const mlBucket = Math.min(10, Math.max(1, predicted.priority));
+    mlHist[mlBucket - 1] += 1;
 
     return {
       item,

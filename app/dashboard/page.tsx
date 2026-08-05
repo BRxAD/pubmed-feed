@@ -62,7 +62,7 @@ function BarRow({
   );
 }
 
-/** Stacked human (amber) + ML (violet) bar for one priority score. */
+/** Side-by-side human (amber) and ML (violet) bars for one priority score. */
 function DualRatingRow({
   bucket,
   max,
@@ -70,24 +70,29 @@ function DualRatingRow({
   bucket: RatingBucket;
   max: number;
 }) {
-  const total = bucket.human + bucket.ml;
   const humanPct = max > 0 ? (bucket.human / max) * 100 : 0;
   const mlPct = max > 0 ? (bucket.ml / max) * 100 : 0;
   return (
-    <div className="grid grid-cols-[2rem_1fr_4.5rem] items-center gap-2 text-sm">
+    <div className="grid grid-cols-[2rem_1fr_1fr_4.5rem] items-center gap-2 text-sm">
       <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
         {bucket.rating}
       </span>
-      <div className="flex h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"
+        title={`Human: ${bucket.human}`}
+      >
         <div
-          className="h-full bg-amber-500 dark:bg-amber-400"
+          className="h-full rounded-full bg-amber-500 dark:bg-amber-400"
           style={{ width: `${humanPct}%` }}
-          title={`Human: ${bucket.human}`}
         />
+      </div>
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"
+        title={`ML: ${bucket.ml}`}
+      >
         <div
-          className="h-full bg-violet-500 dark:bg-violet-400"
+          className="h-full rounded-full bg-violet-500 dark:bg-violet-400"
           style={{ width: `${mlPct}%` }}
-          title={`ML: ${bucket.ml}`}
         />
       </div>
       <span className="text-right text-xs tabular-nums text-zinc-500">
@@ -98,7 +103,6 @@ function DualRatingRow({
         <span className="font-medium text-violet-700 dark:text-violet-300">
           {bucket.ml}
         </span>
-        <span className="sr-only"> total {total}</span>
       </span>
     </div>
   );
@@ -122,7 +126,7 @@ export default async function DashboardPage({
   });
   const maxRating = Math.max(
     1,
-    ...data.ratingHistogram.map((b) => b.human + b.ml)
+    ...data.ratingHistogram.map((b) => Math.max(b.human, b.ml))
   );
   const maxSetting = Math.max(1, ...data.settingBreakdown.map((b) => b.count));
   const maxKeyword = Math.max(1, ...data.topKeywords.map((b) => b.count), 1);
@@ -247,7 +251,8 @@ export default async function DashboardPage({
             Priority ratings
           </h2>
           <p className="mb-2 text-xs text-zinc-500">
-            Score 1–10 · human ratings and ML predictions for unrated articles
+            Score 1–10 · human ratings beside ML predictions for every article
+            in range
           </p>
           <div className="mb-3 flex flex-wrap gap-4 text-xs">
             <span className="inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
@@ -256,8 +261,14 @@ export default async function DashboardPage({
             </span>
             <span className="inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
               <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
-              ML ({data.mlPredictedCount.toLocaleString()})
+              ML ({data.inRangeCount.toLocaleString()} — includes human-rated)
             </span>
+          </div>
+          <div className="mb-1 grid grid-cols-[2rem_1fr_1fr_4.5rem] gap-2 text-[0.65rem] uppercase tracking-wide text-zinc-400">
+            <span />
+            <span>Human</span>
+            <span>ML</span>
+            <span className="text-right">n / n</span>
           </div>
           <div className="space-y-1.5">
             {data.ratingHistogram.map((b) => (
@@ -265,7 +276,7 @@ export default async function DashboardPage({
             ))}
           </div>
           <p className="mt-2 text-right text-[0.65rem] text-zinc-400">
-            counts: human / ML
+            counts: human / ML · ML covers all articles in range
           </p>
         </section>
 
