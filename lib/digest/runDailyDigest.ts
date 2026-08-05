@@ -8,11 +8,10 @@ import {
   getDigestRecipients,
 } from "@/lib/digest/config";
 import { buildDigestEmail } from "@/lib/digest/emailFormat";
-import { runBriefDigest, type BriefDigestResult } from "@/lib/digest/runBriefDigest";
+import type { BriefDigestResult } from "@/lib/digest/runBriefDigest";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { GET as runPubmedIngest } from "@/app/api/ingest/route";
-import { GET as runOpenAlexIngest } from "@/app/api/ingest/openalex/route";
 import { NextRequest } from "next/server";
 
 function appBaseUrl(): string {
@@ -23,8 +22,7 @@ function appBaseUrl(): string {
 async function triggerIngest(path: string): Promise<Record<string, unknown>> {
   const url = new URL(path, "http://digest-internal");
   const request = new NextRequest(url);
-  const handler = path.includes("/openalex") ? runOpenAlexIngest : runPubmedIngest;
-  const response = await handler(request);
+  const response = await runPubmedIngest(request);
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new Error(
@@ -124,12 +122,18 @@ async function sendSourceDigest(options: {
   };
 }
 
-/** When false or unset, OpenAlex ingest and digest email are skipped. */
+/**
+ * OpenAlex is paused on digest/ingest crons (product decision).
+ * Manual `/api/ingest/openalex` still works if needed.
+ */
 function isOpenAlexIngestEnabled(): boolean {
-  const raw = process.env.OPENALEX_INGEST_ENABLED?.trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes";
+  return false;
 }
 
+/**
+ * PubMed ingest + summarize only.
+ * Stewardship Brief email is sent separately by `/api/cron/brief-digest`.
+ */
 export async function runDailyDigest(): Promise<DailyDigestResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -194,7 +198,11 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
       };
     }
   } else {
-    ingestOpenAlex = { ok: true, skipped: true, reason: "OPENALEX_INGEST_ENABLED is off" };
+    ingestOpenAlex = {
+      ok: true,
+      skipped: true,
+      reason: "OpenAlex ingest disabled on digest cron",
+    };
   }
 
   const pubmedItems = await getDigestItems({
@@ -216,7 +224,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     : { items: [] as Awaited<ReturnType<typeof getDigestItems>>["items"] };
 
   // Legacy ASP-format emails stay off unless DIGEST_SEND_LEGACY=1.
-  // The daily subscriber email is The Stewardship Brief (runBriefDigest below).
+  // Stewardship Brief email runs on /api/cron/brief-digest (once daily).
   const sendLegacy = process.env.DIGEST_SEND_LEGACY === "1";
 
   const emailPubmed = sendLegacy
@@ -236,38 +244,20 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
         itemCount: pubmedItems.items.length,
       };
 
-  const emailOpenAlex =
-    sendLegacy && isOpenAlexIngestEnabled()
-      ? await sendSourceDigest({
-          source: "openalex",
-          topicId,
-          since,
-          minRelevancePercent,
-          hoursBack,
-          recipients,
-        })
-      : {
-          source: "openalex" as const,
-          sent: false,
-          recipients,
-          skippedReason: isOpenAlexIngestEnabled()
-            ? "Replaced by Stewardship Brief email"
-            : "OpenAlex ingest paused",
-          itemCount: openalexItems.items.length,
-        };
+  const emailOpenAlex = {
+    source: "openalex" as const,
+    sent: false,
+    recipients,
+    skippedReason: "OpenAlex ingest paused",
+    itemCount: openalexItems.items.length,
+  };
 
-  let briefEmail: BriefDigestResult;
-  try {
-    briefEmail = await runBriefDigest();
-  } catch (err) {
-    briefEmail = {
-      sent: false,
-      recipients: [],
-      itemCount: 0,
-      skippedReason:
-        err instanceof Error ? err.message : "Brief digest failed",
-    };
-  }
+  const briefEmail: BriefDigestResult = {
+    sent: false,
+    recipients: [],
+    itemCount: 0,
+    skippedReason: "Brief email runs on /api/cron/brief-digest",
+  };
 
   return {
     ok: true,

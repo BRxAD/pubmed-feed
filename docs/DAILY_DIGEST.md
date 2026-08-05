@@ -35,22 +35,33 @@ No need for `DIGEST_RECIPIENT_EMAILS` if `NCBI_EMAIL` is already set. On Resend�
 | `DIGEST_FROM_EMAIL` | After you verify a domain in Resend |
 | `DIGEST_MAX_SUMMARIES` | Default **100** per source per run |
 
-## Schedule: 7 AM Eastern
+## Schedule (fixed EDT → UTC)
 
-Vercel cron runs at **11:00 UTC** daily (`0 11 * * *`):
+Vercel Cron uses UTC only. These times are locked to **Eastern Daylight Time**
+(will be one hour early in winter EST unless adjusted):
 
-- **7 AM** during daylight time (EDT, roughly Mar–Nov)
-- **6 AM** during standard time (EST, roughly Nov–Mar)
+| Job | EDT | UTC cron |
+|-----|-----|----------|
+| PubMed ingest + summarize | 06:00, 12:00, 17:00 | `0 10 * * *`, `0 16 * * *`, `0 21 * * *` → `/api/cron/daily-digest` |
+| Stewardship Brief email | 07:00 | `0 11 * * *` → `/api/cron/brief-digest` |
 
-Exact offset depends on your province/state; adjust in `vercel.json` if needed (`0 12 * * *` = 7 AM EST / 8 AM EDT).
+OpenAlex ingest is **off** on these digest runs. Homepage lead story is sticky for the Eastern calendar day (see `lib/brief/leadStory.ts`); email ranking is live, not sticky.
 
 ## Test now
+
+Ingest only:
 
 ```
 https://pubmedfeed.vercel.app/api/cron/daily-digest?secret=YOUR_CRON_SECRET
 ```
 
-Response shows ingest results, digest items, and whether email was sent.
+Brief email only:
+
+```
+https://pubmedfeed.vercel.app/api/cron/brief-digest?secret=YOUR_CRON_SECRET
+```
+
+Response shows ingest results (digest) or whether the brief email was sent.
 
 ### Troubleshooting `Unauthorized`
 

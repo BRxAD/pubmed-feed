@@ -3,6 +3,7 @@ import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import { assignStoryImages } from "@/lib/brief/storyImages";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
 import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
+import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import BriefPage from "@/components/brief/BriefPage";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +29,12 @@ export default async function HomePage({
       }),
       getTopPriorityYearItems(setting),
     ]);
-    const images = await assignStoryImages(brief.items);
+    const items = await applyStickyHomepageLead(brief.items, setting);
+    const images = await assignStoryImages(items);
 
     return (
       <BriefPage
-        items={brief.items}
+        items={items}
         topPriority={topPriority}
         setting={setting}
         images={images}
