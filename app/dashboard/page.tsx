@@ -495,7 +495,8 @@ export default async function DashboardPage({
           Top 10 by priority
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
-          Effective priority (human overrides ML) · relevance score · in range
+          Same rules as the homepage Top 10: priority ≥ 5 · human over ML ·
+          relevance · journal impact · article date in range
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">

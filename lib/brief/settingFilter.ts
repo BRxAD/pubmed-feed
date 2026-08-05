@@ -5,15 +5,16 @@ import {
 import { scoreAllSettings } from "@/lib/classifySetting";
 import type { BriefItem } from "@/lib/brief/items";
 
-/** URL setting values for the brief pill bar. */
+/**
+ * URL setting values for the brief pill bar.
+ * Dentistry and long-term care stay in the classifier / feed admin, but are
+ * not offered as homepage capsules.
+ */
 export type BriefSettingFilter =
   | ""
   | "hospital"
   | "community"
-  | "long-term care"
-  | "dentistry"
-  | "one-health"
-  | "global-health";
+  | "one-health";
 
 export const BRIEF_SETTING_OPTIONS: {
   value: BriefSettingFilter;
@@ -22,24 +23,16 @@ export const BRIEF_SETTING_OPTIONS: {
   { value: "", label: "All" },
   { value: "hospital", label: "Hospital" },
   { value: "community", label: "Outpatient" },
-  { value: "long-term care", label: "Long-term care" },
-  { value: "dentistry", label: "Dentistry" },
-  { value: "one-health", label: "One Health" },
-  { value: "global-health", label: "Global Health" },
+  { value: "one-health", label: "One Health / Global" },
 ];
 
 export function parseBriefSetting(raw: string | undefined): BriefSettingFilter {
   const v = raw?.trim().toLowerCase() ?? "";
-  if (
-    v === "hospital" ||
-    v === "community" ||
-    v === "long-term care" ||
-    v === "dentistry" ||
-    v === "one-health" ||
-    v === "global-health"
-  ) {
+  if (v === "hospital" || v === "community" || v === "one-health") {
     return v;
   }
+  // Legacy URLs: former Global Health tab → combined One Health / Global
+  if (v === "global-health") return "one-health";
   return "";
 }
 
@@ -52,6 +45,13 @@ function itemSettings(item: BriefItem): ArticleSetting[] {
 /** Soft match score floor so Top 10 capsules can fill when auto-class is null. */
 const SOFT_SETTING_MIN = 3;
 
+const ONE_HEALTH_GLOBAL_SETTINGS: ArticleSetting[] = [
+  "one-health",
+  "global-health",
+  "animal",
+  "environment",
+];
+
 export function matchesBriefSettingFilter(
   item: BriefItem,
   filter: BriefSettingFilter,
@@ -61,15 +61,8 @@ export function matchesBriefSettingFilter(
 
   const settings = itemSettings(item);
 
-  if (filter === "global-health") {
-    if (
-      settings.includes("global-health") ||
-      settings.includes("environment")
-    ) {
-      return true;
-    }
-  } else if (filter === "one-health") {
-    if (settings.includes("one-health") || settings.includes("animal")) {
+  if (filter === "one-health") {
+    if (ONE_HEALTH_GLOBAL_SETTINGS.some((s) => settings.includes(s))) {
       return true;
     }
   } else if (settings.includes(filter as ArticleSetting)) {
@@ -84,16 +77,9 @@ export function matchesBriefSettingFilter(
     keywords: item.keywords,
   });
 
-  if (filter === "global-health") {
-    return (
-      (scores["global-health"] ?? 0) >= SOFT_SETTING_MIN ||
-      (scores.environment ?? 0) >= SOFT_SETTING_MIN
-    );
-  }
   if (filter === "one-health") {
-    return (
-      (scores["one-health"] ?? 0) >= SOFT_SETTING_MIN ||
-      (scores.animal ?? 0) >= SOFT_SETTING_MIN
+    return ONE_HEALTH_GLOBAL_SETTINGS.some(
+      (s) => (scores[s] ?? 0) >= SOFT_SETTING_MIN
     );
   }
 

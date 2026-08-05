@@ -6,13 +6,11 @@ import {
   type FeedItem,
 } from "@/lib/feed";
 import {
-  articleExternalUrl,
   parseFeedSource,
   type FeedSourceFilter,
 } from "@/lib/feedSource";
 import {
   canonicalKeywordForGrouping,
-  getItemSetting,
   getItemSettings,
   isTrendingBlocklisted,
   keywordDisplayForm,
@@ -40,6 +38,8 @@ import {
   PRIORITY_FEATURE_NAMES,
   priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
+import { getRankedTopPriorityItems } from "@/lib/brief/topPriority";
+import { briefSettingsLabel } from "@/lib/brief/settingFilter";
 import {
   getOrCreateEmbeddings,
   loadCachedEmbeddings,
@@ -173,15 +173,15 @@ export function nextIngestAt(now = new Date()): Date {
   return candidates[0] ?? new Date(now.getTime() + 60 * 60 * 1000);
 }
 
-function monthsAgoIso(months: number): string {
+function daysAgoIso(days: number): string {
   const d = new Date();
-  d.setMonth(d.getMonth() - months);
+  d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
 }
 
-/** Default window: last 12 months through today. */
+/** Default window: last 28 days through today (matches Brief article window). */
 export function defaultDashboardRange(): DashboardDateRange {
-  return { from: monthsAgoIso(12), to: todayIso() };
+  return { from: daysAgoIso(28), to: todayIso() };
 }
 
 export function parseDashboardRange(
@@ -665,28 +665,34 @@ export async function getDashboardData(options?: {
     })
   );
 
-  ranked.sort((a, b) => {
-    if (b.effectivePriority !== a.effectivePriority) {
-      return b.effectivePriority - a.effectivePriority;
-    }
-    const human = Number(b.humanRated) - Number(a.humanRated);
-    if (human !== 0) return human;
-    return b.relevancePercent - a.relevancePercent;
+  // Same rules as the homepage Top 10: brief-eligible (priority ≥ 5), PubMed,
+  // rank by priority → human → relevance → JIF/SJR — then clipped to the
+  // dashboard date range.
+  const fromMs = Date.parse(`${range.from}T12:00:00Z`);
+  const todayMs = Date.parse(`${todayIso()}T12:00:00Z`);
+  const windowDays = Number.isFinite(fromMs)
+    ? Math.min(
+        365,
+        Math.max(1, Math.ceil((todayMs - fromMs) / (24 * 60 * 60 * 1000)) + 1)
+      )
+    : 28;
+  const topPriority = await getRankedTopPriorityItems({
+    articleDateWithinDays: windowDays,
+    from: range.from,
+    to: range.to,
+    limit: 10,
   });
-
-  const topTen: DashboardTopItem[] = ranked.slice(0, 10).map((r) => {
-    const setting = getItemSetting(r.item);
-    return {
-      pmid: r.item.pmid,
-      title: r.item.articles?.title?.trim() || "Untitled",
-      url: articleExternalUrl(r.item.pmid, r.item.source),
-      adminPriority: r.adminPriority,
-      effectivePriority: r.effectivePriority,
-      relevancePercent: r.relevancePercent,
-      date: articleDateIso(r.item) ?? "",
-      setting: setting ? SETTING_LABELS[setting] : "Unclassified",
-    };
-  });
+  const topTen: DashboardTopItem[] = topPriority.map((item) => ({
+    pmid: item.pmid,
+    title: item.title?.trim() || item.headline || "Untitled",
+    url: item.pubmedUrl,
+    adminPriority: item.adminPriority,
+    effectivePriority: item.effectivePriority,
+    relevancePercent: item.relevancePercent,
+    date: item.date?.slice(0, 10) ?? "",
+    setting:
+      briefSettingsLabel(item.settings, item.setting) ?? "Unclassified",
+  }));
 
   return {
     range,
