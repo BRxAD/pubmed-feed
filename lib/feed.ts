@@ -495,6 +495,24 @@ export async function getFeedItems(
   const minPriority = filters?.minPriority;
   if (minPriority != null && minPriority > 0) {
     const priorityModel = await loadPriorityModel(supabase, topicId);
+    const needEmb = itemsWithJif.filter((item) => item.admin_priority == null);
+    const { getOrCreateEmbeddings, l2Normalize } = await import(
+      "@/lib/brief/embeddings"
+    );
+    const embeddings = await getOrCreateEmbeddings(
+      supabase,
+      needEmb.map((item) => ({
+        pmid: item.pmid,
+        title: item.articles?.title ?? null,
+        abstract: item.articles?.abstract ?? null,
+      }))
+    );
+    const embByPmid = new Map<string, number[] | null>();
+    for (let i = 0; i < needEmb.length; i++) {
+      const emb = embeddings[i];
+      embByPmid.set(needEmb[i].pmid, emb ? l2Normalize(emb) : null);
+    }
+
     itemsWithJif = itemsWithJif.filter((item) => {
       if (item.admin_priority != null) {
         return effectivePriority(item.admin_priority, item.admin_priority) >= minPriority;
@@ -515,6 +533,7 @@ export async function getFeedItems(
         queryString: query_string,
         weights: learnedWeights,
         model: priorityModel,
+        embedding: embByPmid.get(item.pmid) ?? null,
       });
       return effectivePriority(null, predicted.priority) >= minPriority;
     });

@@ -25,6 +25,7 @@ import {
   predictArticlePriority,
   type PriorityPredictionSource,
 } from "@/lib/brief/priorityModel";
+import { getOrCreateEmbeddings, l2Normalize } from "@/lib/brief/embeddings";
 import {
   matchesBriefSettingFilter,
   type BriefSettingFilter,
@@ -305,6 +306,31 @@ export async function getBriefItems(options?: {
 
   if (error) throw new Error(error.message);
 
+  const rowList = (rows ?? []) as unknown[];
+  const embItems: {
+    pmid: string;
+    title: string | null;
+    abstract: string | null;
+  }[] = [];
+  for (const raw of rowList) {
+    const row = raw as {
+      pmid?: string;
+      articles?: { title?: string | null; abstract?: string | null } | null;
+    };
+    if (!row.pmid) continue;
+    embItems.push({
+      pmid: row.pmid,
+      title: row.articles?.title ?? null,
+      abstract: row.articles?.abstract ?? null,
+    });
+  }
+  const embeddings = await getOrCreateEmbeddings(supabase, embItems);
+  const embByPmid = new Map<string, number[] | null>();
+  for (let i = 0; i < embItems.length; i++) {
+    const emb = embeddings[i];
+    embByPmid.set(embItems[i].pmid, emb ? l2Normalize(emb) : null);
+  }
+
   const candidates: BriefItem[] = [];
   const abstractByPmid = new Map<string, string>();
   const headlineMetaByPmid = new Map<
@@ -316,7 +342,7 @@ export async function getBriefItems(options?: {
     }
   >();
 
-  for (const raw of rows ?? []) {
+  for (const raw of rowList) {
     const row = raw as {
       pmid: string;
       summary_text: string | null;
@@ -386,6 +412,7 @@ export async function getBriefItems(options?: {
         queryString: query_string,
         weights: learnedWeights,
         model: priorityModel,
+        embedding: embByPmid.get(row.pmid) ?? null,
       });
       predictedPriority = prediction.priority;
       prioritySource = prediction.source;

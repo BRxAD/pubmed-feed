@@ -8,6 +8,14 @@ import {
   extractPriorityFeatures,
   PRIORITY_FEATURE_NAMES,
 } from "@/lib/brief/priorityFeatures";
+import {
+  EMBEDDING_PCA_DIMS,
+  fitEmbeddingPca,
+  getOrCreateEmbeddings,
+  l2Normalize,
+  projectEmbeddingPca,
+  type EmbeddingPca,
+} from "@/lib/brief/embeddings";
 
 /** Minimum admin-rated examples before we trust the ridge model. */
 export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
@@ -15,7 +23,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 4;
+  version: 5;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -24,6 +32,8 @@ export type PriorityModel = {
   stds: number[];
   weights: number[];
   bias: number;
+  /** OpenAI embedding → PCA projection used for embPca1..8. */
+  embeddingPca: EmbeddingPca | null;
 };
 
 export type PriorityPredictionSource = "admin" | "model" | "fallback";
@@ -45,7 +55,8 @@ function standardize(
 
 /** Train ridge regression: admin priority (1–10) from article features. */
 export function trainPriorityModel(
-  samples: { features: number[]; priority: number }[]
+  samples: { features: number[]; priority: number }[],
+  embeddingPca: EmbeddingPca | null = null
 ): PriorityModel | null {
   if (samples.length < MIN_PRIORITY_TRAINING_SAMPLES) return null;
 
@@ -86,7 +97,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 4,
+    version: 5,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -95,6 +106,7 @@ export function trainPriorityModel(
     stds,
     weights: coeffs.slice(0, p),
     bias: coeffs[p] ?? 5,
+    embeddingPca,
   };
 }
 
@@ -152,7 +164,7 @@ export function predictPriorityFromModel(
  */
 const FALLBACK_INTERCEPT = 3.5714;
 
-/** Aligned with PRIORITY_FEATURE_NAMES (recalibrated on 938 ratings). */
+/** Aligned with PRIORITY_FEATURE_NAMES. Embedding PCA weights are 0 until retrained. */
 const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
   { mean: 23.3795, std: 28.5802, weight: 0.3677 }, // stewardshipTitle
   { mean: 0.4229, std: 0.1827, weight: 0.4250 }, // clinicalBonusNorm
@@ -165,6 +177,11 @@ const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
   { mean: 0.2111, std: 0.4081, weight: 0.1297 }, // isReview
   { mean: 0.2495, std: 0.4327, weight: -0.0539 }, // isGuideline
   { mean: 0.3518, std: 0.4775, weight: 0.0536 }, // isRetrospectiveOrSurvey
+  ...Array.from({ length: EMBEDDING_PCA_DIMS }, () => ({
+    mean: 0,
+    std: 1,
+    weight: 0,
+  })),
 ];
 
 if (FALLBACK_TERMS.length !== PRIORITY_FEATURE_NAMES.length) {
@@ -209,7 +226,7 @@ export function parsePriorityModel(
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
   // Earlier versions used different feature vectors — discard and retrain.
-  if (m.version !== 4 || m.method !== "ridge_regression") return null;
+  if (m.version !== 5 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||
@@ -278,8 +295,12 @@ export function predictArticlePriority(options: {
   queryString: string;
   weights: RankingWeights;
   model: PriorityModel | null;
+  /** Precomputed OpenAI embedding; projected via model.embeddingPca when present. */
+  embedding?: number[] | null;
 }): { priority: number; source: PriorityPredictionSource } {
-  const jifIsHigh = isQ1Journal(options.rec.journal) || isHighImpactJournal(options.rec.journal);
+  const jifIsHigh =
+    isQ1Journal(options.rec.journal) ||
+    isHighImpactJournal(options.rec.journal);
   const breakdown = computeBreakdown(
     options.queryString,
     options.rec,
@@ -287,7 +308,11 @@ export function predictArticlePriority(options: {
     true,
     jifIsHigh
   );
-  const features = extractPriorityFeatures(options.rec, breakdown);
+  const embPca = projectEmbeddingPca(
+    options.embedding,
+    options.model?.embeddingPca
+  );
+  const features = extractPriorityFeatures(options.rec, breakdown, embPca);
 
   if (options.model) {
     return {
@@ -388,16 +413,44 @@ export async function relearnPriorityModel(
     articles.push(...(data ?? []));
   }
 
-  const samples: { features: number[]; priority: number }[] = [];
+  const parsedArticles: {
+    pmid: string;
+    art: JoinedArticle;
+    priority: number;
+  }[] = [];
 
   for (const raw of articles) {
     const parsed = articleFromSummaryRow(raw);
     if (!parsed) continue;
-
-    const { pmid, article: art } = parsed;
-    const priority = byPmid.get(pmid);
+    const priority = byPmid.get(parsed.pmid);
     if (priority == null) continue;
+    parsedArticles.push({
+      pmid: parsed.pmid,
+      art: parsed.article,
+      priority,
+    });
+  }
 
+  const embeddings = await getOrCreateEmbeddings(
+    supabase,
+    parsedArticles.map((p) => ({
+      pmid: p.pmid,
+      title: p.art.title,
+      abstract: p.art.abstract,
+    }))
+  );
+
+  const embForPca: number[][] = [];
+  for (let i = 0; i < parsedArticles.length; i++) {
+    const emb = embeddings[i];
+    if (emb) embForPca.push(l2Normalize(emb));
+  }
+  const embeddingPca = fitEmbeddingPca(embForPca, EMBEDDING_PCA_DIMS);
+
+  const samples: { features: number[]; priority: number }[] = [];
+
+  for (let i = 0; i < parsedArticles.length; i++) {
+    const { pmid, art, priority } = parsedArticles[i];
     const rec: PubMedRecord = {
       pmid,
       title: art.title,
@@ -405,8 +458,6 @@ export async function relearnPriorityModel(
       journal: art.journal ?? null,
       pubDate: null,
       publicationTypes: art.publication_types ?? [],
-      // Serving passes MeSH terms through, so training must too — the
-      // non-human penalty inside clinicalBonusNorm reads them.
       meshTerms: art.mesh_terms ?? [],
       keywords: art.keywords ?? [],
       authors: [],
@@ -421,13 +472,18 @@ export async function relearnPriorityModel(
       true,
       jifIsHigh
     );
+    const emb = embeddings[i];
+    const embPca = projectEmbeddingPca(
+      emb ? l2Normalize(emb) : null,
+      embeddingPca
+    );
     samples.push({
-      features: extractPriorityFeatures(rec, breakdown),
+      features: extractPriorityFeatures(rec, breakdown, embPca),
       priority,
     });
   }
 
-  const model = trainPriorityModel(samples);
+  const model = trainPriorityModel(samples, embeddingPca);
   await savePriorityModel(supabase, topicId, model);
 
   return model;

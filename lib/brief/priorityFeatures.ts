@@ -4,16 +4,13 @@ import { CLINICAL_POINT_SCALE, normalizeText } from "@/lib/ranking";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import { lookupJif } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
+import { EMBEDDING_PCA_DIMS } from "@/lib/brief/embeddings";
 
 /**
- * Feature names for priority ML. Intentionally excludes finalScore /
- * algorithmicScore so predicted priority is not a rescaling of relevance.
- *
- * Base eight came from greedy forward selection on 869 ratings. Three boundary
- * features were added after a 4-vs-5 audit:
- *   isReview, isGuideline, isRetrospectiveOrSurvey
+ * Handcrafted features (greedy selection + 4-vs-5 boundary flags).
+ * OpenAI embedding PCA dims are appended after these.
  */
-export const PRIORITY_FEATURE_NAMES = [
+export const HANDCRAFTED_FEATURE_NAMES = [
   "stewardshipTitle",
   "clinicalBonusNorm",
   "isQ1",
@@ -27,10 +24,20 @@ export const PRIORITY_FEATURE_NAMES = [
   "isRetrospectiveOrSurvey",
 ] as const;
 
+export const EMBEDDING_PCA_FEATURE_NAMES = Array.from(
+  { length: EMBEDDING_PCA_DIMS },
+  (_, i) => `embPca${i + 1}` as const
+);
+
+export const PRIORITY_FEATURE_NAMES = [
+  ...HANDCRAFTED_FEATURE_NAMES,
+  ...EMBEDDING_PCA_FEATURE_NAMES,
+] as const;
+
 export type PriorityFeatureName = (typeof PRIORITY_FEATURE_NAMES)[number];
 
 /** Single source of truth for admin + dashboard labels. */
-export const PRIORITY_FEATURE_LABELS: Record<PriorityFeatureName, string> = {
+export const PRIORITY_FEATURE_LABELS: Record<string, string> = {
   stewardshipTitle: "Title term match",
   clinicalBonusNorm: "Clinical rubric total",
   isQ1: "Q1 journal",
@@ -42,10 +49,18 @@ export const PRIORITY_FEATURE_LABELS: Record<PriorityFeatureName, string> = {
   isReview: "Review article",
   isGuideline: "Guideline",
   isRetrospectiveOrSurvey: "Retrospective / survey",
+  embPca1: "Text embedding PC1",
+  embPca2: "Text embedding PC2",
+  embPca3: "Text embedding PC3",
+  embPca4: "Text embedding PC4",
+  embPca5: "Text embedding PC5",
+  embPca6: "Text embedding PC6",
+  embPca7: "Text embedding PC7",
+  embPca8: "Text embedding PC8",
 };
 
 /** Features that are 0/1 flags (dashboard formats as % present). */
-export const PRIORITY_BINARY_FEATURES: ReadonlySet<PriorityFeatureName> = new Set([
+export const PRIORITY_BINARY_FEATURES: ReadonlySet<string> = new Set([
   "isQ1",
   "isRct",
   "isSystematicReview",
@@ -56,9 +71,7 @@ export const PRIORITY_BINARY_FEATURES: ReadonlySet<PriorityFeatureName> = new Se
 ]);
 
 export function priorityFeatureLabel(name: string): string {
-  return (
-    PRIORITY_FEATURE_LABELS[name as PriorityFeatureName] ?? name
-  );
+  return PRIORITY_FEATURE_LABELS[name] ?? name;
 }
 
 function pubTypesNormalized(rec: PubMedRecord): string[] {
@@ -133,8 +146,8 @@ function isRetrospectiveOrSurveyFlag(rec: PubMedRecord): boolean {
   ]);
 }
 
-/** Build a fixed-length feature vector for ridge-regression priority prediction. */
-export function extractPriorityFeatures(
+/** Handcrafted features only (no embedding PCA). */
+export function extractHandcraftedFeatures(
   rec: PubMedRecord,
   breakdown: RelevanceBreakdown
 ): number[] {
@@ -157,9 +170,6 @@ export function extractPriorityFeatures(
     pub.isGuideline || hasClinicalLabel(breakdown, "Guideline");
   const isRetrospectiveOrSurvey = isRetrospectiveOrSurveyFlag(rec);
 
-  // Typical clinical bonus range ≈ −20…120 with scale 10. This aggregates the
-  // multicenter, novelty, cohort, intervention, guideline and non-human flags.
-  // isGuideline is also exposed separately for the Brief 4-vs-5 boundary.
   const clinicalBonusNorm = Math.max(
     -1,
     Math.min(1, breakdown.clinicalBonus / (12 * CLINICAL_POINT_SCALE))
@@ -178,4 +188,18 @@ export function extractPriorityFeatures(
     isGuideline ? 1 : 0,
     isRetrospectiveOrSurvey ? 1 : 0,
   ];
+}
+
+/** Full feature vector: handcrafted + embedding PCA (zeros if missing). */
+export function extractPriorityFeatures(
+  rec: PubMedRecord,
+  breakdown: RelevanceBreakdown,
+  embPca: number[] | null = null
+): number[] {
+  const hand = extractHandcraftedFeatures(rec, breakdown);
+  const pca =
+    embPca && embPca.length === EMBEDDING_PCA_DIMS
+      ? embPca
+      : Array(EMBEDDING_PCA_DIMS).fill(0);
+  return [...hand, ...pca];
 }

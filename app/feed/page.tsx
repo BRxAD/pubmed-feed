@@ -155,6 +155,7 @@ function ArticleCard({
   scoringOptions,
   source,
   priorityModel,
+  embedding,
 }: {
   item: FeedItem;
   query_string: string;
@@ -170,6 +171,7 @@ function ArticleCard({
   scoringOptions: ScoringOptions;
   source: FeedSourceFilter;
   priorityModel: PriorityModel | null;
+  embedding?: number[] | null;
 }) {
   const journal = item.articles?.journal != null ? String(item.articles.journal) : "";
   const pubDateStr = formatDate(
@@ -203,6 +205,7 @@ function ArticleCard({
         queryString: query_string,
         weights,
         model: priorityModel,
+        embedding: embedding ?? null,
       })
     : null;
 
@@ -673,6 +676,25 @@ export default async function FeedPage({
     ? await loadPriorityModel(getSupabaseServerClient(), topicId)
     : null;
 
+  const embeddingByPmid = new Map<string, number[] | null>();
+  if (isAdmin && list.length > 0) {
+    const { getOrCreateEmbeddings, l2Normalize } = await import(
+      "@/lib/brief/embeddings"
+    );
+    const embList = await getOrCreateEmbeddings(
+      getSupabaseServerClient(),
+      list.map((item) => ({
+        pmid: item.pmid,
+        title: item.articles?.title ?? null,
+        abstract: item.articles?.abstract ?? null,
+      }))
+    );
+    for (let i = 0; i < list.length; i++) {
+      const emb = embList[i];
+      embeddingByPmid.set(list[i].pmid, emb ? l2Normalize(emb) : null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-6">
       {/* Header: logo + admin toggle */}
@@ -918,6 +940,7 @@ export default async function FeedPage({
                       scoringOptions={scoringOptions}
                       source={source}
                       priorityModel={priorityModel}
+                      embedding={embeddingByPmid.get(item.pmid) ?? null}
                     />
                   </li>
                 ))}

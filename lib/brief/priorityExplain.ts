@@ -8,6 +8,7 @@ import {
   PRIORITY_FEATURE_NAMES,
   priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
+import { projectEmbeddingPca } from "@/lib/brief/embeddings";
 import {
   explainFallbackContributions,
   type PriorityModel,
@@ -35,19 +36,20 @@ export type PriorityExplanation = {
 
 /**
  * Same prediction as `predictArticlePriority`, plus the per-feature breakdown
- * for the admin panel. Always returns one row per PRIORITY_FEATURE_NAMES entry
- * (or the trained model's featureNames), including when using the fallback.
+ * for the admin panel. Always returns one row per PRIORITY_FEATURE_NAMES entry.
  */
 export function explainArticlePriority(options: {
   rec: PubMedRecord;
   queryString: string;
   weights: RankingWeights;
   model: PriorityModel | null;
+  embedding?: number[] | null;
 }): PriorityExplanation {
-  const { rec, queryString, weights, model } = options;
+  const { rec, queryString, weights, model, embedding } = options;
   const jifIsHigh = isQ1Journal(rec.journal) || isHighImpactJournal(rec.journal);
   const breakdown = computeBreakdown(queryString, rec, weights, true, jifIsHigh);
-  const features = extractPriorityFeatures(rec, breakdown);
+  const embPca = projectEmbeddingPca(embedding, model?.embeddingPca);
+  const features = extractPriorityFeatures(rec, breakdown, embPca);
 
   if (!model) {
     const fb = explainFallbackContributions(features);

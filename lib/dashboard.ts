@@ -35,6 +35,11 @@ import {
   PRIORITY_FEATURE_NAMES,
   priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
+import {
+  getOrCreateEmbeddings,
+  l2Normalize,
+  projectEmbeddingPca,
+} from "@/lib/brief/embeddings";
 import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
@@ -398,8 +403,19 @@ async function loadLastIngestStats(
     summarizedCount = count ?? 0;
   }
 
+  const batchEmbeddings = await getOrCreateEmbeddings(
+    supabase,
+    batch.map((row) => ({
+      pmid: String(row.pmid),
+      title: (row.title as string | null) ?? null,
+      abstract: (row.abstract as string | null) ?? null,
+    }))
+  );
+
   let mlPriority5Plus = 0;
-  for (const row of batch) {
+  for (let i = 0; i < batch.length; i++) {
+    const row = batch[i];
+    const emb = batchEmbeddings[i];
     const rec: PubMedRecord = {
       pmid: String(row.pmid),
       title: (row.title as string | null) ?? null,
@@ -416,6 +432,7 @@ async function loadLastIngestStats(
       queryString,
       weights,
       model: priorityModel,
+      embedding: emb ? l2Normalize(emb) : null,
     });
     if (predicted.priority >= 5) mlPriority5Plus += 1;
   }
@@ -554,6 +571,20 @@ export async function getDashboardData(options?: {
     () => 0
   );
 
+  const rangeEmbeddings = await getOrCreateEmbeddings(
+    supabase,
+    inRange.map((item) => ({
+      pmid: item.pmid,
+      title: item.articles?.title ?? null,
+      abstract: item.articles?.abstract ?? null,
+    }))
+  );
+  const embByPmid = new Map<string, number[] | null>();
+  for (let i = 0; i < inRange.length; i++) {
+    const emb = rangeEmbeddings[i];
+    embByPmid.set(inRange[i].pmid, emb ? l2Normalize(emb) : null);
+  }
+
   const ranked = inRange.map((item) => {
     const rec = toRec(item);
     const jifIsHigh =
@@ -568,7 +599,12 @@ export async function getDashboardData(options?: {
       jifIsHigh,
       scoringOptions
     );
-    const features = extractPriorityFeatures(rec, breakdown);
+    const embedding = embByPmid.get(item.pmid) ?? null;
+    const features = extractPriorityFeatures(
+      rec,
+      breakdown,
+      projectEmbeddingPca(embedding, priorityModel?.embeddingPca)
+    );
     for (let i = 0; i < features.length; i++) {
       const v = features[i] ?? 0;
       featureSums[i] += v;
@@ -580,6 +616,7 @@ export async function getDashboardData(options?: {
       queryString: feed.query_string,
       weights,
       model: priorityModel,
+      embedding,
     });
     const eff = effectivePriority(item.admin_priority, predicted.priority);
 
