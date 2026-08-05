@@ -216,7 +216,8 @@ export async function getFeedItems(
   sort: FeedSort = "ingested",
   filters?: FeedFilterParams,
   page = 1,
-  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER
+  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER,
+  options?: { pageSize?: number }
 ): Promise<{
   items: FeedItem[];
   nextCursor: string | null;
@@ -517,10 +518,14 @@ export async function getFeedItems(
   }
 
   const totalCount = itemsWithJif.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageSize = Math.min(
+    SUPABASE_FETCH_SAFETY_MAX,
+    Math.max(1, options?.pageSize ?? PAGE_SIZE)
+  );
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const pageNum = Math.max(1, Math.min(page, totalPages));
-  const start = (pageNum - 1) * PAGE_SIZE;
-  const paginatedItems = itemsWithJif.slice(start, start + PAGE_SIZE);
+  const start = (pageNum - 1) * pageSize;
+  const paginatedItems = itemsWithJif.slice(start, start + pageSize);
 
   const lastItem =
     paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1] : null;

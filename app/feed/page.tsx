@@ -681,9 +681,17 @@ export default async function FeedPage({
             style={{ background: "transparent" }}
           />
         </a>
-        <Suspense fallback={null}>
-          <AdminToggle isAdmin={isAdmin} basePath={BASE_PATH} />
-        </Suspense>
+        <div className="flex items-center gap-4">
+          <a
+            href="/dashboard"
+            className="text-sm font-medium text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          >
+            Dashboard
+          </a>
+          <Suspense fallback={null}>
+            <AdminToggle isAdmin={isAdmin} basePath={BASE_PATH} />
+          </Suspense>
+        </div>
       </header>
 
       {/* Tab navigation */}
