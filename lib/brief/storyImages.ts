@@ -22,6 +22,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1530026405186", // mislabeled culture/cells stock
   "photo-1576086213369", // clinical lab aisle — over-matched
   "photos/7089020", // team huddle — over-matched generic
+  "photo-1529107386315", // city network lights — not stewardship/global health
   "/brief-images/heart-endocarditis",
   "/brief-images/brain-meningitis-cns",
 ] as const;
@@ -34,6 +35,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "local-heart-endocarditis",
   "local-brain-meningitis-cns",
   "mri-diagnostics",
+  "globe-network",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {

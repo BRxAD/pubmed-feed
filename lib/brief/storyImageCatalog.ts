@@ -436,16 +436,6 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     requireAny: ["epidemiology", "outbreak", "public health", "population", "national", "policy"],
     tags: ["epidemiology", "outbreak", "public health", "population", "national", "policy"],
   },
-  {
-    id: "globe-network",
-    url: "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?auto=format&fit=crop&w=1200&q=80",
-    label: "global network lights",
-    source: "unsplash",
-    requireAny: ["global", "international", "worldwide", "lmic", "low-income", "multi-country"],
-    tags: ["global", "international", "worldwide", "network", "policy"],
-    settings: ["environment"],
-  },
-
   // ── One Health / environment / animals ───────────────────────────
   {
     id: "vet-care",
