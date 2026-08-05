@@ -15,7 +15,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 3;
+  version: 4;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -86,7 +86,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 3,
+    version: 4,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -150,18 +150,21 @@ export function predictPriorityFromModel(
  * Two coefficients are negative and that is not a mistake: conditional on
  * topic relevance, Q1 journals and keyword-dense records rate slightly lower.
  */
-const FALLBACK_INTERCEPT = 3.6157;
+const FALLBACK_INTERCEPT = 3.5714;
 
-/** Aligned with PRIORITY_FEATURE_NAMES. */
+/** Aligned with PRIORITY_FEATURE_NAMES (recalibrated on 938 ratings). */
 const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
-  { mean: 15.9264, std: 19.4155, weight: 0.3662 }, // stewardshipTitle
-  { mean: 0.4282, std: 0.1788, weight: 0.3515 }, // clinicalBonusNorm
-  { mean: 0.7342, std: 0.4418, weight: -0.2536 }, // isQ1
-  { mean: 0.069, std: 0.2535, weight: 0.1883 }, // isRct
-  { mean: 0.0667, std: 0.2496, weight: 0.1493 }, // isSystematicReview
-  { mean: 0.2796, std: 0.4488, weight: 0.1531 }, // largeStudy
-  { mean: 0.1162, std: 0.1458, weight: 0.1919 }, // jifNorm
-  { mean: 0.313, std: 0.1814, weight: -0.1257 }, // keywordCountNorm
+  { mean: 23.3795, std: 28.5802, weight: 0.3677 }, // stewardshipTitle
+  { mean: 0.4229, std: 0.1827, weight: 0.4250 }, // clinicalBonusNorm
+  { mean: 0.7313, std: 0.4433, weight: -0.2812 }, // isQ1
+  { mean: 0.0714, std: 0.2575, weight: 0.1824 }, // isRct
+  { mean: 0.064, std: 0.2447, weight: 0.0834 }, // isSystematicReview
+  { mean: 0.2761, std: 0.4471, weight: 0.1964 }, // largeStudy
+  { mean: 0.1172, std: 0.1489, weight: 0.2498 }, // jifNorm
+  { mean: 0.3161, std: 0.1801, weight: -0.1502 }, // keywordCountNorm
+  { mean: 0.2111, std: 0.4081, weight: 0.1297 }, // isReview
+  { mean: 0.2495, std: 0.4327, weight: -0.0539 }, // isGuideline
+  { mean: 0.3518, std: 0.4775, weight: 0.0536 }, // isRetrospectiveOrSurvey
 ];
 
 export function fallbackPredictedPriority(features: number[]): number {
@@ -180,7 +183,7 @@ export function parsePriorityModel(
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
   // Earlier versions used different feature vectors — discard and retrain.
-  if (m.version !== 3 || m.method !== "ridge_regression") return null;
+  if (m.version !== 4 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||

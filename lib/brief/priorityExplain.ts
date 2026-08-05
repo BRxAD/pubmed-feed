@@ -34,6 +34,9 @@ const FEATURE_LABELS: Record<string, string> = {
   clinicalBonusNorm: "Clinical rubric total",
   logAbstractWords: "Abstract length",
   keywordCountNorm: "Keyword count",
+  isReview: "Review article",
+  isGuideline: "Guideline",
+  isRetrospectiveOrSurvey: "Retrospective / survey",
 };
 
 export type PriorityFeatureContribution = {

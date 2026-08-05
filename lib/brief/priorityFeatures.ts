@@ -9,22 +9,9 @@ import { isQ1Journal } from "@/lib/scimago";
  * Feature names for priority ML. Intentionally excludes finalScore /
  * algorithmicScore so predicted priority is not a rescaling of relevance.
  *
- * Chosen by greedy forward selection against 869 human ratings. These eight
- * score marginally better than the previous nineteen (Spearman 0.565 vs 0.559)
- * on far fewer parameters. What was dropped and why:
- *
- *   studyBoostFactor      constant across the whole corpus
- *   clinicalStewardship   fires on 93% of articles, so it separates nothing
- *   logAbstractWords      rank correlation 0.045, negative permutation importance
- *   stewardshipAbstract   adds nothing once the title score is present
- *   isCohort, isMulticenter, novelty, intervention, guideline, nonHumanOnly
- *                         already summed into clinicalBonusNorm; keeping both
- *                         forms double-counted them and added collinearity
- *
- * Note that isQ1 and jifNorm are near-useless on their own (rank correlation
- * -0.07 and 0.00) but earn real weight here as suppressor variables: they only
- * become informative once topic relevance is held constant, and both take a
- * negative coefficient. Do not prune them on univariate evidence.
+ * Base eight came from greedy forward selection on 869 ratings. Three boundary
+ * features were added after a 4-vs-5 audit:
+ *   isReview, isGuideline, isRetrospectiveOrSurvey
  */
 export const PRIORITY_FEATURE_NAMES = [
   "stewardshipTitle",
@@ -35,6 +22,9 @@ export const PRIORITY_FEATURE_NAMES = [
   "largeStudy",
   "jifNorm",
   "keywordCountNorm",
+  "isReview",
+  "isGuideline",
+  "isRetrospectiveOrSurvey",
 ] as const;
 
 export type PriorityFeatureName = (typeof PRIORITY_FEATURE_NAMES)[number];
@@ -54,12 +44,35 @@ function hasClinicalLabel(
   return breakdown.clinicalDetails.some((d) => labels.includes(d.label));
 }
 
+function titleAbstract(rec: PubMedRecord): string {
+  return `${rec.title ?? ""}\n${rec.abstract ?? ""}`;
+}
+
 export function publicationTypeFlags(rec: PubMedRecord): {
   isRct: boolean;
   isSystematicReview: boolean;
   isCohort: boolean;
+  isReview: boolean;
+  isGuideline: boolean;
 } {
   const types = pubTypesNormalized(rec);
+  const isSystematicReview = hasPubTypeHint(types, [
+    "systematic review",
+    "meta-analysis",
+    "meta analysis",
+  ]);
+  const isReview =
+    isSystematicReview ||
+    hasPubTypeHint(types, ["review"]) ||
+    /\b(systematic review|meta-analysis|meta analysis|narrative review|scoping review|literature review)\b/i.test(
+      titleAbstract(rec)
+    );
+  const isGuideline =
+    hasPubTypeHint(types, ["practice guideline", "guideline"]) ||
+    /\b(practice guideline|clinical guideline|consensus statement|consensus guideline)\b/i.test(
+      titleAbstract(rec)
+    );
+
   return {
     isRct: hasPubTypeHint(types, [
       "randomized",
@@ -67,18 +80,25 @@ export function publicationTypeFlags(rec: PubMedRecord): {
       "rct",
       "controlled trial",
     ]),
-    isSystematicReview: hasPubTypeHint(types, [
-      "systematic review",
-      "meta-analysis",
-      "meta analysis",
-    ]),
+    isSystematicReview,
     isCohort: hasPubTypeHint(types, [
       "cohort",
       "multicenter",
       "multicentre",
       "pragmatic",
     ]),
+    isReview,
+    isGuideline,
   };
+}
+
+function isRetrospectiveOrSurveyFlag(rec: PubMedRecord): boolean {
+  const text = titleAbstract(rec);
+  if (/\bretrospective\b/i.test(text)) return true;
+  if (/\bsurvey\b|\bquestionnaire\b|\bcross-sectional\b/i.test(text)) return true;
+  return hasPubTypeHint(pubTypesNormalized(rec), [
+    "surveys and questionnaires",
+  ]);
 }
 
 /** Build a fixed-length feature vector for ridge-regression priority prediction. */
@@ -97,10 +117,17 @@ export function extractPriorityFeatures(
   const isSystematicReview =
     pub.isSystematicReview ||
     hasClinicalLabel(breakdown, "Systematic review");
+  const isReview =
+    pub.isReview ||
+    isSystematicReview ||
+    hasClinicalLabel(breakdown, "Systematic review");
+  const isGuideline =
+    pub.isGuideline || hasClinicalLabel(breakdown, "Guideline");
+  const isRetrospectiveOrSurvey = isRetrospectiveOrSurveyFlag(rec);
 
   // Typical clinical bonus range ≈ −20…120 with scale 10. This aggregates the
-  // multicenter, novelty, cohort, intervention, guideline and non-human flags,
-  // which is why they are not also present as individual features.
+  // multicenter, novelty, cohort, intervention, guideline and non-human flags.
+  // isGuideline is also exposed separately for the Brief 4-vs-5 boundary.
   const clinicalBonusNorm = Math.max(
     -1,
     Math.min(1, breakdown.clinicalBonus / (12 * CLINICAL_POINT_SCALE))
@@ -115,5 +142,8 @@ export function extractPriorityFeatures(
     breakdown.largeStudy > 0 ? 1 : 0,
     Math.min(1, jif / 25),
     Math.min(1, keywordCount / 15),
+    isReview ? 1 : 0,
+    isGuideline ? 1 : 0,
+    isRetrospectiveOrSurvey ? 1 : 0,
   ];
 }

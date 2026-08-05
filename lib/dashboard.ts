@@ -141,6 +141,9 @@ const FEATURE_LABELS: Record<string, string> = {
   largeStudy: "Large study",
   jifNorm: "Impact factor",
   keywordCountNorm: "Keyword count",
+  isReview: "Review article",
+  isGuideline: "Guideline",
+  isRetrospectiveOrSurvey: "Retrospective / survey",
 };
 
 const BINARY_FEATURES = new Set([
@@ -148,6 +151,9 @@ const BINARY_FEATURES = new Set([
   "isRct",
   "isSystematicReview",
   "largeStudy",
+  "isReview",
+  "isGuideline",
+  "isRetrospectiveOrSurvey",
 ]);
 
 function todayIso(): string {
