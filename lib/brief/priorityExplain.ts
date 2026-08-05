@@ -6,38 +6,13 @@ import { isQ1Journal } from "@/lib/scimago";
 import {
   extractPriorityFeatures,
   PRIORITY_FEATURE_NAMES,
+  priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
 import {
-  fallbackPredictedPriority,
+  explainFallbackContributions,
   type PriorityModel,
   type PriorityPredictionSource,
 } from "@/lib/brief/priorityModel";
-
-/** Human-readable names for the admin panel. Unknown keys fall back to the raw name. */
-const FEATURE_LABELS: Record<string, string> = {
-  stewardshipTitle: "Title term match",
-  stewardshipAbstract: "Abstract term match",
-  largeStudy: "Large study",
-  extraTerms: "Extra terms",
-  studyBoostFactor: "Study boost",
-  jifNorm: "Impact factor",
-  isQ1: "Q1 journal",
-  isRct: "RCT",
-  isSystematicReview: "Systematic review",
-  isCohort: "Cohort",
-  isMulticenter: "Multicenter",
-  clinicalStewardship: "Clinical stewardship",
-  novelty: "Novelty",
-  intervention: "Intervention",
-  guideline: "Guideline",
-  nonHumanOnly: "Non-human only",
-  clinicalBonusNorm: "Clinical rubric total",
-  logAbstractWords: "Abstract length",
-  keywordCountNorm: "Keyword count",
-  isReview: "Review article",
-  isGuideline: "Guideline",
-  isRetrospectiveOrSurvey: "Retrospective / survey",
-};
 
 export type PriorityFeatureContribution = {
   name: string;
@@ -55,14 +30,13 @@ export type PriorityExplanation = {
   source: PriorityPredictionSource;
   /** Model intercept, i.e. the prediction before any feature moves it. */
   bias: number | null;
-  /** Sorted by absolute contribution, largest driver first. */
   contributions: PriorityFeatureContribution[];
 };
 
 /**
  * Same prediction as `predictArticlePriority`, plus the per-feature breakdown
- * behind it. Kept separate so the admin panel can explain a score without the
- * serving path paying for it.
+ * for the admin panel. Always returns one row per PRIORITY_FEATURE_NAMES entry
+ * (or the trained model's featureNames), including when using the fallback.
  */
 export function explainArticlePriority(options: {
   rec: PubMedRecord;
@@ -75,20 +49,26 @@ export function explainArticlePriority(options: {
   const breakdown = computeBreakdown(queryString, rec, weights, true, jifIsHigh);
   const features = extractPriorityFeatures(rec, breakdown);
 
-  const label = (name: string) => FEATURE_LABELS[name] ?? name;
-
   if (!model) {
-    return {
-      priority: fallbackPredictedPriority(features),
-      source: "fallback",
-      bias: null,
-      contributions: PRIORITY_FEATURE_NAMES.map((name, i) => ({
+    const fb = explainFallbackContributions(features);
+    const contributions = PRIORITY_FEATURE_NAMES.map((name, i) => {
+      const row = fb.contributions[i];
+      return {
         name,
-        label: label(name),
+        label: priorityFeatureLabel(name),
         value: features[i] ?? 0,
-        weight: 0,
-        contribution: 0,
-      })),
+        weight: row?.weight ?? 0,
+        contribution: row?.contribution ?? 0,
+      };
+    });
+    contributions.sort(
+      (a, b) => Math.abs(b.contribution) - Math.abs(a.contribution)
+    );
+    return {
+      priority: fb.priority,
+      source: "fallback",
+      bias: fb.bias,
+      contributions,
     };
   }
 
@@ -103,7 +83,13 @@ export function explainArticlePriority(options: {
     const weight = model.weights[i] ?? 0;
     const contribution = weight * z;
     raw += contribution;
-    contributions.push({ name, label: label(name), value, weight, contribution });
+    contributions.push({
+      name,
+      label: priorityFeatureLabel(name),
+      value,
+      weight,
+      contribution,
+    });
   }
 
   contributions.sort(

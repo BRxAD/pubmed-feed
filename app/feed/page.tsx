@@ -408,14 +408,18 @@ function ArticleCard({
             )}
           </div>
 
-          {/* Priority model — the features that drive predicted priority */}
+          {/* Priority model — always mirrors PRIORITY_FEATURE_NAMES */}
           <div className="mb-2 space-y-1.5 text-zinc-500 dark:text-zinc-400">
             <div className="text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400">
               {priorityPrediction?.source === "model"
                 ? `Priority model · ${priorityPrediction.contributions.length} features · sorted by effect`
-                : "Priority model · not trained"}
+                : priorityPrediction?.source === "fallback"
+                  ? `Priority fallback · ${priorityPrediction.contributions.length} features · sorted by effect`
+                  : "Priority model · unavailable"}
             </div>
-            {priorityPrediction?.source === "model" ? (
+            {priorityPrediction &&
+            (priorityPrediction.source === "model" ||
+              priorityPrediction.source === "fallback") ? (
               <div className="overflow-hidden rounded-md border border-zinc-200/70 dark:border-zinc-700/60">
                 <table className="w-full table-fixed border-collapse text-left">
                   <thead>
@@ -462,6 +466,9 @@ function ArticleCard({
                         colSpan={3}
                       >
                         Baseline {priorityPrediction.bias?.toFixed(2)} + effects
+                        {priorityPrediction.source === "fallback"
+                          ? " (fallback)"
+                          : ""}
                       </td>
                       <td className="px-2 py-1 text-right tabular-nums font-semibold text-zinc-700 dark:text-zinc-200">
                         {priorityPrediction.priority}/10
@@ -472,7 +479,7 @@ function ArticleCard({
               </div>
             ) : (
               <p className="text-zinc-400">
-                No trained model yet — predicted priority is a heuristic estimate.
+                Priority explanation unavailable for this article.
               </p>
             )}
           </div>

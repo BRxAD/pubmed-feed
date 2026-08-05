@@ -29,6 +29,38 @@ export const PRIORITY_FEATURE_NAMES = [
 
 export type PriorityFeatureName = (typeof PRIORITY_FEATURE_NAMES)[number];
 
+/** Single source of truth for admin + dashboard labels. */
+export const PRIORITY_FEATURE_LABELS: Record<PriorityFeatureName, string> = {
+  stewardshipTitle: "Title term match",
+  clinicalBonusNorm: "Clinical rubric total",
+  isQ1: "Q1 journal",
+  isRct: "RCT",
+  isSystematicReview: "Systematic review",
+  largeStudy: "Large study",
+  jifNorm: "Impact factor",
+  keywordCountNorm: "Keyword count",
+  isReview: "Review article",
+  isGuideline: "Guideline",
+  isRetrospectiveOrSurvey: "Retrospective / survey",
+};
+
+/** Features that are 0/1 flags (dashboard formats as % present). */
+export const PRIORITY_BINARY_FEATURES: ReadonlySet<PriorityFeatureName> = new Set([
+  "isQ1",
+  "isRct",
+  "isSystematicReview",
+  "largeStudy",
+  "isReview",
+  "isGuideline",
+  "isRetrospectiveOrSurvey",
+]);
+
+export function priorityFeatureLabel(name: string): string {
+  return (
+    PRIORITY_FEATURE_LABELS[name as PriorityFeatureName] ?? name
+  );
+}
+
 function pubTypesNormalized(rec: PubMedRecord): string[] {
   return (rec.publicationTypes ?? []).map((p) => normalizeText(p));
 }

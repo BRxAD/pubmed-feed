@@ -167,6 +167,12 @@ const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
   { mean: 0.3518, std: 0.4775, weight: 0.0536 }, // isRetrospectiveOrSurvey
 ];
 
+if (FALLBACK_TERMS.length !== PRIORITY_FEATURE_NAMES.length) {
+  throw new Error(
+    `FALLBACK_TERMS length ${FALLBACK_TERMS.length} != PRIORITY_FEATURE_NAMES ${PRIORITY_FEATURE_NAMES.length}`
+  );
+}
+
 export function fallbackPredictedPriority(features: number[]): number {
   let raw = FALLBACK_INTERCEPT;
   for (let i = 0; i < FALLBACK_TERMS.length; i++) {
@@ -175,6 +181,26 @@ export function fallbackPredictedPriority(features: number[]): number {
     raw += (z / term.std) * term.weight;
   }
   return clampPriority(raw);
+}
+
+/** Per-feature breakdown using the calibrated fallback (admin UI when untrained). */
+export function explainFallbackContributions(features: number[]): {
+  priority: number;
+  bias: number;
+  contributions: { weight: number; contribution: number }[];
+} {
+  let raw = FALLBACK_INTERCEPT;
+  const contributions = FALLBACK_TERMS.map((term, i) => {
+    const z = ((features[i] ?? term.mean) - term.mean) / term.std;
+    const contribution = z * term.weight;
+    raw += contribution;
+    return { weight: term.weight, contribution };
+  });
+  return {
+    priority: clampPriority(raw),
+    bias: FALLBACK_INTERCEPT,
+    contributions,
+  };
 }
 
 export function parsePriorityModel(

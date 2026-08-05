@@ -31,7 +31,9 @@ import {
 import { effectivePriority } from "@/lib/brief/priority";
 import {
   extractPriorityFeatures,
+  PRIORITY_BINARY_FEATURES,
   PRIORITY_FEATURE_NAMES,
+  priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
 import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
@@ -131,30 +133,6 @@ export type DashboardData = {
   schema: SchemaTable[];
   ingest: IngestRunStats;
 };
-
-const FEATURE_LABELS: Record<string, string> = {
-  stewardshipTitle: "Title term match",
-  clinicalBonusNorm: "Clinical rubric total",
-  isQ1: "Q1 journal",
-  isRct: "RCT",
-  isSystematicReview: "Systematic review",
-  largeStudy: "Large study",
-  jifNorm: "Impact factor",
-  keywordCountNorm: "Keyword count",
-  isReview: "Review article",
-  isGuideline: "Guideline",
-  isRetrospectiveOrSurvey: "Retrospective / survey",
-};
-
-const BINARY_FEATURES = new Set([
-  "isQ1",
-  "isRct",
-  "isSystematicReview",
-  "largeStudy",
-  "isReview",
-  "isGuideline",
-  "isRetrospectiveOrSurvey",
-]);
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -638,11 +616,11 @@ export async function getDashboardData(options?: {
   const modelFeatures: ModelFeatureStat[] = PRIORITY_FEATURE_NAMES.map(
     (name, i) => ({
       name,
-      label: FEATURE_LABELS[name] ?? name,
+      label: priorityFeatureLabel(name),
       count: featurePresent[i],
       average: featureSums[i] / n,
       weight: priorityModel?.weights[i] ?? null,
-      kind: BINARY_FEATURES.has(name) ? "binary" : "continuous",
+      kind: PRIORITY_BINARY_FEATURES.has(name) ? "binary" : "continuous",
     })
   );
 
