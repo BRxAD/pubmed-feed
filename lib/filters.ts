@@ -335,14 +335,24 @@ export function cleanBottomLine(
 }
 
 function matchesKeyword(item: FeedItem, keyword: string): boolean {
-  const canonical = canonicalKeywordForGrouping(keyword);
+  let raw = (keyword ?? "").trim();
+  // Allow "PMID 42257577" / "pmid:42257577" / "PMID#42257577"
+  const pmidPrefixed = raw.match(/^pmid\s*[:#]?\s*(\d+)$/i);
+  if (pmidPrefixed) raw = pmidPrefixed[1];
+
+  const canonical = canonicalKeywordForGrouping(raw);
   if (!canonical) return true;
+
+  const pmid = String(item.pmid ?? "").toLowerCase();
+  // Exact ID hit for PubMed PMIDs and OpenAlex work IDs (e.g. W123…)
+  if (pmid && pmid === canonical) return true;
+
   const title = (item.articles?.title ?? "").toLowerCase();
   const abstract = (item.articles?.abstract ?? "").toLowerCase();
   const summary = (item.summary_text ?? "").toLowerCase();
   const labels = [item.label, item.subheading].filter(Boolean).join(" ").toLowerCase();
   const keywords = (item.articles?.keywords ?? []).join(" ").toLowerCase();
-  const searchable = [title, abstract, summary, labels, keywords].join(" ");
+  const searchable = [title, abstract, summary, labels, keywords, pmid].join(" ");
   if (canonical === STEWARDSHIP_CANONICAL) {
     return (
       searchable.includes("antimicrobial stewardship") ||
