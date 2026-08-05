@@ -110,6 +110,7 @@ export type FeedItem = {
     fetched_at: string | null;
     publication_types: string[] | null;
     keywords: string[] | null;
+    mesh_terms: string[] | null;
     source: string | null;
   } | null;
 };
@@ -269,7 +270,7 @@ export async function getFeedItems(
     : [topicId];
 
   const selectColumns =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
 
   let { rows: rawItems, error } = await fetchAllSummariesForTopics({
     supabase,
@@ -285,7 +286,7 @@ export async function getFeedItems(
       topicIds: topicIdsToFetch,
       source,
       selectColumns:
-        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)",
+        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)",
       cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
     });
     rawItems = fallback.rows;
@@ -360,6 +361,7 @@ export async function getFeedItems(
         fetched_at?: string | null;
         publication_types?: string[] | null;
         keywords?: string[] | null;
+        mesh_terms?: string[] | null;
         source?: string | null;
       } | null;
     };
@@ -384,6 +386,7 @@ export async function getFeedItems(
             fetched_at: row.articles.fetched_at ?? null,
             publication_types: row.articles.publication_types ?? null,
             keywords: row.articles.keywords ?? null,
+            mesh_terms: row.articles.mesh_terms ?? null,
             source: row.articles.source ?? null,
           }
         : null;

@@ -29,6 +29,10 @@ import {
   predictArticlePriority,
 } from "@/lib/brief/priorityModel";
 import { effectivePriority } from "@/lib/brief/priority";
+import {
+  extractPriorityFeatures,
+  PRIORITY_FEATURE_NAMES,
+} from "@/lib/brief/priorityFeatures";
 import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
@@ -46,7 +50,13 @@ export type DashboardDateRange = {
   to: string; // YYYY-MM-DD
 };
 
-export type RatingBucket = { rating: number | "unrated"; count: number };
+export type RatingBucket = {
+  rating: number;
+  /** Human admin_priority count at this score. */
+  human: number;
+  /** ML-predicted priority count (articles without a human rating). */
+  ml: number;
+};
 
 export type SettingBucket = {
   setting: ArticleSetting | "unclassified";
@@ -67,6 +77,19 @@ export type DashboardTopItem = {
   setting: string;
 };
 
+export type ModelFeatureStat = {
+  name: string;
+  label: string;
+  /** Articles where the feature is present / > 0. */
+  count: number;
+  /** Mean raw feature value across the date range. */
+  average: number;
+  /** Learned ridge weight when a model is loaded; null if using fallback. */
+  weight: number | null;
+  /** Kind of feature for display formatting. */
+  kind: "binary" | "continuous";
+};
+
 export type SchemaField = { name: string; type: string; notes?: string };
 export type SchemaTable = {
   table: string;
@@ -83,12 +106,35 @@ export type DashboardData = {
   totalOnFeed: number;
   /** Feed PMIDs whose article date falls in the selected range. */
   inRangeCount: number;
+  humanRatedCount: number;
+  mlPredictedCount: number;
   ratingHistogram: RatingBucket[];
   settingBreakdown: SettingBucket[];
   topKeywords: KeywordBucket[];
+  topMeshTerms: KeywordBucket[];
   topTen: DashboardTopItem[];
+  modelFeatures: ModelFeatureStat[];
+  modelSampleCount: number | null;
   schema: SchemaTable[];
 };
+
+const FEATURE_LABELS: Record<string, string> = {
+  stewardshipTitle: "Title term match",
+  clinicalBonusNorm: "Clinical rubric total",
+  isQ1: "Q1 journal",
+  isRct: "RCT",
+  isSystematicReview: "Systematic review",
+  largeStudy: "Large study",
+  jifNorm: "Impact factor",
+  keywordCountNorm: "Keyword count",
+};
+
+const BINARY_FEATURES = new Set([
+  "isQ1",
+  "isRct",
+  "isSystematicReview",
+  "largeStudy",
+]);
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -281,26 +327,6 @@ export async function getDashboardData(options?: {
   const totalOnFeed = allFeed.length;
   const inRange = allFeed.filter((item) => articleInDateRange(item, range));
 
-  // Rating histogram (admin ratings only — unrated bucket separate)
-  const ratingCounts = new Map<number | "unrated", number>();
-  for (let r = 1; r <= 10; r++) ratingCounts.set(r, 0);
-  ratingCounts.set("unrated", 0);
-  for (const item of inRange) {
-    const p = item.admin_priority;
-    if (p != null && p >= 1 && p <= 10) {
-      ratingCounts.set(p, (ratingCounts.get(p) ?? 0) + 1);
-    } else {
-      ratingCounts.set("unrated", (ratingCounts.get("unrated") ?? 0) + 1);
-    }
-  }
-  const ratingHistogram: RatingBucket[] = [
-    ...Array.from({ length: 10 }, (_, i) => ({
-      rating: i + 1,
-      count: ratingCounts.get(i + 1) ?? 0,
-    })),
-    { rating: "unrated" as const, count: ratingCounts.get("unrated") ?? 0 },
-  ];
-
   // Setting breakdown
   const settingCounts = new Map<ArticleSetting | "unclassified", number>();
   const settingOrder: Array<ArticleSetting | "unclassified"> = [
@@ -322,7 +348,7 @@ export async function getDashboardData(options?: {
     count: settingCounts.get(s) ?? 0,
   }));
 
-  // Top keywords
+  // Top keywords (sorted highest → lowest; rendered as a single column)
   const kwCounts = new Map<string, number>();
   for (const item of inRange) {
     for (const raw of item.articles?.keywords ?? []) {
@@ -339,7 +365,23 @@ export async function getDashboardData(options?: {
       count,
     }));
 
-  // Top 10 by effective priority (human overrides ML), then relevance
+  // Top MeSH terms (same ranking; no blocklist — MeSH is curated)
+  const meshCounts = new Map<string, number>();
+  for (const item of inRange) {
+    for (const raw of item.articles?.mesh_terms ?? []) {
+      const term = String(raw ?? "").trim().toLowerCase();
+      if (!term) continue;
+      meshCounts.set(term, (meshCounts.get(term) ?? 0) + 1);
+    }
+  }
+  const topMeshTerms: KeywordBucket[] = [...meshCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 25)
+    .map(([term, count]) => ({
+      keyword: term.charAt(0).toUpperCase() + term.slice(1),
+      count,
+    }));
+
   const { data: topicRow } = await supabase
     .from("topics")
     .select("ranking_weights")
@@ -357,8 +399,40 @@ export async function getDashboardData(options?: {
   };
   const priorityModel = await loadPriorityModel(supabase, topicId);
 
+  const humanHist = Array.from({ length: 10 }, () => 0);
+  const mlHist = Array.from({ length: 10 }, () => 0);
+  let humanRatedCount = 0;
+  let mlPredictedCount = 0;
+  const featureSums = Array.from(
+    { length: PRIORITY_FEATURE_NAMES.length },
+    () => 0
+  );
+  const featurePresent = Array.from(
+    { length: PRIORITY_FEATURE_NAMES.length },
+    () => 0
+  );
+
   const ranked = inRange.map((item) => {
     const rec = toRec(item);
+    const jifIsHigh =
+      item.is_q1 ||
+      isQ1Journal(item.articles?.journal) ||
+      isHighImpactJournal(item.articles?.journal);
+    const breakdown = computeBreakdown(
+      feed.query_string,
+      rec,
+      weights,
+      true,
+      jifIsHigh,
+      scoringOptions
+    );
+    const features = extractPriorityFeatures(rec, breakdown);
+    for (let i = 0; i < features.length; i++) {
+      const v = features[i] ?? 0;
+      featureSums[i] += v;
+      if (v > 0) featurePresent[i] += 1;
+    }
+
     const predicted = predictArticlePriority({
       rec,
       queryString: feed.query_string,
@@ -366,14 +440,46 @@ export async function getDashboardData(options?: {
       model: priorityModel,
     });
     const eff = effectivePriority(item.admin_priority, predicted.priority);
+
+    if (
+      item.admin_priority != null &&
+      item.admin_priority >= 1 &&
+      item.admin_priority <= 10
+    ) {
+      humanHist[item.admin_priority - 1] += 1;
+      humanRatedCount += 1;
+    } else {
+      const bucket = Math.min(10, Math.max(1, predicted.priority));
+      mlHist[bucket - 1] += 1;
+      mlPredictedCount += 1;
+    }
+
     return {
       item,
-      rec,
       adminPriority: item.admin_priority,
       effectivePriority: eff,
       humanRated: item.admin_priority != null,
+      relevancePercent: normalizeScoreTo100(breakdown.finalScore),
     };
   });
+
+  const ratingHistogram: RatingBucket[] = Array.from({ length: 10 }, (_, i) => ({
+    rating: i + 1,
+    human: humanHist[i],
+    ml: mlHist[i],
+  }));
+
+  const n = Math.max(1, inRange.length);
+  const modelFeatures: ModelFeatureStat[] = PRIORITY_FEATURE_NAMES.map(
+    (name, i) => ({
+      name,
+      label: FEATURE_LABELS[name] ?? name,
+      count: featurePresent[i],
+      average: featureSums[i] / n,
+      weight: priorityModel?.weights[i] ?? null,
+      kind: BINARY_FEATURES.has(name) ? "binary" : "continuous",
+    })
+  );
 
   ranked.sort((a, b) => {
     if (b.effectivePriority !== a.effectivePriority) {
@@ -381,22 +487,10 @@ export async function getDashboardData(options?: {
     }
     const human = Number(b.humanRated) - Number(a.humanRated);
     if (human !== 0) return human;
-    return 0;
+    return b.relevancePercent - a.relevancePercent;
   });
 
   const topTen: DashboardTopItem[] = ranked.slice(0, 10).map((r) => {
-    const jifIsHigh =
-      r.item.is_q1 ||
-      isQ1Journal(r.item.articles?.journal) ||
-      isHighImpactJournal(r.item.articles?.journal);
-    const breakdown = computeBreakdown(
-      feed.query_string,
-      r.rec,
-      weights,
-      true,
-      jifIsHigh,
-      scoringOptions
-    );
     const setting = getItemSetting(r.item);
     return {
       pmid: r.item.pmid,
@@ -404,21 +498,10 @@ export async function getDashboardData(options?: {
       url: articleExternalUrl(r.item.pmid, r.item.source),
       adminPriority: r.adminPriority,
       effectivePriority: r.effectivePriority,
-      relevancePercent: normalizeScoreTo100(breakdown.finalScore),
+      relevancePercent: r.relevancePercent,
       date: articleDateIso(r.item) ?? "",
       setting: setting ? SETTING_LABELS[setting] : "Unclassified",
     };
-  });
-
-  // Tie-break the displayed top 10 by relevance once scores exist.
-  topTen.sort((a, b) => {
-    if (b.effectivePriority !== a.effectivePriority) {
-      return b.effectivePriority - a.effectivePriority;
-    }
-    const human =
-      Number(b.adminPriority != null) - Number(a.adminPriority != null);
-    if (human !== 0) return human;
-    return b.relevancePercent - a.relevancePercent;
   });
 
   return {
@@ -427,10 +510,15 @@ export async function getDashboardData(options?: {
     totalInDatabase,
     totalOnFeed,
     inRangeCount: inRange.length,
+    humanRatedCount,
+    mlPredictedCount,
     ratingHistogram,
     settingBreakdown,
     topKeywords,
+    topMeshTerms,
     topTen,
+    modelFeatures,
+    modelSampleCount: priorityModel?.sampleCount ?? null,
     schema: SUPABASE_SCHEMA_SUMMARY,
   };
 }

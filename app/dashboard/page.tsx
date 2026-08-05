@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   getDashboardData,
+  type RatingBucket,
   type SettingBucket,
 } from "@/lib/dashboard";
 
@@ -28,7 +29,7 @@ function BarRow({
   label: string;
   count: number;
   max: number;
-  tone?: "amber" | "sky" | "zinc";
+  tone?: "amber" | "sky" | "zinc" | "violet";
   labelWidth?: string;
 }) {
   const pct = max > 0 ? Math.round((count / max) * 100) : 0;
@@ -37,7 +38,9 @@ function BarRow({
       ? "bg-sky-500 dark:bg-sky-400"
       : tone === "zinc"
         ? "bg-zinc-400 dark:bg-zinc-500"
-        : "bg-amber-500 dark:bg-amber-400";
+        : tone === "violet"
+          ? "bg-violet-500 dark:bg-violet-400"
+          : "bg-amber-500 dark:bg-amber-400";
   return (
     <div
       className="grid items-center gap-2 text-sm"
@@ -59,8 +62,51 @@ function BarRow({
   );
 }
 
-function ratingLabel(b: { rating: number | "unrated" }): string {
-  return b.rating === "unrated" ? "—" : String(b.rating);
+/** Stacked human (amber) + ML (violet) bar for one priority score. */
+function DualRatingRow({
+  bucket,
+  max,
+}: {
+  bucket: RatingBucket;
+  max: number;
+}) {
+  const total = bucket.human + bucket.ml;
+  const humanPct = max > 0 ? (bucket.human / max) * 100 : 0;
+  const mlPct = max > 0 ? (bucket.ml / max) * 100 : 0;
+  return (
+    <div className="grid grid-cols-[2rem_1fr_4.5rem] items-center gap-2 text-sm">
+      <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
+        {bucket.rating}
+      </span>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <div
+          className="h-full bg-amber-500 dark:bg-amber-400"
+          style={{ width: `${humanPct}%` }}
+          title={`Human: ${bucket.human}`}
+        />
+        <div
+          className="h-full bg-violet-500 dark:bg-violet-400"
+          style={{ width: `${mlPct}%` }}
+          title={`ML: ${bucket.ml}`}
+        />
+      </div>
+      <span className="text-right text-xs tabular-nums text-zinc-500">
+        <span className="font-medium text-amber-700 dark:text-amber-300">
+          {bucket.human}
+        </span>
+        <span className="text-zinc-300 dark:text-zinc-600"> / </span>
+        <span className="font-medium text-violet-700 dark:text-violet-300">
+          {bucket.ml}
+        </span>
+        <span className="sr-only"> total {total}</span>
+      </span>
+    </div>
+  );
+}
+
+function formatAvg(v: number, kind: "binary" | "continuous"): string {
+  if (kind === "binary") return `${(v * 100).toFixed(1)}%`;
+  return v >= 10 ? v.toFixed(1) : v.toFixed(3);
 }
 
 export default async function DashboardPage({
@@ -74,9 +120,13 @@ export default async function DashboardPage({
     to: params.to,
     source: params.source,
   });
-  const maxRating = Math.max(1, ...data.ratingHistogram.map((b) => b.count));
+  const maxRating = Math.max(
+    1,
+    ...data.ratingHistogram.map((b) => b.human + b.ml)
+  );
   const maxSetting = Math.max(1, ...data.settingBreakdown.map((b) => b.count));
   const maxKeyword = Math.max(1, ...data.topKeywords.map((b) => b.count), 1);
+  const maxMesh = Math.max(1, ...data.topMeshTerms.map((b) => b.count), 1);
 
   return (
     <div className="mx-auto min-h-screen max-w-[1100px] px-4 py-6 font-sans text-zinc-900 dark:text-zinc-100">
@@ -183,7 +233,10 @@ export default async function DashboardPage({
           <p className="mt-1 text-3xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
             {data.inRangeCount.toLocaleString()}
           </p>
-          <p className="mt-1 text-xs text-zinc-500">Feed studies with article dates in range</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {data.humanRatedCount.toLocaleString()} human ·{" "}
+            {data.mlPredictedCount.toLocaleString()} ML
+          </p>
         </div>
       </section>
 
@@ -193,20 +246,27 @@ export default async function DashboardPage({
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
             Priority ratings
           </h2>
-          <p className="mb-3 text-xs text-zinc-500">
-            Human admin_priority in range (1–10)
+          <p className="mb-2 text-xs text-zinc-500">
+            Score 1–10 · human ratings and ML predictions for unrated articles
           </p>
+          <div className="mb-3 flex flex-wrap gap-4 text-xs">
+            <span className="inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+              Human ({data.humanRatedCount.toLocaleString()})
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+              <span className="inline-block h-2 w-2 rounded-full bg-violet-500" />
+              ML ({data.mlPredictedCount.toLocaleString()})
+            </span>
+          </div>
           <div className="space-y-1.5">
             {data.ratingHistogram.map((b) => (
-              <BarRow
-                key={String(b.rating)}
-                label={ratingLabel(b)}
-                count={b.count}
-                max={maxRating}
-                tone={b.rating === "unrated" ? "zinc" : "amber"}
-              />
+              <DualRatingRow key={b.rating} bucket={b} max={maxRating} />
             ))}
           </div>
+          <p className="mt-2 text-right text-[0.65rem] text-zinc-400">
+            counts: human / ML
+          </p>
         </section>
 
         {/* Setting breakdown */}
@@ -232,18 +292,18 @@ export default async function DashboardPage({
         </section>
       </div>
 
-      {/* Keywords */}
+      {/* Keywords — single column, top to bottom */}
       <section className="mb-6 rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
           Top keywords
         </h2>
         <p className="mb-3 text-xs text-zinc-500">
-          Most frequent article keywords in range (top 25)
+          Most frequent article keywords in range (top 25, highest first)
         </p>
         {data.topKeywords.length === 0 ? (
           <p className="text-sm text-zinc-400">No keywords in this range.</p>
         ) : (
-          <div className="grid gap-1.5 sm:grid-cols-2">
+          <div className="max-w-xl space-y-1.5">
             {data.topKeywords.map((kw) => (
               <BarRow
                 key={kw.keyword}
@@ -251,11 +311,110 @@ export default async function DashboardPage({
                 count={kw.count}
                 max={maxKeyword}
                 tone="sky"
-                labelWidth="9rem"
+                labelWidth="11rem"
               />
             ))}
           </div>
         )}
+      </section>
+
+      {/* MeSH terms — single column, top to bottom */}
+      <section className="mb-6 rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          Top MeSH terms
+        </h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          Most frequent Medical Subject Headings in range (top 25, highest first)
+        </p>
+        {data.topMeshTerms.length === 0 ? (
+          <p className="text-sm text-zinc-400">No MeSH terms in this range.</p>
+        ) : (
+          <div className="max-w-xl space-y-1.5">
+            {data.topMeshTerms.map((term) => (
+              <BarRow
+                key={term.keyword}
+                label={term.keyword}
+                count={term.count}
+                max={maxMesh}
+                tone="violet"
+                labelWidth="14rem"
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ML model features */}
+      <section className="mb-6 rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          Priority model features
+        </h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          The eight inputs to the ridge priority model
+          {data.modelSampleCount != null
+            ? ` · trained on ${data.modelSampleCount.toLocaleString()} ratings`
+            : " · using calibrated fallback (no stored model)"}
+          {" · "}
+          counts and averages over the selected date range
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-400 dark:border-zinc-700">
+                <th className="py-2 pr-3 font-medium">Feature</th>
+                <th className="py-2 pr-3 text-right font-medium">Count</th>
+                <th className="py-2 pr-3 text-right font-medium">Share / avg</th>
+                <th className="py-2 text-right font-medium">Model weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.modelFeatures.map((f) => (
+                <tr
+                  key={f.name}
+                  className="border-b border-zinc-100 dark:border-zinc-800"
+                >
+                  <td className="py-2 pr-3">
+                    <span className="font-medium text-zinc-800 dark:text-zinc-100">
+                      {f.label}
+                    </span>
+                    <span className="ml-2 font-mono text-[0.65rem] text-zinc-400">
+                      {f.name}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                    {f.count.toLocaleString()}
+                    <span className="text-zinc-400">
+                      /{data.inRangeCount.toLocaleString()}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-zinc-600 dark:text-zinc-300">
+                    {formatAvg(f.average, f.kind)}
+                  </td>
+                  <td
+                    className={`py-2 text-right tabular-nums font-medium ${
+                      f.weight == null
+                        ? "text-zinc-400"
+                        : f.weight > 0
+                          ? "text-green-700 dark:text-green-400"
+                          : f.weight < 0
+                            ? "text-red-700 dark:text-red-400"
+                            : "text-zinc-500"
+                    }`}
+                  >
+                    {f.weight == null
+                      ? "—"
+                      : `${f.weight >= 0 ? "+" : ""}${f.weight.toFixed(3)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-zinc-400">
+          Count = articles with feature &gt; 0. For binary flags, share is the
+          mean (percent present). Weight is the learned ridge coefficient on
+          standardized units.
+        </p>
       </section>
 
       {/* Top 10 */}
@@ -301,10 +460,26 @@ export default async function DashboardPage({
                         {item.pmid}
                       </Link>
                       {item.date ? ` · ${item.date}` : ""}
-                      {item.adminPriority != null ? " · rated" : " · predicted"}
+                      {item.adminPriority != null ? (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          {" "}
+                          · rated
+                        </span>
+                      ) : (
+                        <span className="text-violet-600 dark:text-violet-400">
+                          {" "}
+                          · predicted
+                        </span>
+                      )}
                     </div>
                   </td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums font-semibold">
+                  <td
+                    className={`py-2.5 pr-2 text-right tabular-nums font-semibold ${
+                      item.adminPriority != null
+                        ? "text-amber-700 dark:text-amber-300"
+                        : "text-violet-700 dark:text-violet-300"
+                    }`}
+                  >
                     {item.effectivePriority}
                     <span className="font-normal text-zinc-400">/10</span>
                   </td>

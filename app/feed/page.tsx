@@ -101,7 +101,7 @@ function makeRec(item: FeedItem): PubMedRecord {
     journal: item.articles?.journal ?? null,
     pubDate: item.articles?.pub_date ?? null,
     publicationTypes: item.articles?.publication_types ?? [],
-    meshTerms: [],
+    meshTerms: item.articles?.mesh_terms ?? [],
     keywords: item.articles?.keywords ?? [],
     authors: [],
   };

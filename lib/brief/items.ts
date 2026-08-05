@@ -450,6 +450,7 @@ export async function getBriefItems(options?: {
         fetched_at: row.articles.fetched_at ?? null,
         publication_types: row.articles.publication_types ?? null,
         keywords: row.articles.keywords ?? null,
+        mesh_terms: row.articles.mesh_terms ?? null,
         source: row.articles.source ?? null,
       },
     };
