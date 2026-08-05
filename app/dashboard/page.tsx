@@ -113,6 +113,21 @@ function formatAvg(v: number, kind: "binary" | "continuous"): string {
   return v >= 10 ? v.toFixed(1) : v.toFixed(3);
 }
 
+function formatEasternDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -131,6 +146,7 @@ export default async function DashboardPage({
   const maxSetting = Math.max(1, ...data.settingBreakdown.map((b) => b.count));
   const maxKeyword = Math.max(1, ...data.topKeywords.map((b) => b.count), 1);
   const maxMesh = Math.max(1, ...data.topMeshTerms.map((b) => b.count), 1);
+  const ingest = data.ingest;
 
   return (
     <div className="mx-auto min-h-screen max-w-[1100px] px-4 py-6 font-sans text-zinc-900 dark:text-zinc-100">
@@ -152,6 +168,51 @@ export default async function DashboardPage({
           ← Back to feed
         </Link>
       </header>
+
+      {/* Last / next ingest */}
+      <section
+        className="mb-6 rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60"
+        aria-label="Ingest status"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              Last PubMed ingest
+            </p>
+            <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">
+              {formatEasternDateTime(ingest.lastAt)}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-600 dark:text-zinc-300">
+              <span>
+                <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {ingest.ingestedCount.toLocaleString()}
+                </span>{" "}
+                ingested
+              </span>
+              <span className="text-zinc-300 dark:text-zinc-600">·</span>
+              <span>
+                <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {ingest.summarizedCount.toLocaleString()}
+                </span>{" "}
+                summarized
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+                title="ML-predicted priority ≥ 5 among articles in the last ingest batch"
+              >
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" />
+                {ingest.mlPriority5Plus.toLocaleString()} ML ≥5
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Next ingest{" "}
+            <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
+              {formatEasternDateTime(ingest.nextAt)}
+            </span>
+          </p>
+        </div>
+      </section>
 
       {/* Date range */}
       <section
