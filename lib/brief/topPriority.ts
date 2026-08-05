@@ -61,12 +61,14 @@ async function rankTopPriorityYearItems(
   // still score for the capsule would otherwise leave Top 10 underfilled.
   const result = await getBriefItems({
     daysBack: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
-    maxItems: 5000,
+    maxItems: 3000,
     setting: "",
     skipHeadlines: true,
-    maxLookbackDays: 730,
+    maxLookbackDays: 365,
     rankBy: "priority",
     articleDateWithinDays: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
+    // Year pool: use cached embeds only — never mint thousands on page load.
+    embedMaxFresh: 0,
   });
 
   const filtered = setting

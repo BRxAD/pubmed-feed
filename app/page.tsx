@@ -26,6 +26,8 @@ export default async function HomePage({
         maxLookbackDays: 90,
         maxItems: 50,
         articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
+        // Recent window only; daily intake is typically well under 100.
+        embedMaxFresh: 100,
       }),
       getTopPriorityYearItems(setting),
     ]);

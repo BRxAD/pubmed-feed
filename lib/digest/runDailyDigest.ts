@@ -176,7 +176,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   let ingestPubmed: Record<string, unknown>;
   try {
     ingestPubmed = await triggerIngest(
-      `/api/ingest?topicName=main&summarize=1&maxSummaries=${maxSummaries}`
+      `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${maxSummaries}`
     );
   } catch (err) {
     ingestPubmed = {

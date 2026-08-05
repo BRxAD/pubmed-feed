@@ -134,8 +134,13 @@ export async function getBriefItems(options?: {
   skipHeadlines?: boolean;
   /** Expand lookback until at least this many setting-matched items (or maxLookbackDays). */
   minItems?: number;
-  /** Cap for lookback expansion (default 365, max 730). */
+  /** Cap for lookback expansion (default 365, max 365). */
   maxLookbackDays?: number;
+  /**
+   * Max uncached OpenAI embeddings to mint while building this brief.
+   * Year-scale lists should pass 0 (cache only). Default: 100.
+   */
+  embedMaxFresh?: number;
   /**
    * Keep only items whose article date (release/pub) falls within this many
    * days. Defaults to BRIEF_ARTICLE_WINDOW_DAYS (28). Falls back to created_at
@@ -182,7 +187,7 @@ export async function getBriefItems(options?: {
   const minPriority = feedSettings.brief.minPriority;
   const minItems = Math.max(0, options?.minItems ?? 0);
   const maxLookbackDays = Math.min(
-    730,
+    365,
     Math.max(1, options?.maxLookbackDays ?? 365)
   );
 
@@ -217,7 +222,13 @@ export async function getBriefItems(options?: {
   const selectWithoutHeadline =
     "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
 
-  const rowCeiling = articleWindow > 0 || daysBack > 60 ? 20000 : 1000;
+  // Daily intake is typically <100; a year of candidates is a few thousand at most.
+  const rowCeiling =
+    articleWindow > 60 || daysBack > 60
+      ? 3000
+      : articleWindow > 0
+        ? 1500
+        : 1000;
 
   /**
    * PostgREST caps each response near 1000 rows regardless of .limit(), so page
@@ -329,7 +340,12 @@ export async function getBriefItems(options?: {
       abstract: row.articles?.abstract ?? null,
     });
   }
-  const embeddings = await getOrCreateEmbeddings(supabase, embItems);
+  const embedMaxFresh =
+    options?.embedMaxFresh ??
+    (articleWindow > 60 || daysBack > 60 ? 0 : 100);
+  const embeddings = await getOrCreateEmbeddings(supabase, embItems, {
+    maxFresh: embedMaxFresh,
+  });
   const embByPmid = new Map<string, number[] | null>();
   for (let i = 0; i < embItems.length; i++) {
     const emb = embeddings[i];

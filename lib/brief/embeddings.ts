@@ -181,6 +181,14 @@ async function saveCachedEmbedding(
   }
 }
 
+export type GetOrCreateEmbeddingsOptions = {
+  /**
+   * Max uncached articles to send to OpenAI in this call. Remainder stay null
+   * (handcrafted features still score). Use 0 for cache-only. Default: no cap.
+   */
+  maxFresh?: number;
+};
+
 /**
  * Return embeddings for each pmid (same order). Missing ones are fetched from
  * OpenAI and cached in app_settings. Entries stay null when the API key is
@@ -188,7 +196,8 @@ async function saveCachedEmbedding(
  */
 export async function getOrCreateEmbeddings(
   supabase: SupabaseClient,
-  items: { pmid: string; title: string | null; abstract: string | null }[]
+  items: { pmid: string; title: string | null; abstract: string | null }[],
+  options?: GetOrCreateEmbeddingsOptions
 ): Promise<(number[] | null)[]> {
   const pmids = items.map((i) => i.pmid);
   const cached = await loadCachedEmbeddings(supabase, pmids);
@@ -197,17 +206,25 @@ export async function getOrCreateEmbeddings(
     if (!cached.has(items[i].pmid)) missingIdx.push(i);
   }
 
-  if (missingIdx.length > 0) {
+  const maxFresh = options?.maxFresh;
+  const toFetch =
+    maxFresh == null
+      ? missingIdx
+      : maxFresh <= 0
+        ? []
+        : missingIdx.slice(0, maxFresh);
+
+  if (toFetch.length > 0) {
     try {
-      const texts = missingIdx.map((i) =>
+      const texts = toFetch.map((i) =>
         embeddingText(items[i].title, items[i].abstract)
       );
       const fresh = await embedTextsOpenAI(texts);
       if (fresh) {
-        for (let j = 0; j < missingIdx.length; j++) {
+        for (let j = 0; j < toFetch.length; j++) {
           const vec = fresh[j];
           if (!vec?.length) continue;
-          const itemIdx = missingIdx[j];
+          const itemIdx = toFetch[j];
           cached.set(items[itemIdx].pmid, vec);
           await saveCachedEmbedding(supabase, items[itemIdx].pmid, vec);
         }
