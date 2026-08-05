@@ -206,10 +206,11 @@ async function renderToBlob(
 
   ctx.fillStyle = "#FFFFFF";
   ctx.textBaseline = "top";
-  ctx.font = "700 54px Newsreader, Georgia, 'Times New Roman', serif";
+  // ~25% larger than prior 54 / 27 / 15 for share-card readability.
+  ctx.font = "700 68px Newsreader, Georgia, 'Times New Roman', serif";
   const headline = (item.headline || item.title || "").trim();
   const headLines = wrapLines(ctx, headline, textMax, 5);
-  const headLh = 64;
+  const headLh = 80;
   for (const line of headLines) {
     ctx.fillText(line, padX, y);
     y += headLh;
@@ -218,9 +219,9 @@ async function renderToBlob(
   if (item.bottomLine?.trim()) {
     y += 28;
     ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.font = "400 27px Newsreader, Georgia, 'Times New Roman', serif";
+    ctx.font = "400 34px Newsreader, Georgia, 'Times New Roman', serif";
     const bodyLines = wrapLines(ctx, item.bottomLine.trim(), textMax, 5);
-    const bodyLh = 38;
+    const bodyLh = 48;
     for (const line of bodyLines) {
       ctx.fillText(line, padX, y);
       y += bodyLh;
@@ -235,11 +236,12 @@ async function renderToBlob(
     pmid: item.pmid,
   });
   ctx.fillStyle = "rgba(255,255,255,0.78)";
-  ctx.font = "400 15px 'Libre Franklin', system-ui, sans-serif";
+  ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
   const citeLines = wrapLinesFull(ctx, citation, textMax);
-  const citeLh = 20;
+  const citeLh = 25;
   const brandLogoH = 36;
-  const brandGap = 14;
+  // Extra gap between citation and logos so marks have breathing room.
+  const brandGap = 36;
   const bottomPad = 48;
   const citeBlockH =
     citeLines.length * citeLh + brandGap + brandLogoH;
