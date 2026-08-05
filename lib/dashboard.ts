@@ -37,6 +37,7 @@ import {
 } from "@/lib/brief/priorityFeatures";
 import {
   getOrCreateEmbeddings,
+  loadCachedEmbeddings,
   l2Normalize,
   projectEmbeddingPca,
 } from "@/lib/brief/embeddings";
@@ -571,18 +572,16 @@ export async function getDashboardData(options?: {
     () => 0
   );
 
-  const rangeEmbeddings = await getOrCreateEmbeddings(
+  // Cache only — never mint thousands of embeddings on a dashboard page load
+  // (that blows OpenAI TPM and can take down the Brief).
+  const rangeCached = await loadCachedEmbeddings(
     supabase,
-    inRange.map((item) => ({
-      pmid: item.pmid,
-      title: item.articles?.title ?? null,
-      abstract: item.articles?.abstract ?? null,
-    }))
+    inRange.map((item) => item.pmid)
   );
   const embByPmid = new Map<string, number[] | null>();
-  for (let i = 0; i < inRange.length; i++) {
-    const emb = rangeEmbeddings[i];
-    embByPmid.set(inRange[i].pmid, emb ? l2Normalize(emb) : null);
+  for (const item of inRange) {
+    const emb = rangeCached.get(item.pmid);
+    embByPmid.set(item.pmid, emb ? l2Normalize(emb) : null);
   }
 
   const ranked = inRange.map((item) => {

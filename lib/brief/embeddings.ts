@@ -7,6 +7,11 @@ export const OPENAI_EMBEDDING_DIMS = 1536;
 export const EMBEDDING_PCA_DIMS = 8;
 
 const SETTINGS_KEY_PREFIX = "emb:oai3s:";
+/** Keep each request well under the 1M TPM ceiling when many articles land at once. */
+const EMBED_BATCH_SIZE = 16;
+const EMBED_MAX_TOKENS_PER_BATCH = 60_000;
+const EMBED_BATCH_PAUSE_MS = 400;
+const EMBED_MAX_RETRIES = 6;
 
 function embeddingKey(pmid: string): string {
   return `${SETTINGS_KEY_PREFIX}${pmid}`;
@@ -25,6 +30,51 @@ function getOpenAI(): OpenAI | null {
   return new OpenAI({ apiKey });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Rough token estimate for pacing (OpenAI ~4 chars/token). */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4) + 8;
+}
+
+function rateLimitWaitMs(err: unknown): number | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  const status =
+    typeof err === "object" && err && "status" in err
+      ? Number((err as { status?: number }).status)
+      : NaN;
+  if (status !== 429 && !/rate limit|429/i.test(msg)) return null;
+  const m = msg.match(/try again in ([\d.]+)\s*s/i);
+  if (m) return Math.ceil(parseFloat(m[1]) * 1000) + 350;
+  return 2000;
+}
+
+function buildBatches(texts: string[]): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let tokens = 0;
+
+  for (const raw of texts) {
+    const text = raw.trim() ? raw : " ";
+    const t = estimateTokens(text);
+    const wouldOverflow =
+      current.length > 0 &&
+      (current.length >= EMBED_BATCH_SIZE ||
+        tokens + t > EMBED_MAX_TOKENS_PER_BATCH);
+    if (wouldOverflow) {
+      batches.push(current);
+      current = [];
+      tokens = 0;
+    }
+    current.push(text);
+    tokens += t;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
 export async function embedTextsOpenAI(
   texts: string[]
 ): Promise<number[][] | null> {
@@ -33,19 +83,45 @@ export async function embedTextsOpenAI(
   if (!client) return null;
 
   const out: number[][] = Array.from({ length: texts.length }, () => []);
-  const batchSize = 64;
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const chunk = texts
-      .slice(i, i + batchSize)
-      .map((t) => (t.trim() ? t : " "));
-    const resp = await client.embeddings.create({
-      model: OPENAI_EMBEDDING_MODEL,
-      input: chunk,
-    });
-    for (const row of resp.data) {
-      out[i + row.index] = row.embedding;
+  const batches = buildBatches(texts);
+  let offset = 0;
+
+  for (let b = 0; b < batches.length; b++) {
+    const chunk = batches[b];
+    let attempt = 0;
+    for (;;) {
+      try {
+        const resp = await client.embeddings.create({
+          model: OPENAI_EMBEDDING_MODEL,
+          input: chunk,
+        });
+        for (const row of resp.data) {
+          out[offset + row.index] = row.embedding;
+        }
+        break;
+      } catch (err) {
+        const wait = rateLimitWaitMs(err);
+        attempt += 1;
+        if (wait == null || attempt > EMBED_MAX_RETRIES) {
+          console.warn(
+            "[embeddings] OpenAI embed failed:",
+            err instanceof Error ? err.message : err
+          );
+          return null;
+        }
+        console.warn(
+          `[embeddings] rate limited; retry ${attempt}/${EMBED_MAX_RETRIES} in ${wait}ms`
+        );
+        await sleep(wait);
+      }
+    }
+
+    offset += chunk.length;
+    if (b < batches.length - 1) {
+      await sleep(EMBED_BATCH_PAUSE_MS);
     }
   }
+
   return out;
 }
 
@@ -108,7 +184,7 @@ async function saveCachedEmbedding(
 /**
  * Return embeddings for each pmid (same order). Missing ones are fetched from
  * OpenAI and cached in app_settings. Entries stay null when the API key is
- * absent or the call fails.
+ * absent or the call fails — callers should still score with handcrafted features.
  */
 export async function getOrCreateEmbeddings(
   supabase: SupabaseClient,
@@ -122,18 +198,24 @@ export async function getOrCreateEmbeddings(
   }
 
   if (missingIdx.length > 0) {
-    const texts = missingIdx.map((i) =>
-      embeddingText(items[i].title, items[i].abstract)
-    );
-    const fresh = await embedTextsOpenAI(texts);
-    if (fresh) {
-      await Promise.all(
-        missingIdx.map(async (itemIdx, j) => {
+    try {
+      const texts = missingIdx.map((i) =>
+        embeddingText(items[i].title, items[i].abstract)
+      );
+      const fresh = await embedTextsOpenAI(texts);
+      if (fresh) {
+        for (let j = 0; j < missingIdx.length; j++) {
           const vec = fresh[j];
-          if (!vec?.length) return;
+          if (!vec?.length) continue;
+          const itemIdx = missingIdx[j];
           cached.set(items[itemIdx].pmid, vec);
           await saveCachedEmbedding(supabase, items[itemIdx].pmid, vec);
-        })
+        }
+      }
+    } catch (err) {
+      console.warn(
+        "[embeddings] getOrCreate failed; continuing without fresh embeds:",
+        err instanceof Error ? err.message : err
       );
     }
   }

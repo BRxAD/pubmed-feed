@@ -307,17 +307,22 @@ export async function getBriefItems(options?: {
   if (error) throw new Error(error.message);
 
   const rowList = (rows ?? []) as unknown[];
+  // Only unrated articles need embeddings for ML priority (admin ratings skip predict).
   const embItems: {
     pmid: string;
     title: string | null;
     abstract: string | null;
   }[] = [];
+  const seenPmid = new Set<string>();
   for (const raw of rowList) {
     const row = raw as {
       pmid?: string;
+      admin_priority?: number | null;
       articles?: { title?: string | null; abstract?: string | null } | null;
     };
-    if (!row.pmid) continue;
+    if (!row.pmid || seenPmid.has(row.pmid)) continue;
+    if (row.admin_priority != null) continue;
+    seenPmid.add(row.pmid);
     embItems.push({
       pmid: row.pmid,
       title: row.articles?.title ?? null,
