@@ -7,6 +7,9 @@ create table if not exists public.openalex_ingest_state (
   updated_at timestamptz not null default now()
 );
 
+-- Service role (ingest) bypasses RLS; anon/authenticated get no access.
+alter table public.openalex_ingest_state enable row level security;
+
 -- Ensure articles can store openalex source (if column missing from older schema).
 alter table public.articles
   add column if not exists source text not null default 'pubmed';

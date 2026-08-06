@@ -10,9 +10,6 @@ create table if not exists public.pubmed_ingest_state (
   updated_at timestamptz not null default now()
 );
 
--- Optional: index is not needed (topic_id is already the PK), but grant
--- read/write to the service role if RLS is enabled on your project.
--- alter table public.pubmed_ingest_state enable row level security;
--- create policy "service role full access"
---   on public.pubmed_ingest_state
---   using (true) with check (true);
+-- Lock down API access: service role (used by ingest) bypasses RLS.
+-- See also scripts/enable_rls_ingest_state.sql
+alter table public.pubmed_ingest_state enable row level security;
