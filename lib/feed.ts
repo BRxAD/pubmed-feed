@@ -133,8 +133,9 @@ const PAGE_SIZE = 10;
 /**
  * Supabase/PostgREST silently caps each response (default 1000 rows) even when
  * .limit() asks for more. Page through with .range() to retrieve the full set.
+ * Keep pages modest — large joins with abstracts routinely hit statement_timeout.
  */
-const SUPABASE_FETCH_PAGE = 1000;
+const SUPABASE_FETCH_PAGE = 500;
 /** Safety ceiling so a runaway table cannot OOM the feed renderer. */
 const SUPABASE_FETCH_SAFETY_MAX = 20_000;
 
@@ -157,6 +158,9 @@ function applySourceFilter<T extends { eq: Function; or: Function }>(
 /**
  * Fetch every matching summary row for the topic(s), paging past PostgREST
  * max-row limits so the feed can list the full Supabase set.
+ *
+ * Sequential pages (no exact count, no Promise.all): parallel full-row pulls
+ * were canceling with Postgres statement_timeout under load.
  */
 async function fetchAllSummariesForTopics(options: {
   supabase: ReturnType<typeof getSupabaseServerClient>;
@@ -168,10 +172,11 @@ async function fetchAllSummariesForTopics(options: {
   const { supabase, topicIds, source, selectColumns, cursorCreatedAt } =
     options;
 
-  const pageQuery = (from: number, exactCount: boolean) => {
+  const rows: SummaryRow[] = [];
+  for (let from = 0; from < SUPABASE_FETCH_SAFETY_MAX; from += SUPABASE_FETCH_PAGE) {
     let query = supabase
       .from("summaries")
-      .select(selectColumns, exactCount ? { count: "exact" } : undefined)
+      .select(selectColumns)
       .in("topic_id", topicIds)
       .order("created_at", { ascending: false })
       .range(from, from + SUPABASE_FETCH_PAGE - 1);
@@ -182,44 +187,84 @@ async function fetchAllSummariesForTopics(options: {
       query = query.lt("created_at", cursorCreatedAt.trim());
     }
 
-    return query;
-  };
-
-  // First page reports the true total so the remainder can be fetched in
-  // parallel rather than discovering the end one round-trip at a time.
-  const first = await pageQuery(0, true);
-  if (first.error) return { rows: [], error: first.error };
-
-  const rows = [...((first.data ?? []) as unknown as SummaryRow[])];
-  const total = Math.min(first.count ?? rows.length, SUPABASE_FETCH_SAFETY_MAX);
-  if (rows.length < SUPABASE_FETCH_PAGE || rows.length >= total) {
-    return { rows, error: null };
-  }
-
-  const pending = [];
-  for (
-    let from = SUPABASE_FETCH_PAGE;
-    from < total;
-    from += SUPABASE_FETCH_PAGE
-  ) {
-    pending.push(pageQuery(from, false));
-  }
-
-  for (const result of await Promise.all(pending)) {
-    if (result.error) return { rows, error: result.error };
-    rows.push(...((result.data ?? []) as unknown as SummaryRow[]));
+    const { data, error } = await query;
+    if (error) return { rows, error };
+    const batch = (data ?? []) as unknown as SummaryRow[];
+    rows.push(...batch);
+    if (batch.length < SUPABASE_FETCH_PAGE) break;
   }
 
   return { rows, error: null };
 }
 
-/** Full row set used by /feed. Dashboard uses `slim` to cut egress. */
+/**
+ * Fill abstract / summary_text / mesh for a small page of items after slim bulk fetch.
+ */
+async function hydrateFeedItemBodies(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  items: FeedItem[]
+): Promise<FeedItem[]> {
+  if (items.length === 0) return items;
+  const pmids = [...new Set(items.map((i) => i.pmid).filter(Boolean))];
+  if (pmids.length === 0) return items;
+
+  const byPmid = new Map<
+    string,
+    {
+      summary_text: string | null;
+      abstract: string | null;
+      mesh_terms: string[] | null;
+    }
+  >();
+
+  const chunkSize = 50;
+  for (let i = 0; i < pmids.length; i += chunkSize) {
+    const chunk = pmids.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from("summaries")
+      .select("pmid, summary_text, articles!inner(abstract, mesh_terms)")
+      .in("pmid", chunk);
+    if (error || !data) continue;
+    for (const row of data as unknown as Array<{
+      pmid?: string;
+      summary_text?: string | null;
+      articles?: { abstract?: string | null; mesh_terms?: string[] | null } | null;
+    }>) {
+      const pmid = String(row.pmid ?? "").trim();
+      if (!pmid || byPmid.has(pmid)) continue;
+      byPmid.set(pmid, {
+        summary_text: row.summary_text ?? null,
+        abstract: row.articles?.abstract ?? null,
+        mesh_terms: row.articles?.mesh_terms ?? null,
+      });
+    }
+  }
+
+  return items.map((item) => {
+    const body = byPmid.get(item.pmid);
+    if (!body) return item;
+    return {
+      ...item,
+      summary_text: body.summary_text ?? item.summary_text,
+      articles: item.articles
+        ? {
+            ...item.articles,
+            abstract: body.abstract ?? item.articles.abstract,
+            mesh_terms: body.mesh_terms ?? item.articles.mesh_terms,
+          }
+        : item.articles,
+    };
+  });
+}
+
+/** Full row set (heavy). Prefer slim bulk + hydrateFeedItemBodies for /feed. */
 export const FEED_SELECT_FULL =
   "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
 
 /**
- * Dashboard / analytics: omit abstract + summary_text + mesh (largest columns).
- * Title/keywords/dates are enough for histograms and setting chips.
+ * Bulk feed / dashboard: omit abstract + summary_text + mesh (largest columns).
+ * Title/keywords/dates are enough for sort, filters, and setting chips; hydrate
+ * bodies only for the visible page.
  */
 export const FEED_SELECT_SLIM =
   "pmid, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
@@ -287,8 +332,9 @@ export async function getFeedItems(
     ? [defaultTopicId!, aiTopicId!]
     : [topicId];
 
-  const slim = Boolean(options?.slim);
-  const selectColumns = slim ? FEED_SELECT_SLIM : FEED_SELECT_FULL;
+  // Always bulk-fetch slim columns. Full abstracts were timing out Postgres and
+  // blowing egress; we hydrate bodies for small pages at the end.
+  const selectColumns = FEED_SELECT_SLIM;
 
   let { rows: rawItems, error } = await fetchAllSummariesForTopics({
     supabase,
@@ -303,9 +349,8 @@ export async function getFeedItems(
       supabase,
       topicIds: topicIdsToFetch,
       source,
-      selectColumns: slim
-        ? "pmid, created_at, subheading, label, admin_priority, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
-        : "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)",
+      selectColumns:
+        "pmid, created_at, subheading, label, admin_priority, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)",
       cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
     });
     rawItems = fallback.rows;
@@ -514,24 +559,8 @@ export async function getFeedItems(
   const minPriority = filters?.minPriority;
   if (minPriority != null && minPriority > 0) {
     const priorityModel = await loadPriorityModel(supabase, topicId);
-    const needEmb = itemsWithJif.filter((item) => item.admin_priority == null);
-    const { getOrCreateEmbeddings, l2Normalize } = await import(
-      "@/lib/brief/embeddings"
-    );
-    const embeddings = await getOrCreateEmbeddings(
-      supabase,
-      needEmb.map((item) => ({
-        pmid: item.pmid,
-        title: item.articles?.title ?? null,
-        abstract: item.articles?.abstract ?? null,
-      }))
-    );
-    const embByPmid = new Map<string, number[] | null>();
-    for (let i = 0; i < needEmb.length; i++) {
-      const emb = embeddings[i];
-      embByPmid.set(needEmb[i].pmid, emb ? l2Normalize(emb) : null);
-    }
-
+    // Bulk path has no abstracts — score with handcrafted features only
+    // (null embedding). Avoids minting embeddings across the whole corpus.
     itemsWithJif = itemsWithJif.filter((item) => {
       if (item.admin_priority != null) {
         return effectivePriority(item.admin_priority, item.admin_priority) >= minPriority;
@@ -552,7 +581,7 @@ export async function getFeedItems(
         queryString: query_string,
         weights: learnedWeights,
         model: priorityModel,
-        embedding: embByPmid.get(item.pmid) ?? null,
+        embedding: null,
       });
       return effectivePriority(null, predicted.priority) >= minPriority;
     });
@@ -566,7 +595,12 @@ export async function getFeedItems(
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const pageNum = Math.max(1, Math.min(page, totalPages));
   const start = (pageNum - 1) * pageSize;
-  const paginatedItems = itemsWithJif.slice(start, start + pageSize);
+  let paginatedItems = itemsWithJif.slice(start, start + pageSize);
+
+  // Restore abstract / summary / mesh for interactive pages (not dashboard bulk).
+  if (pageSize <= 100) {
+    paginatedItems = await hydrateFeedItemBodies(supabase, paginatedItems);
+  }
 
   const lastItem =
     paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1] : null;
