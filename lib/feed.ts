@@ -213,6 +213,17 @@ async function fetchAllSummariesForTopics(options: {
   return { rows, error: null };
 }
 
+/** Full row set used by /feed. Dashboard uses `slim` to cut egress. */
+export const FEED_SELECT_FULL =
+  "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+
+/**
+ * Dashboard / analytics: omit abstract + summary_text + mesh (largest columns).
+ * Title/keywords/dates are enough for histograms and setting chips.
+ */
+export const FEED_SELECT_SLIM =
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+
 export async function getFeedItems(
   topicId: string,
   _limit = PAGE_SIZE,
@@ -221,7 +232,11 @@ export async function getFeedItems(
   filters?: FeedFilterParams,
   page = 1,
   source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER,
-  options?: { pageSize?: number }
+  options?: {
+    pageSize?: number;
+    /** Skip abstract / summary_text / mesh to reduce Supabase egress. */
+    slim?: boolean;
+  }
 ): Promise<{
   items: FeedItem[];
   nextCursor: string | null;
@@ -272,8 +287,8 @@ export async function getFeedItems(
     ? [defaultTopicId!, aiTopicId!]
     : [topicId];
 
-  const selectColumns =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+  const slim = Boolean(options?.slim);
+  const selectColumns = slim ? FEED_SELECT_SLIM : FEED_SELECT_FULL;
 
   let { rows: rawItems, error } = await fetchAllSummariesForTopics({
     supabase,
@@ -288,8 +303,9 @@ export async function getFeedItems(
       supabase,
       topicIds: topicIdsToFetch,
       source,
-      selectColumns:
-        "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)",
+      selectColumns: slim
+        ? "pmid, created_at, subheading, label, admin_priority, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)"
+        : "pmid, summary_text, created_at, subheading, label, admin_priority, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)",
       cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
     });
     rawItems = fallback.rows;
@@ -396,7 +412,7 @@ export async function getFeedItems(
     const scimago = lookupScimago(row.articles?.journal);
     return {
       pmid: row.pmid,
-      summary_text: row.summary_text,
+      summary_text: row.summary_text ?? null,
       created_at: row.created_at,
       subheading: row.subheading ?? null,
       label: row.label ?? null,

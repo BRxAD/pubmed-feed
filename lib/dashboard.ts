@@ -40,12 +40,6 @@ import {
 } from "@/lib/brief/priorityFeatures";
 import { getRankedTopPriorityItems } from "@/lib/brief/topPriority";
 import { briefSettingsLabel } from "@/lib/brief/settingFilter";
-import {
-  getOrCreateEmbeddings,
-  loadCachedEmbeddings,
-  l2Normalize,
-  projectEmbeddingPca,
-} from "@/lib/brief/embeddings";
 import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
@@ -376,10 +370,11 @@ async function loadLastIngestStats(
     };
   }
 
+  // Slim columns only — no abstracts (largest egress driver on ingest strip).
   const { data: batchRows, count: ingestedCount } = await supabase
     .from("articles")
     .select(
-      "pmid, title, abstract, journal, pub_date, publication_types, keywords, mesh_terms",
+      "pmid, title, journal, pub_date, publication_types, keywords",
       { count: "exact" }
     )
     .eq("source", "pubmed")
@@ -404,27 +399,17 @@ async function loadLastIngestStats(
     summarizedCount = count ?? 0;
   }
 
-  const batchEmbeddings = await getOrCreateEmbeddings(
-    supabase,
-    batch.map((row) => ({
-      pmid: String(row.pmid),
-      title: (row.title as string | null) ?? null,
-      abstract: (row.abstract as string | null) ?? null,
-    }))
-  );
-
+  // Handcrafted features only (no embedding cache reads on dashboard).
   let mlPriority5Plus = 0;
-  for (let i = 0; i < batch.length; i++) {
-    const row = batch[i];
-    const emb = batchEmbeddings[i];
+  for (const row of batch) {
     const rec: PubMedRecord = {
       pmid: String(row.pmid),
       title: (row.title as string | null) ?? null,
-      abstract: (row.abstract as string | null) ?? null,
+      abstract: null,
       journal: (row.journal as string | null) ?? null,
       pubDate: (row.pub_date as string | null) ?? null,
       publicationTypes: (row.publication_types as string[] | null) ?? [],
-      meshTerms: (row.mesh_terms as string[] | null) ?? [],
+      meshTerms: [],
       keywords: (row.keywords as string[] | null) ?? [],
       authors: [],
     };
@@ -433,7 +418,7 @@ async function loadLastIngestStats(
       queryString,
       weights,
       model: priorityModel,
-      embedding: emb ? l2Normalize(emb) : null,
+      embedding: null,
     });
     if (predicted.priority >= 5) mlPriority5Plus += 1;
   }
@@ -470,7 +455,8 @@ export async function getDashboardData(options?: {
       undefined,
       1,
       source,
-      { pageSize: 20_000 }
+      // Slim: no abstract / summary_text / mesh — biggest Supabase egress win.
+      { pageSize: 20_000, slim: true }
     ),
   ]);
 
@@ -577,18 +563,8 @@ export async function getDashboardData(options?: {
     () => 0
   );
 
-  // Cache only — never mint thousands of embeddings on a dashboard page load
-  // (that blows OpenAI TPM and can take down the Brief).
-  const rangeCached = await loadCachedEmbeddings(
-    supabase,
-    inRange.map((item) => item.pmid)
-  );
-  const embByPmid = new Map<string, number[] | null>();
-  for (const item of inRange) {
-    const emb = rangeCached.get(item.pmid);
-    embByPmid.set(item.pmid, emb ? l2Normalize(emb) : null);
-  }
-
+  // No embedding cache reads here — each cached vector is tens of KB of JSON
+  // egress. Dashboard histograms use handcrafted features only.
   const ranked = inRange.map((item) => {
     const rec = toRec(item);
     const jifIsHigh =
@@ -603,12 +579,7 @@ export async function getDashboardData(options?: {
       jifIsHigh,
       scoringOptions
     );
-    const embedding = embByPmid.get(item.pmid) ?? null;
-    const features = extractPriorityFeatures(
-      rec,
-      breakdown,
-      projectEmbeddingPca(embedding, priorityModel?.embeddingPca)
-    );
+    const features = extractPriorityFeatures(rec, breakdown);
     for (let i = 0; i < features.length; i++) {
       const v = features[i] ?? 0;
       featureSums[i] += v;
@@ -620,7 +591,7 @@ export async function getDashboardData(options?: {
       queryString: feed.query_string,
       weights,
       model: priorityModel,
-      embedding,
+      embedding: null,
     });
     const eff = effectivePriority(item.admin_priority, predicted.priority);
 
