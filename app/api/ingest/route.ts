@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { searchPubMedAllPages } from "@/lib/pubmed/esearch";
 import { fetchPubMedRecords } from "@/lib/pubmed/efetch";
@@ -31,6 +32,11 @@ import {
   getDateNDaysAgo,
   getTodayISO,
 } from "@/lib/pubmed/watermark";
+import { mergeLearnedWeights, mergeStoredFeedSettings } from "@/lib/relevanceLearning";
+import { toPenaltyWeights } from "@/lib/brief/feedSettings";
+import { computeStoredRankScore } from "@/lib/rankScore";
+import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
+import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -100,7 +106,13 @@ function clampToToday(dateStr: string | null): string | null {
   return dateStr > today ? today : dateStr;
 }
 
-type TopicRow = { id: string; name: string; query_string: string };
+type TopicRow = {
+  id: string;
+  name: string;
+  query_string: string;
+  ranking_weights?: Record<string, unknown> | null;
+};
+
 
 type SupabaseClient = ReturnType<typeof getSupabase>;
 
@@ -247,7 +259,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (topicName?.toLowerCase() === "main") {
       const { data: rows, error } = await supabase
         .from("topics")
-        .select("id, name, query_string")
+        .select("id, name, query_string, ranking_weights")
         .ilike("name", "%antimicrobial stewardship%")
         .limit(10);
 
@@ -265,7 +277,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     } else if (topicId) {
       const { data: row, error } = await supabase
         .from("topics")
-        .select("id, name, query_string")
+        .select("id, name, query_string, ranking_weights")
         .eq("id", topicId)
         .single();
 
@@ -287,6 +299,14 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (!queryString) {
       return NextResponse.json({ ok: false, error: "Topic has no query_string" }, { status: 400 });
     }
+
+    const learnedWeights = mergeLearnedWeights(topic.ranking_weights);
+    const feedSettings = mergeStoredFeedSettings(topic.ranking_weights);
+    const scoringOptions = {
+      ...toPenaltyWeights(feedSettings),
+      smallSampleMax: feedSettings.brief.smallSampleMax,
+      largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
+    };
 
     // ── 2. Compute search window ──────────────────────────────────────────────
 
@@ -527,12 +547,20 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               publicationTypes: r.publicationTypes,
             });
 
+            const rank_score = computeStoredRankScore({
+              queryString,
+              rec: r,
+              weights: learnedWeights,
+              scoringOptions,
+            });
+
             const row: Record<string, unknown> = {
               topic_id: topic.id,
               pmid: r.pmid,
               summary_text: summaryText,
               subheading: classification.study_subheading,
               label: classification.study_label,
+              rank_score,
             };
             if (headline) row.headline = headline;
 
@@ -568,6 +596,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     }
 
     console.log("[ingest] Complete", { storedArticles, storedSummaries });
+
+    revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
+    revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
 
     return NextResponse.json({
       ok: true,

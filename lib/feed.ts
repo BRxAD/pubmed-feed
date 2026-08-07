@@ -31,6 +31,16 @@ import {
   predictArticlePriority,
 } from "@/lib/brief/priorityModel";
 import { effectivePriority } from "@/lib/brief/priority";
+import {
+  FEED_SELECT_SLIM,
+  FEED_SELECT_SLIM_NO_ADMIN_SETTING,
+} from "@/lib/feedSelect";
+import { getCachedSlimSummaryRows } from "@/lib/feedCache";
+
+export {
+  FEED_SELECT_FULL,
+  FEED_SELECT_SLIM,
+} from "@/lib/feedSelect";
 
 function normalizeJournalName(name: string): string {
   return name
@@ -156,49 +166,8 @@ function applySourceFilter<T extends { eq: Function; or: Function }>(
 }
 
 /**
- * Fetch every matching summary row for the topic(s), paging past PostgREST
- * max-row limits so the feed can list the full Supabase set.
- *
- * Sequential pages (no exact count, no Promise.all): parallel full-row pulls
- * were canceling with Postgres statement_timeout under load.
- */
-async function fetchAllSummariesForTopics(options: {
-  supabase: ReturnType<typeof getSupabaseServerClient>;
-  topicIds: string[];
-  source: FeedSourceFilter;
-  selectColumns: string;
-  cursorCreatedAt?: string | null;
-}): Promise<{ rows: SummaryRow[]; error: { message: string } | null }> {
-  const { supabase, topicIds, source, selectColumns, cursorCreatedAt } =
-    options;
-
-  const rows: SummaryRow[] = [];
-  for (let from = 0; from < SUPABASE_FETCH_SAFETY_MAX; from += SUPABASE_FETCH_PAGE) {
-    let query = supabase
-      .from("summaries")
-      .select(selectColumns)
-      .in("topic_id", topicIds)
-      .order("created_at", { ascending: false })
-      .range(from, from + SUPABASE_FETCH_PAGE - 1);
-
-    query = applySourceFilter(query, source);
-
-    if (cursorCreatedAt?.trim()) {
-      query = query.lt("created_at", cursorCreatedAt.trim());
-    }
-
-    const { data, error } = await query;
-    if (error) return { rows, error };
-    const batch = (data ?? []) as unknown as SummaryRow[];
-    rows.push(...batch);
-    if (batch.length < SUPABASE_FETCH_PAGE) break;
-  }
-
-  return { rows, error: null };
-}
-
-/**
- * Fill abstract / summary_text / mesh for a small page of items after slim bulk fetch.
+ * Fill abstract / summary_text for a small page of items after slim bulk fetch.
+ * mesh_terms are already on the slim select.
  */
 async function hydrateFeedItemBodies(
   supabase: ReturnType<typeof getSupabaseServerClient>,
@@ -213,7 +182,6 @@ async function hydrateFeedItemBodies(
     {
       summary_text: string | null;
       abstract: string | null;
-      mesh_terms: string[] | null;
     }
   >();
 
@@ -222,20 +190,19 @@ async function hydrateFeedItemBodies(
     const chunk = pmids.slice(i, i + chunkSize);
     const { data, error } = await supabase
       .from("summaries")
-      .select("pmid, summary_text, articles!inner(abstract, mesh_terms)")
+      .select("pmid, summary_text, articles!inner(abstract)")
       .in("pmid", chunk);
     if (error || !data) continue;
     for (const row of data as unknown as Array<{
       pmid?: string;
       summary_text?: string | null;
-      articles?: { abstract?: string | null; mesh_terms?: string[] | null } | null;
+      articles?: { abstract?: string | null } | null;
     }>) {
       const pmid = String(row.pmid ?? "").trim();
       if (!pmid || byPmid.has(pmid)) continue;
       byPmid.set(pmid, {
         summary_text: row.summary_text ?? null,
         abstract: row.articles?.abstract ?? null,
-        mesh_terms: row.articles?.mesh_terms ?? null,
       });
     }
   }
@@ -250,25 +217,207 @@ async function hydrateFeedItemBodies(
         ? {
             ...item.articles,
             abstract: body.abstract ?? item.articles.abstract,
-            mesh_terms: body.mesh_terms ?? item.articles.mesh_terms,
           }
         : item.articles,
     };
   });
 }
 
-/** Full row set (heavy). Prefer slim bulk + hydrateFeedItemBodies for /feed. */
-export const FEED_SELECT_FULL =
-  "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
+function hasActiveFilters(filters?: FeedFilterParams): boolean {
+  return Boolean(
+    filters?.keyword?.trim() ||
+      filters?.setting ||
+      (filters?.minPriority != null && filters.minPriority > 0) ||
+      filters?.unratedOnly
+  );
+}
+
+function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
+  const row = it as {
+    pmid: string;
+    summary_text: string | null;
+    created_at: string;
+    subheading?: string | null;
+    label?: string | null;
+    rank_score?: number | null;
+    admin_priority?: number | null;
+    admin_setting?: string | null;
+    articles?: {
+      title?: string | null;
+      abstract?: string | null;
+      journal?: string | null;
+      pub_date?: string | null;
+      release_date?: string | null;
+      fetched_at?: string | null;
+      publication_types?: string[] | null;
+      keywords?: string[] | null;
+      mesh_terms?: string[] | null;
+      source?: string | null;
+    } | null;
+  };
+  const articleSource =
+    row.articles?.source === "openalex" ? "openalex" : "pubmed";
+  const articles: FeedItem["articles"] =
+    row.articles != null
+      ? {
+          title: row.articles.title ?? null,
+          abstract: row.articles.abstract ?? null,
+          journal: row.articles.journal ?? null,
+          pub_date: row.articles.pub_date ?? null,
+          release_date: row.articles.release_date ?? null,
+          fetched_at: row.articles.fetched_at ?? null,
+          publication_types: row.articles.publication_types ?? null,
+          keywords: row.articles.keywords ?? null,
+          mesh_terms: row.articles.mesh_terms ?? null,
+          source: row.articles.source ?? null,
+        }
+      : null;
+  const scimago = lookupScimago(row.articles?.journal);
+  return {
+    pmid: row.pmid,
+    summary_text: row.summary_text ?? null,
+    created_at: row.created_at,
+    subheading: row.subheading ?? null,
+    label: row.label ?? null,
+    rank_score:
+      row.rank_score != null && Number.isFinite(Number(row.rank_score))
+        ? Number(row.rank_score)
+        : null,
+    admin_priority: row.admin_priority ?? null,
+    admin_setting: parseAdminSetting(row.admin_setting),
+    is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
+    sjr_scimago: scimago?.sjr ?? null,
+    jif_2024: null,
+    source: articleSource,
+    articles,
+  };
+}
+
+async function attachJif(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  items: FeedItem[]
+): Promise<FeedItem[]> {
+  const journalNames = [
+    ...new Set(
+      items
+        .map((it) => {
+          const j = it.articles?.journal;
+          return j && String(j).trim() ? normalizeJournalName(String(j)) : null;
+        })
+        .filter((j): j is string => j != null)
+    ),
+  ];
+  if (journalNames.length === 0) return items;
+
+  const jifByJournal = new Map<string, number | null>();
+  const chunkSize = 100;
+  for (let i = 0; i < journalNames.length; i += chunkSize) {
+    const chunk = journalNames.slice(i, i + chunkSize);
+    const { data: rows } = await supabase
+      .from("journal_metrics")
+      .select("journal_name, jif_2024")
+      .in("journal_name", chunk);
+    if (rows) {
+      for (const row of rows) {
+        const jif =
+          row.jif_2024 != null && !Number.isNaN(Number(row.jif_2024))
+            ? Number(row.jif_2024)
+            : null;
+        jifByJournal.set(row.journal_name, jif);
+      }
+    }
+  }
+
+  return items.map((item) => {
+    const journal = item.articles?.journal;
+    const normalized =
+      journal && String(journal).trim()
+        ? normalizeJournalName(String(journal))
+        : null;
+    return {
+      ...item,
+      jif_2024: normalized ? jifByJournal.get(normalized) ?? null : null,
+    };
+  });
+}
+
+function dedupeByPmid(items: SummaryRow[]): SummaryRow[] {
+  const seen = new Set<string>();
+  return items.filter((it) => {
+    const pmid = String((it as { pmid?: string }).pmid ?? "").trim();
+    if (!pmid || seen.has(pmid)) return false;
+    seen.add(pmid);
+    return true;
+  });
+}
 
 /**
- * Bulk feed / dashboard: omit abstract + summary_text + mesh (largest columns).
- * Title/keywords/dates are enough for sort, filters, and setting chips; hydrate
- * bodies only for the visible page.
+ * Fast path: default ingested sort with no filters — only load the current page
+ * from Postgres (plus a small over-fetch when merging two topics).
  */
-export const FEED_SELECT_SLIM =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)";
+async function fetchIngestedPage(options: {
+  supabase: ReturnType<typeof getSupabaseServerClient>;
+  topicIds: string[];
+  isMainFeed: boolean;
+  source: FeedSourceFilter;
+  page: number;
+  pageSize: number;
+}): Promise<{
+  items: FeedItem[];
+  totalCount: number;
+  page: number;
+  error: { message: string } | null;
+}> {
+  const { supabase, topicIds, isMainFeed, source, pageSize } = options;
+  const pageNum = Math.max(1, options.page);
 
+  let countQuery = supabase
+    .from("summaries")
+    .select("pmid, articles!inner(source)", { count: "exact", head: true })
+    .in("topic_id", topicIds);
+  countQuery = applySourceFilter(countQuery, source);
+  const { count, error: countError } = await countQuery;
+  if (countError) return { items: [], totalCount: 0, page: 1, error: countError };
+
+  // Over-fetch when merging topics so in-page PMID dedupe still fills the page.
+  const overFetch = isMainFeed ? pageSize + 40 : pageSize;
+  const from = (pageNum - 1) * pageSize;
+  const to = from + overFetch - 1;
+
+  const selectPage = async (selectColumns: string) => {
+    let query = supabase
+      .from("summaries")
+      .select(selectColumns)
+      .in("topic_id", topicIds)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    query = applySourceFilter(query, source);
+    return query;
+  };
+
+  let { data, error } = await selectPage(FEED_SELECT_SLIM);
+  if (error?.message?.toLowerCase().includes("admin_setting")) {
+    const fallback = await selectPage(FEED_SELECT_SLIM_NO_ADMIN_SETTING);
+    data = fallback.data;
+    error = fallback.error;
+  }
+  if (error) return { items: [], totalCount: 0, page: 1, error };
+
+  let rows = (data ?? []) as unknown as SummaryRow[];
+  if (isMainFeed) rows = dedupeByPmid(rows);
+  rows = rows.slice(0, pageSize);
+
+  let items = rows.map(mapRawRowToFeedItem);
+  items = await attachJif(supabase, items);
+  items = await hydrateFeedItemBodies(supabase, items);
+
+  // Summary-row count can slightly inflate main-feed totals (same PMID, two topics).
+  const totalCount = Math.max(count ?? items.length, items.length);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(pageNum, totalPages);
+
+  return { items, totalCount, page: safePage, error: null };
+}
 export async function getFeedItems(
   topicId: string,
   _limit = PAGE_SIZE,
@@ -332,145 +481,81 @@ export async function getFeedItems(
     ? [defaultTopicId!, aiTopicId!]
     : [topicId];
 
-  // Always bulk-fetch slim columns. Full abstracts were timing out Postgres and
-  // blowing egress; we hydrate bodies for small pages at the end.
-  const selectColumns = FEED_SELECT_SLIM;
+  const pageSize = Math.min(
+    SUPABASE_FETCH_SAFETY_MAX,
+    Math.max(1, options?.pageSize ?? PAGE_SIZE)
+  );
 
-  let { rows: rawItems, error } = await fetchAllSummariesForTopics({
-    supabase,
-    topicIds: topicIdsToFetch,
-    source,
-    selectColumns,
-    cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
-  });
+  // Fast path: default browse — page from Postgres, skip full corpus walk.
+  const useSqlIngestedPage =
+    sort === "ingested" &&
+    !hasActiveFilters(filters) &&
+    pageSize <= 100 &&
+    !(cursor?.trim());
 
-  if (error?.message?.toLowerCase().includes("admin_setting")) {
-    const fallback = await fetchAllSummariesForTopics({
+  if (useSqlIngestedPage) {
+    const sql = await fetchIngestedPage({
       supabase,
       topicIds: topicIdsToFetch,
+      isMainFeed: Boolean(isMainFeed),
       source,
-      selectColumns:
-        "pmid, created_at, subheading, label, admin_priority, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, source)",
-      cursorCreatedAt: cursor?.trim() && sort === "ingested" ? cursor : null,
+      page,
+      pageSize,
     });
-    rawItems = fallback.rows;
-    error = fallback.error;
+    if (sql.error) throw new Error(sql.error.message);
+    const totalPages = Math.max(1, Math.ceil(sql.totalCount / pageSize));
+    const lastItem =
+      sql.items.length > 0 ? sql.items[sql.items.length - 1] : null;
+    return {
+      items: sql.items,
+      nextCursor: lastItem?.created_at ?? null,
+      query_string,
+      totalCount: sql.totalCount,
+      totalPages,
+      page: sql.page,
+      feedSettings,
+    };
   }
 
-  if (error) throw new Error(error.message);
-
-  let items = rawItems;
-
-  // Dedupe by pmid (keep most recent) when main feed merged two topics
-  if (isMainFeed && items.length > 0) {
-    const seen = new Set<string>();
-    items = items.filter((it) => {
-      const pmid = String((it as { pmid?: string }).pmid ?? "").trim();
-      if (!pmid || seen.has(pmid)) return false;
-      seen.add(pmid);
-      return true;
-    });
-  }
-
-  const journalNames = [
-    ...new Set(
-      items
-        .map((it) => {
-          const a = (it as { articles?: { journal?: string | null } | null })
-            ?.articles;
-          const j = a?.journal;
-          return j && String(j).trim() ? normalizeJournalName(String(j)) : null;
-        })
-        .filter((j): j is string => j != null)
-    ),
-  ];
-
-  const jifByJournal = new Map<string, number | null>();
-  if (journalNames.length > 0) {
-    const chunkSize = 100;
-    for (let i = 0; i < journalNames.length; i += chunkSize) {
-      const chunk = journalNames.slice(i, i + chunkSize);
-      const { data: rows } = await supabase
-        .from("journal_metrics")
-        .select("journal_name, jif_2024")
-        .in("journal_name", chunk);
-      if (rows) {
-        for (const row of rows) {
-          const jif =
-            row.jif_2024 != null && !Number.isNaN(Number(row.jif_2024))
-              ? Number(row.jif_2024)
-              : null;
-          jifByJournal.set(row.journal_name, jif);
-        }
+  // Full-index path (filters, relevance/published sort, dashboard bulk).
+  let rawItems: SummaryRow[];
+  try {
+    rawItems = await getCachedSlimSummaryRows(topicIdsToFetch, source);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to load feed index";
+    if (msg.toLowerCase().includes("admin_setting")) {
+      const supabaseRetry = getSupabaseServerClient();
+      const rows: SummaryRow[] = [];
+      for (
+        let from = 0;
+        from < SUPABASE_FETCH_SAFETY_MAX;
+        from += SUPABASE_FETCH_PAGE
+      ) {
+        let query = supabaseRetry
+          .from("summaries")
+          .select(FEED_SELECT_SLIM_NO_ADMIN_SETTING)
+          .in("topic_id", topicIdsToFetch)
+          .order("created_at", { ascending: false })
+          .range(from, from + SUPABASE_FETCH_PAGE - 1);
+        query = applySourceFilter(query, source);
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as unknown as SummaryRow[];
+        rows.push(...batch);
+        if (batch.length < SUPABASE_FETCH_PAGE) break;
       }
+      rawItems = rows;
+    } else {
+      throw e instanceof Error ? e : new Error(msg);
     }
   }
 
-  let itemsWithJif: FeedItem[] = items.map((it) => {
-    const row = it as {
-      pmid: string;
-      summary_text: string | null;
-      created_at: string;
-      subheading?: string | null;
-      label?: string | null;
-      rank_score?: number | null;
-      admin_priority?: number | null;
-      admin_setting?: string | null;
-      articles?: {
-        title?: string | null;
-        abstract?: string | null;
-        journal?: string | null;
-        pub_date?: string | null;
-        release_date?: string | null;
-        fetched_at?: string | null;
-        publication_types?: string[] | null;
-        keywords?: string[] | null;
-        mesh_terms?: string[] | null;
-        source?: string | null;
-      } | null;
-    };
-    const journal = row.articles?.journal;
-    const normalizedJournal =
-      journal && String(journal).trim()
-        ? normalizeJournalName(String(journal))
-        : null;
-    const jif_2024 = normalizedJournal
-      ? jifByJournal.get(normalizedJournal) ?? null
-      : null;
-    const articleSource =
-      row.articles?.source === "openalex" ? "openalex" : "pubmed";
-    const articles: FeedItem["articles"] =
-      row.articles != null
-        ? {
-            title: row.articles.title ?? null,
-            abstract: row.articles.abstract ?? null,
-            journal: row.articles.journal ?? null,
-            pub_date: row.articles.pub_date ?? null,
-            release_date: row.articles.release_date ?? null,
-            fetched_at: row.articles.fetched_at ?? null,
-            publication_types: row.articles.publication_types ?? null,
-            keywords: row.articles.keywords ?? null,
-            mesh_terms: row.articles.mesh_terms ?? null,
-            source: row.articles.source ?? null,
-          }
-        : null;
-    const scimago = lookupScimago(row.articles?.journal);
-    return {
-      pmid: row.pmid,
-      summary_text: row.summary_text ?? null,
-      created_at: row.created_at,
-      subheading: row.subheading ?? null,
-      label: row.label ?? null,
-      rank_score: row.rank_score ?? null,
-      admin_priority: row.admin_priority ?? null,
-      admin_setting: parseAdminSetting(row.admin_setting),
-      is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
-      sjr_scimago: scimago?.sjr ?? null,
-      jif_2024,
-      source: articleSource,
-      articles,
-    };
-  });
+  let items = rawItems;
+  if (isMainFeed && items.length > 0) {
+    items = dedupeByPmid(items);
+  }
+
+  let itemsWithJif: FeedItem[] = items.map(mapRawRowToFeedItem);
 
   if (filters?.setting || filters?.keyword?.trim()) {
     itemsWithJif = applyFiltersToFeedItems(itemsWithJif, filters);
@@ -491,35 +576,57 @@ export async function getFeedItems(
   };
 
   if (sort === "relevance" && query_string) {
-    const recFromItem = (item: FeedItem): PubMedRecord => ({
-      pmid: item.pmid,
-      title: item.articles?.title ?? null,
-      abstract: item.articles?.abstract ?? null,
-      journal: item.articles?.journal ?? null,
-      pubDate: item.articles?.pub_date ?? null,
-      publicationTypes: item.articles?.publication_types ?? [],
-      meshTerms: [],
-      keywords: item.articles?.keywords ?? [],
-      authors: [],
-    });
-    itemsWithJif = itemsWithJif
-      .map((item) => {
-        const rec = recFromItem(item);
-        const jifIsHigh =
-          item.is_q1 || isHighImpactJournal(item.articles?.journal);
-        const breakdown = computeBreakdown(
-          query_string,
-          rec,
-          learnedWeights,
-          true,
-          jifIsHigh,
-          scoringOptions
-        );
-        const rank_score =
-          breakdown.finalScore + priorityScoreBoost(item.admin_priority);
-        return { ...item, rank_score };
-      })
-      .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
+    const withStored = itemsWithJif.filter(
+      (item) => item.rank_score != null && Number.isFinite(item.rank_score)
+    ).length;
+    const preferStored = withStored >= itemsWithJif.length * 0.5;
+
+    if (preferStored) {
+      itemsWithJif = itemsWithJif
+        .map((item) => ({
+          ...item,
+          rank_score:
+            (item.rank_score ?? 0) + priorityScoreBoost(item.admin_priority),
+        }))
+        .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
+    } else {
+      const recFromItem = (item: FeedItem): PubMedRecord => ({
+        pmid: item.pmid,
+        title: item.articles?.title ?? null,
+        abstract: item.articles?.abstract ?? null,
+        journal: item.articles?.journal ?? null,
+        pubDate: item.articles?.pub_date ?? null,
+        publicationTypes: item.articles?.publication_types ?? [],
+        meshTerms: item.articles?.mesh_terms ?? [],
+        keywords: item.articles?.keywords ?? [],
+        authors: [],
+      });
+      itemsWithJif = itemsWithJif
+        .map((item) => {
+          if (item.rank_score != null && Number.isFinite(item.rank_score)) {
+            return {
+              ...item,
+              rank_score:
+                item.rank_score + priorityScoreBoost(item.admin_priority),
+            };
+          }
+          const rec = recFromItem(item);
+          const jifIsHigh =
+            item.is_q1 || isHighImpactJournal(item.articles?.journal);
+          const breakdown = computeBreakdown(
+            query_string,
+            rec,
+            learnedWeights,
+            true,
+            jifIsHigh,
+            scoringOptions
+          );
+          const rank_score =
+            breakdown.finalScore + priorityScoreBoost(item.admin_priority);
+          return { ...item, rank_score };
+        })
+        .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
+    }
   } else if (sort === "published") {
     itemsWithJif = itemsWithJif.sort((a, b) => {
       const da = releaseOrPub(a);
@@ -532,7 +639,6 @@ export async function getFeedItems(
       return ingestTime(b).localeCompare(ingestTime(a));
     });
   } else {
-    // ingested (default): newest intake first
     itemsWithJif = itemsWithJif.sort((a, b) => {
       const ia = ingestTime(a);
       const ib = ingestTime(b);
@@ -559,11 +665,12 @@ export async function getFeedItems(
   const minPriority = filters?.minPriority;
   if (minPriority != null && minPriority > 0) {
     const priorityModel = await loadPriorityModel(supabase, topicId);
-    // Bulk path has no abstracts — score with handcrafted features only
-    // (null embedding). Avoids minting embeddings across the whole corpus.
     itemsWithJif = itemsWithJif.filter((item) => {
       if (item.admin_priority != null) {
-        return effectivePriority(item.admin_priority, item.admin_priority) >= minPriority;
+        return (
+          effectivePriority(item.admin_priority, item.admin_priority) >=
+          minPriority
+        );
       }
       const rec: PubMedRecord = {
         pmid: item.pmid,
@@ -572,7 +679,7 @@ export async function getFeedItems(
         journal: item.articles?.journal ?? null,
         pubDate: item.articles?.pub_date ?? null,
         publicationTypes: item.articles?.publication_types ?? [],
-        meshTerms: [],
+        meshTerms: item.articles?.mesh_terms ?? [],
         keywords: item.articles?.keywords ?? [],
         authors: [],
       };
@@ -588,16 +695,12 @@ export async function getFeedItems(
   }
 
   const totalCount = itemsWithJif.length;
-  const pageSize = Math.min(
-    SUPABASE_FETCH_SAFETY_MAX,
-    Math.max(1, options?.pageSize ?? PAGE_SIZE)
-  );
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const pageNum = Math.max(1, Math.min(page, totalPages));
   const start = (pageNum - 1) * pageSize;
   let paginatedItems = itemsWithJif.slice(start, start + pageSize);
 
-  // Restore abstract / summary / mesh for interactive pages (not dashboard bulk).
+  paginatedItems = await attachJif(supabase, paginatedItems);
   if (pageSize <= 100) {
     paginatedItems = await hydrateFeedItemBodies(supabase, paginatedItems);
   }

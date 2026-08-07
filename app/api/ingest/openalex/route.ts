@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { passesClinicalInclusionFilter } from "@/lib/openalex/filter";
 import { searchOpenAlexAllPages } from "@/lib/openalex/search";
@@ -22,6 +23,11 @@ import { summarizeAbstract } from "@/lib/summarize";
 import { generateBriefHeadline } from "@/lib/brief/generateHeadline";
 import { classifyStudyAbstract } from "@/lib/classifyStudy";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
+import { mergeLearnedWeights, mergeStoredFeedSettings } from "@/lib/relevanceLearning";
+import { toPenaltyWeights } from "@/lib/brief/feedSettings";
+import { computeStoredRankScore } from "@/lib/rankScore";
+import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
+import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -155,7 +161,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (topicName?.toLowerCase() === "main") {
       const { data: rows, error } = await supabase
         .from("topics")
-        .select("id, name, query_string, openalex_query_string")
+        .select("id, name, query_string, openalex_query_string, ranking_weights")
         .ilike("name", "%antimicrobial stewardship%")
         .limit(10);
 
@@ -173,7 +179,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     } else if (topicId) {
       const { data: row, error } = await supabase
         .from("topics")
-        .select("id, name, query_string, openalex_query_string")
+        .select("id, name, query_string, openalex_query_string, ranking_weights")
         .eq("id", topicId)
         .single();
 
@@ -195,6 +201,14 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (!pubmedQuery) {
       return NextResponse.json({ ok: false, error: "Topic has no query_string" }, { status: 400 });
     }
+
+    const learnedWeights = mergeLearnedWeights(topic.ranking_weights);
+    const feedSettings = mergeStoredFeedSettings(topic.ranking_weights);
+    const scoringOptions = {
+      ...toPenaltyWeights(feedSettings),
+      smallSampleMax: feedSettings.brief.smallSampleMax,
+      largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
+    };
 
     const searchQuery = getOpenAlexSearch(topic);
     const excludeNoise = topicExcludesClinicalNoise(pubmedQuery);
@@ -331,12 +345,20 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               publicationTypes: r.publicationTypes,
             });
 
+            const rank_score = computeStoredRankScore({
+              queryString: pubmedQuery,
+              rec: r,
+              weights: learnedWeights,
+              scoringOptions,
+            });
+
             const row: Record<string, unknown> = {
               topic_id: topic.id,
               pmid: r.pmid,
               summary_text: summaryText,
               subheading: classification.study_subheading,
               label: classification.study_label,
+              rank_score,
             };
             if (headline) row.headline = headline;
 
@@ -355,6 +377,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         }
       }
     }
+
+    revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
+    revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
 
     return NextResponse.json({
       ok: true,
