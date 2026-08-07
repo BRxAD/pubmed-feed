@@ -386,7 +386,7 @@ function scoreSetting(
  * Minimum raw score for a setting to be included in the multi-label result.
  * Lower than the old single-label gate so ED + dual settings can surface.
  */
-const MIN_SCORE = 3;
+const MIN_SCORE = 2;
 
 // ── Public API ────────────────────────────────────────────────────────────────
 

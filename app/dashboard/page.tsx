@@ -182,6 +182,9 @@ export default async function DashboardPage({
             <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">
               {formatEasternDateTime(ingest.lastAt)}
             </p>
+            <p className="mt-0.5 text-[0.65rem] text-zinc-400">
+              Times in Eastern (America/New_York)
+            </p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-600 dark:text-zinc-300">
               <span>
                 <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
@@ -190,18 +193,12 @@ export default async function DashboardPage({
                 ingested
               </span>
               <span className="text-zinc-300 dark:text-zinc-600">·</span>
-              <span>
-                <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {ingest.summarizedCount.toLocaleString()}
-                </span>{" "}
-                summarized
-              </span>
               <span
                 className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
-                title="ML-predicted priority ≥ 5 among articles in the last ingest batch"
+                title="Distinct PMIDs newly summarized for this topic during the last ingest window"
               >
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" />
-                {ingest.mlPriority5Plus.toLocaleString()} ML ≥5
+                {ingest.summarizedCount.toLocaleString()} newly summarized
               </span>
             </div>
           </div>
@@ -268,7 +265,7 @@ export default async function DashboardPage({
         </p>
       </section>
 
-      {/* Counts */}
+      {/* Counts — all scoped to the selected article-date range */}
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
@@ -277,7 +274,9 @@ export default async function DashboardPage({
           <p className="mt-1 text-3xl font-bold tabular-nums">
             {data.totalInDatabase.toLocaleString()}
           </p>
-          <p className="mt-1 text-xs text-zinc-500">All articles table rows</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Articles with release/pub date in range
+          </p>
         </div>
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
@@ -287,21 +286,22 @@ export default async function DashboardPage({
             {data.totalOnFeed.toLocaleString()}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            Unique PMIDs on stewardship topics
+            Stewardship feed PMIDs in range
             {data.source !== "all" ? ` (${data.source})` : ""}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-            In selected range
+            Ratings in range
           </p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
-            {data.inRangeCount.toLocaleString()}
+            {data.humanRatedCount.toLocaleString()}
+            <span className="text-lg font-semibold text-zinc-400"> / </span>
+            <span className="text-violet-700 dark:text-violet-300">
+              {data.mlPredictedCount.toLocaleString()}
+            </span>
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {data.humanRatedCount.toLocaleString()} human ·{" "}
-            {data.mlPredictedCount.toLocaleString()} ML
-          </p>
+          <p className="mt-1 text-xs text-zinc-500">Human rated · ML-only</p>
         </div>
       </section>
 
@@ -313,7 +313,8 @@ export default async function DashboardPage({
           </h2>
           <p className="mb-2 text-xs text-zinc-500">
             Score 1–10 · human ratings beside ML predictions for every article
-            in range
+            in range. Empty ML buckets mean the model rarely rounds to that
+            integer (predictions are continuous, then rounded).
           </p>
           <div className="mb-3 flex flex-wrap gap-4 text-xs">
             <span className="inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">

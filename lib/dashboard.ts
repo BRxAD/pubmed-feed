@@ -104,22 +104,20 @@ export type IngestRunStats = {
   lastAt: string | null;
   /** Articles upserted in that batch (same fetched_at stamp). */
   ingestedCount: number;
-  /** New summaries written during/after that batch. */
+  /** Distinct PMIDs newly summarized for this topic during that ingest window. */
   summarizedCount: number;
-  /** Of the ingested batch, how many have ML-predicted priority ≥ 5. */
-  mlPriority5Plus: number;
-  /** Next scheduled ingest cron (ISO), fixed EDT→UTC slots. */
+  /** Next scheduled ingest cron (ISO), fixed Eastern (EDT)→UTC slots. */
   nextAt: string;
 };
 
 export type DashboardData = {
   range: DashboardDateRange;
   source: FeedSourceFilter;
-  /** Unique articles in the articles table. */
+  /** Articles whose release/pub date falls in the selected range. */
   totalInDatabase: number;
-  /** Unique PMIDs on the feed topics (no date gate). */
-  totalOnFeed: number;
   /** Feed PMIDs whose article date falls in the selected range. */
+  totalOnFeed: number;
+  /** Same as totalOnFeed (kept for callers / charts). */
   inRangeCount: number;
   humanRatedCount: number;
   mlPredictedCount: number;
@@ -139,8 +137,9 @@ function todayIso(): string {
 }
 
 /**
- * PubMed ingest cron hours in UTC (fixed EDT offsets from vercel.json):
- * 06:00 / 12:00 / 17:00 EDT → 10:00 / 16:00 / 21:00 UTC.
+ * PubMed ingest cron hours in UTC (Eastern Daylight: UTC−4):
+ * 06:00 / 12:00 / 17:00 Eastern → 10:00 / 16:00 / 21:00 UTC.
+ * Display always formats last/next times in America/New_York.
  */
 const INGEST_CRON_UTC_HOURS = [10, 16, 21] as const;
 
@@ -215,10 +214,42 @@ function toRec(item: FeedItem): PubMedRecord {
     journal: item.articles?.journal ?? null,
     pubDate: item.articles?.pub_date ?? null,
     publicationTypes: item.articles?.publication_types ?? [],
-    meshTerms: [],
+    meshTerms: item.articles?.mesh_terms ?? [],
     keywords: item.articles?.keywords ?? [],
     authors: [],
   };
+}
+
+/** Fill abstracts for in-range scoring / setting classification (page-sized batches). */
+async function hydrateAbstractsForItems(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  items: FeedItem[]
+): Promise<FeedItem[]> {
+  const need = items.filter((i) => !i.articles?.abstract?.trim());
+  if (need.length === 0) return items;
+  const byPmid = new Map<string, string>();
+  const chunkSize = 80;
+  for (let i = 0; i < need.length; i += chunkSize) {
+    const chunk = need.slice(i, i + chunkSize).map((x) => x.pmid);
+    const { data } = await supabase
+      .from("articles")
+      .select("pmid, abstract")
+      .in("pmid", chunk);
+    for (const row of data ?? []) {
+      const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
+      const abs = (row as { abstract?: string | null }).abstract;
+      if (pmid && abs?.trim()) byPmid.set(pmid, abs);
+    }
+  }
+  if (byPmid.size === 0) return items;
+  return items.map((item) => {
+    const abs = byPmid.get(item.pmid);
+    if (!abs || !item.articles) return item;
+    return {
+      ...item,
+      articles: { ...item.articles, abstract: abs },
+    };
+  });
 }
 
 /** Static field inventory of tables the app uses in Supabase. */
@@ -328,10 +359,7 @@ export const SUPABASE_SCHEMA_SUMMARY: SchemaTable[] = [
  */
 async function loadLastIngestStats(
   supabase: ReturnType<typeof getSupabaseServerClient>,
-  topicId: string,
-  queryString: string,
-  weights: ReturnType<typeof toRankingWeights>,
-  priorityModel: Awaited<ReturnType<typeof loadPriorityModel>>
+  topicId: string
 ): Promise<IngestRunStats> {
   const nextAt = nextIngestAt().toISOString();
 
@@ -365,69 +393,44 @@ async function loadLastIngestStats(
       lastAt,
       ingestedCount: 0,
       summarizedCount: 0,
-      mlPriority5Plus: 0,
       nextAt,
     };
   }
 
-  // Slim columns only — no abstracts (largest egress driver on ingest strip).
   const { data: batchRows, count: ingestedCount } = await supabase
     .from("articles")
-    .select(
-      "pmid, title, journal, pub_date, publication_types, keywords",
-      { count: "exact" }
-    )
+    .select("pmid", { count: "exact" })
     .eq("source", "pubmed")
     .eq("fetched_at", batchFetchedAt)
     .limit(500);
 
   const batch = batchRows ?? [];
-  const pmids = batch.map((r) => String(r.pmid));
+  const pmids = [
+    ...new Set(batch.map((r) => String((r as { pmid?: string }).pmid ?? "")).filter(Boolean)),
+  ];
 
   let summarizedCount = 0;
   if (pmids.length > 0) {
+    // Summaries created in the same ingest window for these PMIDs (distinct).
     const windowEnd = new Date(
       new Date(batchFetchedAt).getTime() + 45 * 60 * 1000
     ).toISOString();
-    const { count } = await supabase
+    const { data: sumRows } = await supabase
       .from("summaries")
-      .select("pmid", { count: "exact", head: true })
+      .select("pmid")
       .eq("topic_id", topicId)
       .in("pmid", pmids)
       .gte("created_at", batchFetchedAt)
       .lte("created_at", windowEnd);
-    summarizedCount = count ?? 0;
-  }
-
-  // Handcrafted features only (no embedding cache reads on dashboard).
-  let mlPriority5Plus = 0;
-  for (const row of batch) {
-    const rec: PubMedRecord = {
-      pmid: String(row.pmid),
-      title: (row.title as string | null) ?? null,
-      abstract: null,
-      journal: (row.journal as string | null) ?? null,
-      pubDate: (row.pub_date as string | null) ?? null,
-      publicationTypes: (row.publication_types as string[] | null) ?? [],
-      meshTerms: [],
-      keywords: (row.keywords as string[] | null) ?? [],
-      authors: [],
-    };
-    const predicted = predictArticlePriority({
-      rec,
-      queryString,
-      weights,
-      model: priorityModel,
-      embedding: null,
-    });
-    if (predicted.priority >= 5) mlPriority5Plus += 1;
+    summarizedCount = new Set(
+      (sumRows ?? []).map((r) => String((r as { pmid?: string }).pmid ?? "")).filter(Boolean)
+    ).size;
   }
 
   return {
     lastAt,
-    ingestedCount: ingestedCount ?? batch.length,
+    ingestedCount: ingestedCount ?? pmids.length,
     summarizedCount,
-    mlPriority5Plus,
     nextAt,
   };
 }
@@ -445,8 +448,13 @@ export async function getDashboardData(options?: {
 
   const supabase = getSupabaseServerClient();
 
-  const [articlesCountRes, feed] = await Promise.all([
-    supabase.from("articles").select("pmid", { count: "exact", head: true }),
+  const [articlesInRangeRes, feed] = await Promise.all([
+    supabase
+      .from("articles")
+      .select("pmid", { count: "exact", head: true })
+      .or(
+        `and(release_date.gte.${range.from},release_date.lte.${range.to}),and(pub_date.gte.${range.from},pub_date.lte.${range.to})`
+      ),
     getFeedItems(
       topicId,
       20_000,
@@ -455,15 +463,18 @@ export async function getDashboardData(options?: {
       undefined,
       1,
       source,
-      // Slim: no abstract / summary_text / mesh — biggest Supabase egress win.
+      // Slim: no abstract / summary_text — hydrate abstracts for in-range only below.
       { pageSize: 20_000, slim: true }
     ),
   ]);
 
-  const totalInDatabase = articlesCountRes.count ?? 0;
   const allFeed = feed.items;
-  const totalOnFeed = allFeed.length;
-  const inRange = allFeed.filter((item) => articleInDateRange(item, range));
+  let inRange = allFeed.filter((item) => articleInDateRange(item, range));
+  // Abstracts needed for accurate ML + setting classification in the date window.
+  inRange = await hydrateAbstractsForItems(supabase, inRange);
+
+  const totalInDatabase = articlesInRangeRes.count ?? 0;
+  const totalOnFeed = inRange.length;
 
   // Setting breakdown (multi-label: one article can increment several buckets)
   const settingCounts = new Map<ArticleSetting | "unclassified", number>();
@@ -542,14 +553,7 @@ export async function getDashboardData(options?: {
   };
   const priorityModel = await loadPriorityModel(supabase, topicId);
 
-  const ingest = await loadLastIngestStats(
-    supabase,
-    topicId,
-    feed.query_string,
-    weights,
-    priorityModel
-  );
-
+  const ingest = await loadLastIngestStats(supabase, topicId);
   const humanHist = Array.from({ length: 10 }, () => 0);
   const mlHist = Array.from({ length: 10 }, () => 0);
   let humanRatedCount = 0;
@@ -606,7 +610,9 @@ export async function getDashboardData(options?: {
       mlPredictedCount += 1;
     }
     // ML distribution includes every article (human-rated and ML-only).
-    const mlBucket = Math.min(10, Math.max(1, predicted.priority));
+    // Round to nearest 1–10; empty buckets are possible when the model rarely
+    // lands near that integer (e.g. few scores ≈ 1.5–2.5).
+    const mlBucket = Math.min(10, Math.max(1, Math.round(predicted.priority)));
     mlHist[mlBucket - 1] += 1;
 
     return {
