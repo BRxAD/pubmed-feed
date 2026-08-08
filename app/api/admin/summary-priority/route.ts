@@ -17,7 +17,9 @@ function getSupabase() {
   if (!url || !key) {
     throw new Error("Missing Supabase env vars");
   }
-  return createClient(url, key);
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 export async function POST(request: NextRequest) {

@@ -134,6 +134,7 @@ Supabase free-tier egress and statement timeouts are real constraints.
 8. **Dashboard:** `getFeedItemsInArticleDateRange` (cap ~1500) — never load the full 20k corpus for charts.
 9. **Ingest:** write `rank_score` + `ml_priority` on summary upsert; prefer service role; RLS on watermark tables with no anon policies.
 10. **Compute once, store, read cheap:** same pattern as `rank_score` and `ml_priority`.
+11. **Postgres indexes / RLS:** keep `scripts/optimize_postgres_hot_paths.sql` applied (topic+created_at, pmid FK, date/source, partial priority indexes; RLS on core tables with no anon policies). Re-run after new filter columns.
 
 If a change reintroduces full-corpus abstract pulls or parallel giant joins, stop and redesign.
 
@@ -144,6 +145,7 @@ Not all are “bugs”; track them so agents don’t reintroduce worse patterns.
 ### Incomplete loops
 
 - **`ml_priority` SQL:** applied (user confirmed). Keep `scripts/add_ml_priority.sql` for new environments.
+- **Hot-path indexes / RLS:** run `scripts/optimize_postgres_hot_paths.sql` in Supabase (topic+created_at, pmid, dates, partial priority ≥5/≥6; RLS on core tables).
 - **Null `ml_priority` on older rows:** handcrafted fallback OK on Brief; no backfill unless asked. Top 10 SQL scan skips them (needs stored ≥6).
 - **Embeddings still in `app_settings`:** bad long-term shape (huge JSON). Prefer dedicated table or drop full vectors after writing `ml_priority`. Never expose full vectors on hot paths.
 - **Retrain ≠ re-score old rows** (user confirmed OK).
