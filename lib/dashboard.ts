@@ -2,7 +2,7 @@ import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   getDefaultTopicId,
-  getFeedItems,
+  getFeedItemsInArticleDateRange,
   type FeedItem,
 } from "@/lib/feed";
 import {
@@ -220,38 +220,6 @@ function toRec(item: FeedItem): PubMedRecord {
   };
 }
 
-/** Fill abstracts for in-range scoring / setting classification (page-sized batches). */
-async function hydrateAbstractsForItems(
-  supabase: ReturnType<typeof getSupabaseServerClient>,
-  items: FeedItem[]
-): Promise<FeedItem[]> {
-  const need = items.filter((i) => !i.articles?.abstract?.trim());
-  if (need.length === 0) return items;
-  const byPmid = new Map<string, string>();
-  const chunkSize = 80;
-  for (let i = 0; i < need.length; i += chunkSize) {
-    const chunk = need.slice(i, i + chunkSize).map((x) => x.pmid);
-    const { data } = await supabase
-      .from("articles")
-      .select("pmid, abstract")
-      .in("pmid", chunk);
-    for (const row of data ?? []) {
-      const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
-      const abs = (row as { abstract?: string | null }).abstract;
-      if (pmid && abs?.trim()) byPmid.set(pmid, abs);
-    }
-  }
-  if (byPmid.size === 0) return items;
-  return items.map((item) => {
-    const abs = byPmid.get(item.pmid);
-    if (!abs || !item.articles) return item;
-    return {
-      ...item,
-      articles: { ...item.articles, abstract: abs },
-    };
-  });
-}
-
 /** Static field inventory of tables the app uses in Supabase. */
 export const SUPABASE_SCHEMA_SUMMARY: SchemaTable[] = [
   {
@@ -287,6 +255,11 @@ export const SUPABASE_SCHEMA_SUMMARY: SchemaTable[] = [
       { name: "rank_score", type: "numeric" },
       { name: "headline", type: "text" },
       { name: "admin_priority", type: "int 1–10" },
+      {
+        name: "ml_priority",
+        type: "smallint 1–10",
+        notes: "First ML rating at ingest (embeddings); admin_priority wins when set",
+      },
       { name: "admin_setting", type: "text", notes: "hospital | community | long-term care | animal | environment" },
     ],
   },
@@ -455,23 +428,14 @@ export async function getDashboardData(options?: {
       .or(
         `and(release_date.gte.${range.from},release_date.lte.${range.to}),and(pub_date.gte.${range.from},pub_date.lte.${range.to})`
       ),
-    getFeedItems(
-      topicId,
-      20_000,
-      null,
-      "published",
-      undefined,
-      1,
-      source,
-      // Slim: no abstract / summary_text — hydrate abstracts for in-range only below.
-      { pageSize: 20_000, slim: true }
-    ),
+    // Date-scoped slim fetch (cap) — do not walk the full corpus for charts.
+    getFeedItemsInArticleDateRange(topicId, range, source, { maxRows: 1500 }),
   ]);
 
-  const allFeed = feed.items;
-  let inRange = allFeed.filter((item) => articleInDateRange(item, range));
-  // Abstracts needed for accurate ML + setting classification in the date window.
-  inRange = await hydrateAbstractsForItems(supabase, inRange);
+  // Exact coalesce(release, pub) filter; SQL OR may over-include.
+  const inRange = feed.items.filter((item) =>
+    articleInDateRange(item, range)
+  );
 
   const totalInDatabase = articlesInRangeRes.count ?? 0;
   const totalOnFeed = inRange.length;

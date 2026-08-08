@@ -1,12 +1,9 @@
-import { getBriefItems } from "@/lib/brief/items";
+import { getCachedHomepageBriefItems } from "@/lib/brief/homepageCache";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import { assignStoryImages } from "@/lib/brief/storyImages";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
-import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
 import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import BriefPage from "@/components/brief/BriefPage";
-
-export const dynamic = "force-dynamic";
 
 export default async function HomePage({
   searchParams,
@@ -18,19 +15,11 @@ export default async function HomePage({
 
   try {
     const [brief, topPriority] = await Promise.all([
-      getBriefItems({
-        setting,
-        // Article-date window is authoritative; created_at is not used as a
-        // gate here (backfill would crowd out recent pubs).
-        daysBack: 90,
-        maxLookbackDays: 90,
-        maxItems: 50,
-        articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
-        // Recent window only; daily intake is typically well under 100.
-        embedMaxFresh: 100,
-      }),
+      getCachedHomepageBriefItems(setting),
       getTopPriorityYearItems(setting),
     ]);
+    // Sticky lead + images stay outside the Brief cache so Eastern-day pins
+    // and uniqueness still update without re-querying the candidate pool.
     const items = await applyStickyHomepageLead(brief.items, setting);
     const images = await assignStoryImages(items);
 

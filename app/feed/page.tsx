@@ -686,24 +686,9 @@ export default async function FeedPage({
     ? await loadPriorityModel(getSupabaseServerClient(), topicId)
     : null;
 
+  // Do not load embedding cache on feed page loads (egress). Admin explain /
+  // priority uses handcrafted features; emb PCA dims stay zero until retrain.
   const embeddingByPmid = new Map<string, number[] | null>();
-  if (isAdmin && list.length > 0) {
-    const { getOrCreateEmbeddings, l2Normalize } = await import(
-      "@/lib/brief/embeddings"
-    );
-    const embList = await getOrCreateEmbeddings(
-      getSupabaseServerClient(),
-      list.map((item) => ({
-        pmid: item.pmid,
-        title: item.articles?.title ?? null,
-        abstract: item.articles?.abstract ?? null,
-      }))
-    );
-    for (let i = 0; i < list.length; i++) {
-      const emb = embList[i];
-      embeddingByPmid.set(list[i].pmid, emb ? l2Normalize(emb) : null);
-    }
-  }
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-6">

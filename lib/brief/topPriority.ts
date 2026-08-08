@@ -12,6 +12,12 @@ import {
 /** Top 10 sidebar uses a full year of article dates (main brief stays 28 days). */
 export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
 
+/**
+ * Top 10 candidate scan floor (stored admin/ml priority).
+ * Main Brief stays at BRIEF_MIN_PRIORITY (5); Top 10 only loads ≥ 6.
+ */
+export const TOP_PRIORITY_MIN_PRIORITY = 6;
+
 /** Revalidated on admin rating changes; the TTL only bounds ingest-driven drift. */
 export const TOP_PRIORITY_CACHE_TAG = "brief-top-priority";
 const TOP_PRIORITY_CACHE_SECONDS = 900;
@@ -120,7 +126,9 @@ export async function getRankedTopPriorityItems(options?: {
     maxLookbackDays: 365,
     rankBy: "priority",
     articleDateWithinDays: windowDays,
-    embedMaxFresh: 0,
+    minPriority: TOP_PRIORITY_MIN_PRIORITY,
+    // SQL prefilter: do not walk the year for priority 5 / unscored rows.
+    storedPriorityMin: TOP_PRIORITY_MIN_PRIORITY,
   });
 
   let filtered = setting
@@ -145,9 +153,9 @@ export async function getRankedTopPriorityItems(options?: {
 }
 
 /**
- * Top 10 PubMed brief-eligible studies from the past 12 months (article date),
- * priority ≥ 5. Soft setting match so capsules can fill to 10 when classifiers
- * left many rows unclassified.
+ * Top 10 PubMed studies from the past 12 months (article date),
+ * stored priority ≥ 6. Soft setting match so capsules can fill to 10 when
+ * classifiers left many rows unclassified.
  */
 async function rankTopPriorityYearItems(
   setting: BriefSettingFilter
@@ -166,7 +174,7 @@ async function rankTopPriorityYearItems(
  */
 const loadTopPriorityYearItems = unstable_cache(
   rankTopPriorityYearItems,
-  ["brief-top-priority-year-v2"],
+  ["brief-top-priority-year-v3"],
   { revalidate: TOP_PRIORITY_CACHE_SECONDS, tags: [TOP_PRIORITY_CACHE_TAG] }
 );
 

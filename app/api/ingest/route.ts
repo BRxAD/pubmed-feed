@@ -35,8 +35,10 @@ import {
 import { mergeLearnedWeights, mergeStoredFeedSettings } from "@/lib/relevanceLearning";
 import { toPenaltyWeights } from "@/lib/brief/feedSettings";
 import { computeStoredRankScore } from "@/lib/rankScore";
+import { scoreFirstMlPriorities } from "@/lib/brief/firstRating";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
+import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -526,8 +528,19 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       for (let i = 0; i < toSummarize.length; i += SUMMARIZE_CONCURRENCY) {
         const batch = toSummarize.slice(i, i + SUMMARIZE_CONCURRENCY);
 
+        // First ML rating with embeddings once per new article (not on page load).
+        const mlScores = await scoreFirstMlPriorities(
+          supabase,
+          topic.id,
+          batch.map((r) => ({
+            rec: r,
+            queryString,
+            weights: learnedWeights,
+          }))
+        );
+
         const batchResults = await Promise.allSettled(
-          batch.map(async (r) => {
+          batch.map(async (r, batchIdx) => {
             const { summaryText } = await summarizeAbstract(r.abstract!);
             let headline: string | null = null;
             try {
@@ -563,13 +576,34 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               rank_score,
             };
             if (headline) row.headline = headline;
+            const ml = mlScores[batchIdx];
+            if (ml != null) row.ml_priority = ml;
 
             const { error: sumErr } = await supabase.from("summaries").upsert(
               row,
               { onConflict: "topic_id,pmid" }
             );
 
-            if (sumErr) throw new Error(`upsert failed: ${sumErr.message}`);
+            if (sumErr) {
+              // Column not migrated yet — retry without ml_priority.
+              if (
+                ml != null &&
+                /ml_priority/i.test(sumErr.message)
+              ) {
+                delete row.ml_priority;
+                const retry = await supabase.from("summaries").upsert(row, {
+                  onConflict: "topic_id,pmid",
+                });
+                if (retry.error) {
+                  throw new Error(`upsert failed: ${retry.error.message}`);
+                }
+                console.warn(
+                  "[ingest] ml_priority column missing; run scripts/add_ml_priority.sql"
+                );
+                return r.pmid;
+              }
+              throw new Error(`upsert failed: ${sumErr.message}`);
+            }
             return r.pmid;
           })
         );
@@ -599,6 +633,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
 
     revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
     revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
+    revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");
 
     return NextResponse.json({
       ok: true,

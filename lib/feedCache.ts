@@ -33,18 +33,32 @@ async function fetchSlimSummaryRowsUncached(
 
   const supabase = getSupabaseServerClient();
   const rows: Record<string, unknown>[] = [];
+  let selectColumns = FEED_SELECT_SLIM;
 
   for (let from = 0; from < SUPABASE_FETCH_SAFETY_MAX; from += SUPABASE_FETCH_PAGE) {
     let query = supabase
       .from("summaries")
-      .select(FEED_SELECT_SLIM)
+      .select(selectColumns)
       .in("topic_id", topicIds)
       .order("created_at", { ascending: false })
       .range(from, from + SUPABASE_FETCH_PAGE - 1);
 
     query = applySourceFilter(query, source);
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error?.message?.toLowerCase().includes("ml_priority")) {
+      selectColumns = FEED_SELECT_SLIM.replace(", ml_priority", "");
+      let retry = supabase
+        .from("summaries")
+        .select(selectColumns)
+        .in("topic_id", topicIds)
+        .order("created_at", { ascending: false })
+        .range(from, from + SUPABASE_FETCH_PAGE - 1);
+      retry = applySourceFilter(retry, source);
+      const result = await retry;
+      data = result.data;
+      error = result.error;
+    }
     if (error) throw new Error(error.message);
     const batch = (data ?? []) as unknown as Record<string, unknown>[];
     rows.push(...batch);

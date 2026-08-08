@@ -108,6 +108,8 @@ export type FeedItem = {
   jif_2024: number | null;
   source: FeedSource;
   admin_priority: number | null;
+  /** Ingest-time ML priority (1–10); used when admin_priority is null. */
+  ml_priority: number | null;
   /** Manual setting override; wins over auto-classification when set. */
   admin_setting: ArticleSetting | null;
   /** SCImago 2025 Q1 flag. */
@@ -241,6 +243,7 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
     label?: string | null;
     rank_score?: number | null;
     admin_priority?: number | null;
+    ml_priority?: number | null;
     admin_setting?: string | null;
     articles?: {
       title?: string | null;
@@ -273,6 +276,14 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
         }
       : null;
   const scimago = lookupScimago(row.articles?.journal);
+  const mlRaw = row.ml_priority;
+  const ml_priority =
+    mlRaw != null &&
+    Number.isFinite(Number(mlRaw)) &&
+    Number(mlRaw) >= 1 &&
+    Number(mlRaw) <= 10
+      ? Math.round(Number(mlRaw))
+      : null;
   return {
     pmid: row.pmid,
     summary_text: row.summary_text ?? null,
@@ -284,6 +295,7 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
         ? Number(row.rank_score)
         : null,
     admin_priority: row.admin_priority ?? null,
+    ml_priority,
     admin_setting: parseAdminSetting(row.admin_setting),
     is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
     sjr_scimago: scimago?.sjr ?? null,
@@ -396,8 +408,15 @@ async function fetchIngestedPage(options: {
   };
 
   let { data, error } = await selectPage(FEED_SELECT_SLIM);
-  if (error?.message?.toLowerCase().includes("admin_setting")) {
-    const fallback = await selectPage(FEED_SELECT_SLIM_NO_ADMIN_SETTING);
+  const pageErr = error?.message?.toLowerCase() ?? "";
+  if (pageErr.includes("admin_setting") || pageErr.includes("ml_priority")) {
+    let fallbackSelect = pageErr.includes("admin_setting")
+      ? FEED_SELECT_SLIM_NO_ADMIN_SETTING
+      : FEED_SELECT_SLIM;
+    if (pageErr.includes("ml_priority")) {
+      fallbackSelect = fallbackSelect.replace(", ml_priority", "");
+    }
+    const fallback = await selectPage(fallbackSelect);
     data = fallback.data;
     error = fallback.error;
   }
@@ -672,6 +691,9 @@ export async function getFeedItems(
           minPriority
         );
       }
+      if (item.ml_priority != null) {
+        return effectivePriority(null, item.ml_priority) >= minPriority;
+      }
       const rec: PubMedRecord = {
         pmid: item.pmid,
         title: item.articles?.title ?? null,
@@ -721,6 +743,81 @@ export async function getFeedItems(
     totalPages,
     page: pageNum,
     feedSettings,
+  };
+}
+
+/**
+ * Slim feed rows whose article release/pub date overlaps [from, to].
+ * For dashboard analytics — avoids walking the full corpus cache.
+ * Cap keeps egress bounded; callers should still apply exact coalesce filters.
+ */
+export async function getFeedItemsInArticleDateRange(
+  topicId: string,
+  range: { from: string; to: string },
+  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER,
+  options?: { maxRows?: number }
+): Promise<{ items: FeedItem[]; query_string: string }> {
+  const supabase = getSupabaseServerClient();
+  const maxRows = Math.min(
+    SUPABASE_FETCH_SAFETY_MAX,
+    Math.max(1, options?.maxRows ?? 1500)
+  );
+
+  const { data: topic, error: topicError } = await supabase
+    .from("topics")
+    .select("id, query_string")
+    .eq("id", topicId)
+    .maybeSingle();
+
+  if (topicError || !topic) {
+    throw new Error("Topic not found");
+  }
+
+  const query_string =
+    topic.query_string != null && String(topic.query_string).trim()
+      ? String(topic.query_string).trim()
+      : "";
+
+  const defaultTopicId = await getDefaultTopicId();
+  const aiTopicId = await getAIStewardshipTopicId();
+  const isMainFeed =
+    defaultTopicId === topicId &&
+    aiTopicId &&
+    aiTopicId !== defaultTopicId;
+  const topicIdsToFetch = isMainFeed
+    ? [defaultTopicId!, aiTopicId!]
+    : [topicId];
+
+  const from = range.from.slice(0, 10);
+  const to = range.to.slice(0, 10);
+  const dateOr = `and(release_date.gte.${from},release_date.lte.${to}),and(pub_date.gte.${from},pub_date.lte.${to})`;
+
+  const rows: SummaryRow[] = [];
+  for (let offset = 0; offset < maxRows; offset += SUPABASE_FETCH_PAGE) {
+    const end = Math.min(offset + SUPABASE_FETCH_PAGE, maxRows) - 1;
+    let query = supabase
+      .from("summaries")
+      .select(FEED_SELECT_SLIM)
+      .in("topic_id", topicIdsToFetch)
+      .or(dateOr, { foreignTable: "articles" })
+      .order("created_at", { ascending: false })
+      .range(offset, end);
+    query = applySourceFilter(query, source);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as unknown as SummaryRow[];
+    rows.push(...batch);
+    if (batch.length < end - offset + 1) break;
+  }
+
+  let items = rows;
+  if (isMainFeed && items.length > 0) {
+    items = dedupeByPmid(items);
+  }
+
+  return {
+    items: items.map(mapRawRowToFeedItem),
+    query_string,
   };
 }
 

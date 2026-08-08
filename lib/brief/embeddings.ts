@@ -187,6 +187,11 @@ export type GetOrCreateEmbeddingsOptions = {
    * (handcrafted features still score). Use 0 for cache-only. Default: no cap.
    */
   maxFresh?: number;
+  /**
+   * When false, skip app_settings entirely (all null). Use on web page loads —
+   * each cached vector is tens of KB of JSON egress. Default true (retrain/cron).
+   */
+  useCache?: boolean;
 };
 
 /**
@@ -200,6 +205,9 @@ export async function getOrCreateEmbeddings(
   options?: GetOrCreateEmbeddingsOptions
 ): Promise<(number[] | null)[]> {
   const pmids = items.map((i) => i.pmid);
+  if (options?.useCache === false) {
+    return pmids.map(() => null);
+  }
   const cached = await loadCachedEmbeddings(supabase, pmids);
   const missingIdx: number[] = [];
   for (let i = 0; i < items.length; i++) {

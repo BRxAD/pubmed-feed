@@ -130,6 +130,107 @@ function articleTimestamp(item: {
   return Number.isNaN(t) ? 0 : t;
 }
 
+function parseStoredMlPriority(raw: unknown): number | null {
+  if (raw == null || !Number.isFinite(Number(raw))) return null;
+  const n = Math.round(Number(raw));
+  return n >= 1 && n <= 10 ? n : null;
+}
+
+function parseAdminSettingValue(
+  raw: string | null | undefined
+): ArticleSetting | null {
+  const s = raw?.trim();
+  if (
+    s === "hospital" ||
+    s === "community" ||
+    s === "long-term care" ||
+    s === "animal" ||
+    s === "environment"
+  ) {
+    return s;
+  }
+  return null;
+}
+
+/** Slim Brief index: no abstract / summary_text bodies. */
+const BRIEF_SELECT_SLIM =
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
+
+const BRIEF_SELECT_SLIM_NO_HEADLINE =
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
+
+const HYDRATE_CHUNK = 80;
+
+async function hydrateAbstractsByPmid(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  pmids: string[]
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const unique = [...new Set(pmids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += HYDRATE_CHUNK) {
+    const chunk = unique.slice(i, i + HYDRATE_CHUNK);
+    const { data, error } = await supabase
+      .from("articles")
+      .select("pmid, abstract")
+      .in("pmid", chunk);
+    if (error) {
+      console.warn("[brief] abstract hydrate failed:", error.message);
+      continue;
+    }
+    for (const row of data ?? []) {
+      const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
+      const abs = (row as { abstract?: string | null }).abstract?.trim() ?? "";
+      if (pmid && abs) map.set(pmid, abs);
+    }
+  }
+  return map;
+}
+
+type BodyHydration = {
+  summaryText: string;
+  abstract: string;
+  headline: string | null;
+};
+
+/** Load summary_text + abstract for Brief survivors only. */
+async function hydrateBriefBodies(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  topicId: string,
+  pmids: string[]
+): Promise<Map<string, BodyHydration>> {
+  const map = new Map<string, BodyHydration>();
+  const unique = [...new Set(pmids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += HYDRATE_CHUNK) {
+    const chunk = unique.slice(i, i + HYDRATE_CHUNK);
+    const { data, error } = await supabase
+      .from("summaries")
+      .select("pmid, summary_text, headline, articles!inner(abstract)")
+      .eq("topic_id", topicId)
+      .in("pmid", chunk);
+    if (error) {
+      console.warn("[brief] body hydrate failed:", error.message);
+      continue;
+    }
+    for (const row of data ?? []) {
+      const r = row as {
+        pmid?: string;
+        summary_text?: string | null;
+        headline?: string | null;
+        articles?: { abstract?: string | null } | null;
+      };
+      const pmid = String(r.pmid ?? "").trim();
+      const summaryText = r.summary_text?.trim() ?? "";
+      if (!pmid || !summaryText) continue;
+      map.set(pmid, {
+        summaryText,
+        abstract: r.articles?.abstract?.trim() ?? "",
+        headline: r.headline ?? null,
+      });
+    }
+  }
+  return map;
+}
+
 export async function getBriefItems(options?: {
   daysBack?: number;
   maxItems?: number;
@@ -141,8 +242,14 @@ export async function getBriefItems(options?: {
   /** Cap for lookback expansion (default 365, max 365). */
   maxLookbackDays?: number;
   /**
-   * Max uncached OpenAI embeddings to mint while building this brief.
-   * Year-scale lists should pass 0 (cache only). Default: 100.
+   * When true, load/mint embeddings from app_settings for ML PCA features.
+   * Default false — web/digest paths use handcrafted features only (egress).
+   * Retrain calls getOrCreateEmbeddings directly; do not enable on page loads.
+   */
+  useEmbeddings?: boolean;
+  /**
+   * Max uncached OpenAI embeddings to mint when useEmbeddings is true.
+   * Default: 100 for short windows; 0 when article/lookback window > 60 days.
    */
   embedMaxFresh?: number;
   /**
@@ -158,6 +265,17 @@ export async function getBriefItems(options?: {
    * a newer, lower-rated one.
    */
   rankBy?: "recency" | "priority";
+  /**
+   * Override Brief eligibility floor (default from feed settings / BRIEF_MIN_PRIORITY).
+   * Top 10 passes 6 so the year pool is narrower than the main Brief (≥5).
+   */
+  minPriority?: number;
+  /**
+   * When set, slim SQL only loads rows with stored priority at/above this:
+   * admin_priority ≥ n, or (admin null and ml_priority ≥ n). Skips legacy
+   * handcrafted-only rows — used for Top 10 egress.
+   */
+  storedPriorityMin?: number;
 }): Promise<BriefFeedResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -188,7 +306,14 @@ export async function getBriefItems(options?: {
     smallSampleMax: feedSettings.brief.smallSampleMax,
     largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
   };
-  const minPriority = feedSettings.brief.minPriority;
+  const minPriority = Math.min(
+    10,
+    Math.max(1, options?.minPriority ?? feedSettings.brief.minPriority)
+  );
+  const storedPriorityMin =
+    options?.storedPriorityMin != null
+      ? Math.min(10, Math.max(1, options.storedPriorityMin))
+      : null;
   const minItems = Math.max(0, options?.minItems ?? 0);
   const maxLookbackDays = Math.min(
     365,
@@ -218,14 +343,6 @@ export async function getBriefItems(options?: {
 
   const settingFilter = options?.setting ?? "";
 
-  let rows: unknown[] | null = null;
-  let error: { message: string } | null = null;
-
-  const selectWithHeadline =
-    "pmid, summary_text, headline, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
-  const selectWithoutHeadline =
-    "pmid, summary_text, created_at, subheading, label, admin_priority, admin_setting, articles!inner(title, abstract, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
-
   // Daily intake is typically <100; a year of candidates is a few thousand at most.
   const rowCeiling =
     articleWindow > 60 || daysBack > 60
@@ -247,7 +364,17 @@ export async function getBriefItems(options?: {
         .from("summaries")
         .select(select, exactCount ? { count: "exact" } : undefined)
         .eq("topic_id", topicId)
-        .eq("articles.source", "pubmed");
+        .eq("articles.source", "pubmed")
+        // Existence only — do not select summary_text body on the slim pass.
+        .not("summary_text", "is", null)
+        .neq("summary_text", "");
+
+      if (storedPriorityMin != null) {
+        // Effective stored priority ≥ n: admin wins when set.
+        query = query.or(
+          `admin_priority.gte.${storedPriorityMin},and(admin_priority.is.null,ml_priority.gte.${storedPriorityMin})`
+        );
+      }
 
       if (articleWindow > 0) {
         const articleSince = dateDaysAgo(articleWindow);
@@ -265,8 +392,6 @@ export async function getBriefItems(options?: {
         .range(from, from + ROW_FETCH_PAGE - 1);
     };
 
-    // First page also reports the true total so the rest can be fetched at once
-    // instead of discovering the end one round-trip at a time.
     const first = await pageQuery(0, true);
     if (first.error) return { rows: [], error: first.error };
 
@@ -289,148 +414,139 @@ export async function getBriefItems(options?: {
     return { rows, error: null };
   };
 
-  const withHeadline = await fetchRows(selectWithHeadline);
-
-  const errMsg = withHeadline.error?.message?.toLowerCase() ?? "";
+  let slimSelect = BRIEF_SELECT_SLIM;
+  let slimResult = await fetchRows(slimSelect);
+  const errMsg = slimResult.error?.message?.toLowerCase() ?? "";
   if (
     errMsg.includes("headline") ||
     errMsg.includes("mesh_terms") ||
     errMsg.includes("admin_setting") ||
-    errMsg.includes("authors")
+    errMsg.includes("authors") ||
+    errMsg.includes("ml_priority") ||
+    errMsg.includes("rank_score")
   ) {
-    let selectFallback = selectWithHeadline;
-    if (errMsg.includes("headline")) {
-      selectFallback = selectWithoutHeadline;
-    }
+    if (errMsg.includes("headline")) slimSelect = BRIEF_SELECT_SLIM_NO_HEADLINE;
     if (errMsg.includes("mesh_terms")) {
-      selectFallback = selectFallback.replace(", mesh_terms", "");
+      slimSelect = slimSelect.replace(", mesh_terms", "");
     }
     if (errMsg.includes("admin_setting")) {
-      selectFallback = selectFallback.replace(", admin_setting", "");
+      slimSelect = slimSelect.replace(", admin_setting", "");
     }
     if (errMsg.includes("authors")) {
-      selectFallback = selectFallback.replace(", authors", "");
+      slimSelect = slimSelect.replace(", authors", "");
     }
-    const fallback = await fetchRows(selectFallback);
-    rows = fallback.rows;
-    error = fallback.error;
-  } else {
-    rows = withHeadline.rows;
-    error = withHeadline.error;
+    if (errMsg.includes("ml_priority")) {
+      slimSelect = slimSelect.replace(", ml_priority", "");
+    }
+    if (errMsg.includes("rank_score")) {
+      slimSelect = slimSelect.replace(", rank_score", "");
+    }
+    slimResult = await fetchRows(slimSelect);
   }
 
-  if (error) throw new Error(error.message);
+  if (slimResult.error) throw new Error(slimResult.error.message);
 
-  const rowList = (rows ?? []) as unknown[];
-  // Only unrated articles need embeddings for ML priority (admin ratings skip predict).
-  const embItems: {
+  type SlimRow = {
     pmid: string;
-    title: string | null;
-    abstract: string | null;
-  }[] = [];
-  const seenPmid = new Set<string>();
-  for (const raw of rowList) {
-    const row = raw as {
-      pmid?: string;
-      admin_priority?: number | null;
-      articles?: { title?: string | null; abstract?: string | null } | null;
-    };
-    if (!row.pmid || seenPmid.has(row.pmid)) continue;
-    if (row.admin_priority != null) continue;
-    seenPmid.add(row.pmid);
-    embItems.push({
-      pmid: row.pmid,
-      title: row.articles?.title ?? null,
-      abstract: row.articles?.abstract ?? null,
-    });
-  }
-  const embedMaxFresh =
-    options?.embedMaxFresh ??
-    (articleWindow > 60 || daysBack > 60 ? 0 : 100);
-  const embeddings = await getOrCreateEmbeddings(supabase, embItems, {
-    maxFresh: embedMaxFresh,
+    headline?: string | null;
+    created_at: string;
+    subheading?: string | null;
+    label?: string | null;
+    admin_priority?: number | null;
+    ml_priority?: number | null;
+    rank_score?: number | null;
+    admin_setting?: string | null;
+    articles?: {
+      title?: string | null;
+      journal?: string | null;
+      pub_date?: string | null;
+      release_date?: string | null;
+      fetched_at?: string | null;
+      publication_types?: string[] | null;
+      keywords?: string[] | null;
+      mesh_terms?: string[] | null;
+      authors?: string[] | null;
+      source?: string | null;
+    } | null;
+  };
+
+  const slimRows = (slimResult.rows as SlimRow[]).filter((row) => {
+    if (!row.articles?.title?.trim()) return false;
+    return isPubMedArticle(row.pmid, row.articles.source);
   });
+
+  // Legacy rows without ml_priority need abstracts for handcrafted predict only.
+  const needsScorePmids = slimRows
+    .filter(
+      (row) =>
+        row.admin_priority == null && parseStoredMlPriority(row.ml_priority) == null
+    )
+    .map((row) => row.pmid);
+
+  const abstractForScore = await hydrateAbstractsByPmid(
+    supabase,
+    needsScorePmids
+  );
+
+  // Optional embeddings only for unscored rows (off by default on page loads).
   const embByPmid = new Map<string, number[] | null>();
-  for (let i = 0; i < embItems.length; i++) {
-    const emb = embeddings[i];
-    embByPmid.set(embItems[i].pmid, emb ? l2Normalize(emb) : null);
+  if (options?.useEmbeddings === true && needsScorePmids.length > 0) {
+    const embItems = needsScorePmids.map((pmid) => {
+      const row = slimRows.find((r) => r.pmid === pmid)!;
+      return {
+        pmid,
+        title: row.articles?.title ?? null,
+        abstract: abstractForScore.get(pmid) ?? null,
+      };
+    });
+    const embedMaxFresh =
+      options?.embedMaxFresh ??
+      (articleWindow > 60 || daysBack > 60 ? 0 : 100);
+    const embeddings = await getOrCreateEmbeddings(supabase, embItems, {
+      maxFresh: embedMaxFresh,
+    });
+    for (let i = 0; i < embItems.length; i++) {
+      const emb = embeddings[i];
+      embByPmid.set(embItems[i].pmid, emb ? l2Normalize(emb) : null);
+    }
   }
 
   const candidates: BriefItem[] = [];
-  const abstractByPmid = new Map<string, string>();
-  const headlineMetaByPmid = new Map<
-    string,
-    {
-      summaryText: string;
-      bottomLine: string | null;
-      storedHeadline: string | null | undefined;
-    }
-  >();
 
-  for (const raw of rowList) {
-    const row = raw as {
-      pmid: string;
-      summary_text: string | null;
-      headline?: string | null;
-      created_at: string;
-      subheading?: string | null;
-      label?: string | null;
-      admin_priority?: number | null;
-      admin_setting?: string | null;
-      articles?: {
-        title?: string | null;
-        abstract?: string | null;
-        journal?: string | null;
-        pub_date?: string | null;
-        release_date?: string | null;
-        fetched_at?: string | null;
-        publication_types?: string[] | null;
-        keywords?: string[] | null;
-        mesh_terms?: string[] | null;
-        authors?: string[] | null;
-        source?: string | null;
-      } | null;
-    };
-
-    if (!row.articles?.title?.trim() || !row.summary_text?.trim()) continue;
-    if (!isPubMedArticle(row.pmid, row.articles.source)) continue;
-
-    const authors = (row.articles.authors ?? [])
+  for (const row of slimRows) {
+    const authors = (row.articles?.authors ?? [])
       .map((a) => String(a).trim())
       .filter(Boolean);
+    const title = row.articles!.title!.trim();
+    const storedMl = parseStoredMlPriority(row.ml_priority);
+    const abstract = abstractForScore.get(row.pmid) ?? null;
 
     const rec: PubMedRecord = {
       pmid: row.pmid,
-      title: row.articles.title ?? null,
-      abstract: row.articles.abstract ?? null,
-      journal: row.articles.journal ?? null,
-      pubDate: row.articles.pub_date ?? null,
-      publicationTypes: row.articles.publication_types ?? [],
-      meshTerms: row.articles.mesh_terms ?? [],
-      keywords: row.articles.keywords ?? [],
+      title,
+      abstract,
+      journal: row.articles?.journal ?? null,
+      pubDate: row.articles?.pub_date ?? null,
+      publicationTypes: row.articles?.publication_types ?? [],
+      meshTerms: row.articles?.mesh_terms ?? [],
+      keywords: row.articles?.keywords ?? [],
       authors,
     };
 
-    const scimago = lookupScimago(row.articles.journal);
+    const scimago = lookupScimago(row.articles?.journal);
     const jifIsHigh =
       Boolean(scimago) ||
-      isQ1Journal(row.articles.journal) ||
-      isHighImpactJournal(row.articles.journal);
-    const breakdown = computeBreakdown(
-      query_string,
-      rec,
-      learnedWeights,
-      true,
-      jifIsHigh,
-      scoringOptions
-    );
-    const relevancePercent = normalizeScoreTo100(breakdown.finalScore);
+      isQ1Journal(row.articles?.journal) ||
+      isHighImpactJournal(row.articles?.journal);
 
     let predictedPriority: number;
     let prioritySource: BriefItem["prioritySource"];
     if (row.admin_priority != null) {
       predictedPriority = row.admin_priority;
       prioritySource = "admin";
+    } else if (storedMl != null) {
+      predictedPriority = storedMl;
+      prioritySource = "model";
     } else {
       const prediction = predictArticlePriority({
         rec,
@@ -446,89 +562,80 @@ export async function getBriefItems(options?: {
     if (!meetsBriefThreshold(row.admin_priority, predictedPriority, minPriority))
       continue;
 
+    const storedRank =
+      row.rank_score != null && Number.isFinite(Number(row.rank_score))
+        ? Number(row.rank_score)
+        : null;
+    let relevancePercent: number;
+    if (storedRank != null) {
+      relevancePercent = normalizeScoreTo100(storedRank);
+    } else {
+      const breakdown = computeBreakdown(
+        query_string,
+        rec,
+        learnedWeights,
+        true,
+        jifIsHigh,
+        scoringOptions
+      );
+      relevancePercent = normalizeScoreTo100(breakdown.finalScore);
+    }
+
     const eff = effectivePriority(row.admin_priority, predictedPriority);
-    const bullets = parseSummaryBullets(row.summary_text);
     const studyLabelRaw = [row.subheading, row.label]
       .filter(Boolean)
       .join(" · ");
     const studyLabel = formatStudyLabel(studyLabelRaw || null);
-    const title = row.articles.title!.trim();
-    const headline = resolveStoredHeadline(
-      row.headline,
-      row.summary_text,
-      title
-    );
-
-    abstractByPmid.set(row.pmid, row.articles.abstract?.trim() ?? "");
-    headlineMetaByPmid.set(row.pmid, {
-      summaryText: row.summary_text,
-      bottomLine: bullets?.bottomLine ?? null,
-      storedHeadline: row.headline,
-    });
-
-    const jifEntry = lookupJif(row.articles.journal);
+    const jifEntry = lookupJif(row.articles?.journal);
+    const adminSetting = parseAdminSettingValue(row.admin_setting);
 
     const feedLike: FeedItem = {
       pmid: row.pmid,
-      summary_text: row.summary_text,
+      summary_text: null,
       created_at: row.created_at,
-      rank_score: breakdown.finalScore,
+      rank_score: storedRank,
       subheading: row.subheading ?? null,
       label: row.label ?? null,
       jif_2024: jifEntry?.jif ?? null,
       source: "pubmed",
       admin_priority: row.admin_priority ?? null,
-      admin_setting: (() => {
-        const s = row.admin_setting?.trim();
-        if (
-          s === "hospital" ||
-          s === "community" ||
-          s === "long-term care" ||
-          s === "animal" ||
-          s === "environment"
-        ) {
-          return s;
-        }
-        return null;
-      })(),
-      is_q1: Boolean(scimago) || isQ1Journal(row.articles.journal),
+      ml_priority: storedMl,
+      admin_setting: adminSetting,
+      is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
       sjr_scimago: scimago?.sjr ?? null,
       articles: {
-        title: row.articles.title ?? null,
-        abstract: row.articles.abstract ?? null,
-        journal: row.articles.journal ?? null,
-        pub_date: row.articles.pub_date ?? null,
-        release_date: row.articles.release_date ?? null,
-        fetched_at: row.articles.fetched_at ?? null,
-        publication_types: row.articles.publication_types ?? null,
-        keywords: row.articles.keywords ?? null,
-        mesh_terms: row.articles.mesh_terms ?? null,
-        source: row.articles.source ?? null,
+        title,
+        abstract,
+        journal: row.articles?.journal ?? null,
+        pub_date: row.articles?.pub_date ?? null,
+        release_date: row.articles?.release_date ?? null,
+        fetched_at: row.articles?.fetched_at ?? null,
+        publication_types: row.articles?.publication_types ?? null,
+        keywords: row.articles?.keywords ?? null,
+        mesh_terms: row.articles?.mesh_terms ?? null,
+        source: row.articles?.source ?? null,
       },
     };
 
     const item: BriefItem = {
       pmid: row.pmid,
       source: "pubmed",
-      headline,
+      headline: resolveStoredHeadline(row.headline, "", title),
       title,
-      journal: row.articles.journal?.trim() ?? null,
+      journal: row.articles?.journal?.trim() ?? null,
       jif: jifEntry?.jif ?? null,
       jifIsHigh,
-      isQ1: Boolean(scimago) || isQ1Journal(row.articles.journal),
+      isQ1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
       sjrScimago: scimago?.sjr ?? null,
-      date:
-        row.articles.release_date ??
-        row.articles.pub_date ??
-        null,
+      date: row.articles?.release_date ?? row.articles?.pub_date ?? null,
       createdAt: row.created_at,
       isNew: isWithinHours(row.created_at, 24),
       setting: getItemSetting(feedLike),
       settings: getItemSettings(feedLike),
       studyLabel: studyLabel || null,
-      methods: bullets?.methods ?? null,
-      results: bullets?.results ?? null,
-      bottomLine: bullets?.bottomLine ?? null,
+      methods: null,
+      results: null,
+      bottomLine: null,
       relevancePercent,
       predictedPriority,
       adminPriority: row.admin_priority ?? null,
@@ -536,14 +643,9 @@ export async function getBriefItems(options?: {
       prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
       authors,
-      keywords: (row.articles.keywords ?? []).slice(0, 8),
-      meshTerms: (row.articles.mesh_terms ?? []).slice(0, 12),
-      abstractSnippet: (() => {
-        const a = row.articles.abstract?.trim() ?? "";
-        if (!a) return null;
-        // Long enough to reach Results/Discussion in structured abstracts.
-        return a.length > 1200 ? `${a.slice(0, 1200)}…` : a;
-      })(),
+      keywords: (row.articles?.keywords ?? []).slice(0, 8),
+      meshTerms: (row.articles?.mesh_terms ?? []).slice(0, 12),
+      abstractSnippet: null,
     };
 
     if (!matchesBriefSettingFilter(item, settingFilter)) continue;
@@ -554,8 +656,6 @@ export async function getBriefItems(options?: {
     options?.rankBy === "priority" || !feedSettings.brief.leadByRecency;
 
   candidates.sort((a, b) => {
-    // Default: newest article date first, then highest priority within that day/tie.
-    // Priority-first: highest priority first, then newest date.
     if (priorityFirst) {
       if (b.effectivePriority !== a.effectivePriority) {
         return b.effectivePriority - a.effectivePriority;
@@ -579,8 +679,6 @@ export async function getBriefItems(options?: {
   if (articleWindow > 0) {
     const cutoff = Date.now() - articleWindow * 24 * 60 * 60 * 1000;
     filtered = candidates.filter((item) => {
-      // Require a real article/pub date — do not use summary created_at /
-      // fetched_at, or backfill ingest would dominate the brief.
       if (!item.date) return false;
       const t = articleTimestamp(item);
       if (t <= 0) return false;
@@ -613,16 +711,94 @@ export async function getBriefItems(options?: {
     }
   }
 
-  if (!options?.skipHeadlines) {
+  // Homepage / digest: hydrate summary + abstract only for survivors.
+  // Top 10 (skipHeadlines) keeps slim fields — ranking does not need bodies.
+  const abstractByPmid = new Map<string, string>();
+  const headlineMetaByPmid = new Map<
+    string,
+    {
+      summaryText: string;
+      bottomLine: string | null;
+      storedHeadline: string | null | undefined;
+    }
+  >();
+
+  if (!options?.skipHeadlines && items.length > 0) {
+    const bodies = await hydrateBriefBodies(
+      supabase,
+      topicId,
+      items.map((i) => i.pmid)
+    );
+
+    for (const item of items) {
+      const body = bodies.get(item.pmid);
+      if (!body) continue;
+
+      const bullets = parseSummaryBullets(body.summaryText);
+      item.methods = bullets?.methods ?? null;
+      item.results = bullets?.results ?? null;
+      item.bottomLine = bullets?.bottomLine ?? null;
+      item.headline = resolveStoredHeadline(
+        body.headline,
+        body.summaryText,
+        item.title
+      );
+      if (body.abstract) {
+        item.abstractSnippet =
+          body.abstract.length > 1200
+            ? `${body.abstract.slice(0, 1200)}…`
+            : body.abstract;
+      }
+
+      const slim = slimRows.find((r) => r.pmid === item.pmid);
+      const adminSetting = parseAdminSettingValue(slim?.admin_setting);
+      const feedLike: FeedItem = {
+        pmid: item.pmid,
+        summary_text: body.summaryText,
+        created_at: item.createdAt,
+        rank_score: null,
+        subheading: slim?.subheading ?? null,
+        label: slim?.label ?? null,
+        jif_2024: item.jif,
+        source: "pubmed",
+        admin_priority: item.adminPriority,
+        ml_priority: parseStoredMlPriority(slim?.ml_priority),
+        admin_setting: adminSetting,
+        is_q1: item.isQ1,
+        sjr_scimago: item.sjrScimago,
+        articles: {
+          title: item.title,
+          abstract: body.abstract || null,
+          journal: item.journal,
+          pub_date: item.date,
+          release_date: item.date,
+          fetched_at: null,
+          publication_types: slim?.articles?.publication_types ?? null,
+          keywords: item.keywords,
+          mesh_terms: item.meshTerms,
+          source: "pubmed",
+        },
+      };
+      item.setting = getItemSetting(feedLike);
+      item.settings = getItemSettings(feedLike);
+
+      abstractByPmid.set(item.pmid, body.abstract);
+      headlineMetaByPmid.set(item.pmid, {
+        summaryText: body.summaryText,
+        bottomLine: bullets?.bottomLine ?? null,
+        storedHeadline: body.headline,
+      });
+    }
+
     const headlineJobs = items.map((item) => {
-      const meta = headlineMetaByPmid.get(item.pmid)!;
+      const meta = headlineMetaByPmid.get(item.pmid);
       return {
         pmid: item.pmid,
         title: item.title,
         abstract: abstractByPmid.get(item.pmid) ?? null,
-        summaryText: meta.summaryText,
-        bottomLine: meta.bottomLine,
-        storedHeadline: meta.storedHeadline,
+        summaryText: meta?.summaryText ?? "",
+        bottomLine: meta?.bottomLine ?? item.bottomLine,
+        storedHeadline: meta?.storedHeadline,
         headline: item.headline,
       };
     });

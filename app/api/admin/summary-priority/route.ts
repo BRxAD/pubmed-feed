@@ -6,6 +6,7 @@ import {
   type FeatureSnapshot,
 } from "@/lib/relevanceLearning";
 import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
+import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 
 export const runtime = "nodejs";
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
     });
 
     revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
+    revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");
     revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
 
     return NextResponse.json({ ok: true, topicId, pmid, priority });
