@@ -171,24 +171,14 @@ function scoreEntry(
 }
 
 /**
- * Stable tie-break among near-equal scores. Seeded only by article identity
- * (pmid/headline) — no date — so the same article keeps the same image.
+ * Keep catalog score order (no day/random shuffle) so the same article
+ * keeps the same image across loads. `seed` retained for call-site stability.
  */
 function diversifyTop(
   ranked: Array<{ entry: CatalogEntry; confidence: number }>,
-  seed: string
+  _seed: string
 ): Array<{ entry: CatalogEntry; confidence: number }> {
-  if (ranked.length <= 1) return ranked;
-  const top = ranked[0]!.confidence;
-  const band = ranked.filter((r) => top - r.confidence <= 0.08);
-  const rest = ranked.slice(band.length);
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  const rotated = [...band];
-  const n = rotated.length;
-  const offset = n > 0 ? h % n : 0;
-  const mixed = [...rotated.slice(offset), ...rotated.slice(0, offset)];
-  return [...mixed, ...rest];
+  return ranked;
 }
 
 function isUnused(entry: CatalogEntry, used: UsageTracker): boolean {
