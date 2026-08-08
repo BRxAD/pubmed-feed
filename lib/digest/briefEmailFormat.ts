@@ -29,11 +29,14 @@ export function buildBriefDigestEmail(options: {
   briefUrl: string;
   dateLabel: string;
   logoUrl?: string;
+  /** Inverted (light) logo for dark-mode email clients. */
+  logoLightUrl?: string;
   /** Per-recipient signed unsubscribe link. */
   unsubscribeUrl?: string;
 }): { subject: string; html: string; text: string } {
-  const { items, briefUrl, dateLabel, logoUrl, unsubscribeUrl } = options;
-  const { plum, olive, steel, salmon, paper, paperWarm, hairline } = briefPalette;
+  const { items, briefUrl, dateLabel, logoUrl, logoLightUrl, unsubscribeUrl } =
+    options;
+  const { plum, olive, steel, paper, paperWarm, hairline } = briefPalette;
 
   const subject =
     items.length > 0
@@ -53,10 +56,23 @@ export function buildBriefDigestEmail(options: {
   }
 
   const logoBlock = logoUrl
-    ? `<img src="${escapeHtml(logoUrl)}" alt="The Stewardship Brief" width="560" style="display:block;max-width:100%;height:auto;margin:0 auto 12px" />`
+    ? logoLightUrl
+      ? `<img class="sb-logo-light" src="${escapeHtml(logoUrl)}" alt="The Stewardship Brief" width="560" style="display:block;max-width:100%;height:auto;margin:0 auto 12px" />
+<img class="sb-logo-dark" src="${escapeHtml(logoLightUrl)}" alt="The Stewardship Brief" width="560" style="display:none;max-width:100%;height:auto;margin:0 auto 12px" />`
+      : `<img src="${escapeHtml(logoUrl)}" alt="The Stewardship Brief" width="560" style="display:block;max-width:100%;height:auto;margin:0 auto 12px" />`
     : `<p style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:600;color:${plum};letter-spacing:-0.02em;text-align:center">The Stewardship Brief</p>`;
 
+  const darkLogoStyle = logoLightUrl
+    ? `<style>
+@media (prefers-color-scheme: dark) {
+  .sb-logo-light { display: none !important; }
+  .sb-logo-dark { display: block !important; }
+}
+</style>`
+    : "";
+
   const htmlParts: string[] = [
+    darkLogoStyle,
     `<div style="text-align:center;padding:8px 0 16px;border-bottom:2px solid ${plum}">`,
     logoBlock,
     `<p style="margin:0;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:${olive}">${escapeHtml(dateLabel)}</p>`,
@@ -89,7 +105,6 @@ export function buildBriefDigestEmail(options: {
         </h2>
         ${item.bottomLine ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
         ${meta ? `<p style="margin:0;font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>` : ""}
-        ${item.isNew ? `<p style="margin:10px 0 0;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${salmon}">New</p>` : ""}
       </article>
     `);
   }

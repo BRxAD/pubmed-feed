@@ -80,6 +80,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
   const base = publicAppBaseUrl();
   const briefUrl = base;
   const logoUrl = `${base}/stewardship-brief-logo.png`;
+  const logoLightUrl = `${base}/stewardship-brief-logo-light.png`;
 
   const dateLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -130,6 +131,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     briefUrl,
     dateLabel,
     logoUrl,
+    logoLightUrl,
   });
 
   if (recipients.length === 0) {
@@ -186,6 +188,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         briefUrl,
         dateLabel,
         logoUrl,
+        logoLightUrl,
         unsubscribeUrl: unsubscribePageUrl,
       });
       return {

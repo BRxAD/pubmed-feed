@@ -23,6 +23,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1576086213369", // clinical lab aisle — over-matched
   "photos/7089020", // team huddle — over-matched generic
   "photo-1529107386315", // city network lights — not stewardship/global health
+  "photo-1631217868264", // clinicians discussion — user-rejected
   "/brief-images/heart-endocarditis",
   "/brief-images/brain-meningitis-cns",
 ] as const;
@@ -36,6 +37,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "local-brain-meningitis-cns",
   "mri-diagnostics",
   "globe-network",
+  "hospital-staff",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -168,6 +170,10 @@ function scoreEntry(
   return score;
 }
 
+/**
+ * Stable tie-break among near-equal scores. Seeded only by article identity
+ * (pmid/headline) — no date — so the same article keeps the same image.
+ */
 function diversifyTop(
   ranked: Array<{ entry: CatalogEntry; confidence: number }>,
   seed: string
@@ -178,8 +184,6 @@ function diversifyTop(
   const rest = ranked.slice(band.length);
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  const day = new Date().toISOString().slice(0, 10);
-  for (let i = 0; i < day.length; i++) h = (h * 17 + day.charCodeAt(i)) >>> 0;
   const rotated = [...band];
   const n = rotated.length;
   const offset = n > 0 ? h % n : 0;

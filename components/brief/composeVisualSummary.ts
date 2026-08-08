@@ -133,12 +133,12 @@ function drawCoverImage(
 }
 
 function drawLeftShade(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Extend ~33% further right so white text stays on solid shade.
-  const grad = ctx.createLinearGradient(0, 0, w * 0.96, 0);
-  grad.addColorStop(0, hexAlpha(SHADE, 0.97));
-  grad.addColorStop(0.28, hexAlpha(SHADE, 0.94));
-  grad.addColorStop(0.52, hexAlpha(SHADE, 0.72));
-  grad.addColorStop(0.74, hexAlpha(SHADE, 0.28));
+  // Cover ~2/3 of the card so full headlines/bottom lines stay readable.
+  const grad = ctx.createLinearGradient(0, 0, w * 0.78, 0);
+  grad.addColorStop(0, hexAlpha(SHADE, 0.98));
+  grad.addColorStop(0.42, hexAlpha(SHADE, 0.94));
+  grad.addColorStop(0.62, hexAlpha(SHADE, 0.78));
+  grad.addColorStop(0.82, hexAlpha(SHADE, 0.32));
   grad.addColorStop(1, hexAlpha(SHADE, 0));
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
@@ -201,33 +201,14 @@ async function renderToBlob(
   drawLeftShade(ctx, WIDTH, HEIGHT);
 
   const padX = 72;
-  const textMax = WIDTH * 0.48;
-  let y = 88;
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.textBaseline = "top";
-  // ~25% larger than prior 54 / 27 / 15 for share-card readability.
-  ctx.font = "700 68px Newsreader, Georgia, 'Times New Roman', serif";
+  // ~2/3 of the card for copy; no ellipsis truncation on headline/bottom line.
+  const textMax = WIDTH * (2 / 3) - padX;
+  const brandLogoH = 36;
+  const brandGap = 36;
+  const bottomPad = 48;
+  const citeLh = 25;
   const headline = (item.headline || item.title || "").trim();
-  const headLines = wrapLines(ctx, headline, textMax, 5);
-  const headLh = 80;
-  for (const line of headLines) {
-    ctx.fillText(line, padX, y);
-    y += headLh;
-  }
-
-  if (item.bottomLine?.trim()) {
-    y += 28;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.font = "400 34px Newsreader, Georgia, 'Times New Roman', serif";
-    const bodyLines = wrapLines(ctx, item.bottomLine.trim(), textMax, 5);
-    const bodyLh = 48;
-    for (const line of bodyLines) {
-      ctx.fillText(line, padX, y);
-      y += bodyLh;
-    }
-  }
-
+  const bottom = item.bottomLine?.trim() ?? "";
   const citation = formatPubmedCitation({
     authors: item.authors,
     title: item.title,
@@ -235,18 +216,62 @@ async function renderToBlob(
     date: item.date,
     pmid: item.pmid,
   });
+
+  // Shrink fonts only if needed so full text fits above the citation block.
+  let headSize = 68;
+  let bodySize = 34;
+  let headLh = 80;
+  let bodyLh = 48;
+  let headLines: string[] = [];
+  let bodyLines: string[] = [];
+  let citeLines: string[] = [];
+  for (let attempt = 0; attempt < 6; attempt++) {
+    ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
+    headLines = wrapLinesFull(ctx, headline, textMax);
+    ctx.font = `400 ${bodySize}px Newsreader, Georgia, 'Times New Roman', serif`;
+    bodyLines = bottom ? wrapLinesFull(ctx, bottom, textMax) : [];
+    ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
+    citeLines = wrapLinesFull(ctx, citation, textMax);
+    const citeBlockH = citeLines.length * citeLh + brandGap + brandLogoH;
+    const topY = 88;
+    const gapBeforeBody = bottom ? 28 : 0;
+    const copyH =
+      headLines.length * headLh +
+      gapBeforeBody +
+      bodyLines.length * bodyLh;
+    const available =
+      HEIGHT - bottomPad - citeBlockH - topY - 20;
+    if (copyH <= available || headSize <= 44) break;
+    headSize -= 4;
+    bodySize -= 2;
+    headLh = Math.round(headSize * 1.18);
+    bodyLh = Math.round(bodySize * 1.4);
+  }
+
+  let y = 88;
+  ctx.fillStyle = "#FFFFFF";
+  ctx.textBaseline = "top";
+  ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
+  for (const line of headLines) {
+    ctx.fillText(line, padX, y);
+    y += headLh;
+  }
+
+  if (bottom) {
+    y += 28;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = `400 ${bodySize}px Newsreader, Georgia, 'Times New Roman', serif`;
+    for (const line of bodyLines) {
+      ctx.fillText(line, padX, y);
+      y += bodyLh;
+    }
+  }
+
+  const citeBlockH = citeLines.length * citeLh + brandGap + brandLogoH;
+  let citeY = Math.max(y + 24, HEIGHT - bottomPad - citeBlockH);
+
   ctx.fillStyle = "rgba(255,255,255,0.78)";
   ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
-  const citeLines = wrapLinesFull(ctx, citation, textMax);
-  const citeLh = 25;
-  const brandLogoH = 36;
-  // Extra gap between citation and logos so marks have breathing room.
-  const brandGap = 36;
-  const bottomPad = 48;
-  const citeBlockH =
-    citeLines.length * citeLh + brandGap + brandLogoH;
-  let citeY = HEIGHT - bottomPad - citeBlockH;
-
   ctx.textBaseline = "top";
   for (const line of citeLines) {
     ctx.fillText(line, padX, citeY);

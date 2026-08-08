@@ -415,81 +415,89 @@ function ArticleCard({
             )}
           </div>
 
-          {/* Priority model — always mirrors PRIORITY_FEATURE_NAMES */}
-          <div className="mb-2 space-y-1.5 text-zinc-500 dark:text-zinc-400">
-            <div className="text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400">
+          {/* Priority model breakdown — collapsed by default */}
+          <details className="mb-2 rounded-md border border-zinc-200/70 open:bg-white/40 dark:border-zinc-700/60 dark:open:bg-zinc-900/40">
+            <summary className="cursor-pointer select-none px-2 py-1.5 text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400 marker:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
               {priorityPrediction?.source === "model"
                 ? `Priority model · ${priorityPrediction.contributions.length} features · sorted by effect`
                 : priorityPrediction?.source === "fallback"
                   ? `Priority fallback · ${priorityPrediction.contributions.length} features · sorted by effect`
                   : "Priority model · unavailable"}
-            </div>
-            {priorityPrediction &&
-            (priorityPrediction.source === "model" ||
-              priorityPrediction.source === "fallback") ? (
-              <div className="overflow-hidden rounded-md border border-zinc-200/70 dark:border-zinc-700/60">
-                <table className="w-full table-fixed border-collapse text-left">
-                  <thead>
-                    <tr className="bg-zinc-100/70 text-[0.65rem] uppercase tracking-wide text-zinc-400 dark:bg-zinc-800/60">
-                      <th className="px-2 py-1 font-medium">Feature</th>
-                      <th className="w-16 px-2 py-1 text-right font-medium">Value</th>
-                      <th className="w-16 px-2 py-1 text-right font-medium">Weight</th>
-                      <th className="w-16 px-2 py-1 text-right font-medium">Effect</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priorityPrediction.contributions.map((f) => (
-                      <tr
-                        key={f.name}
-                        className="border-t border-zinc-200/60 dark:border-zinc-700/50"
-                      >
-                        <td className="px-2 py-1 text-zinc-600 dark:text-zinc-300">
-                          {f.label}
-                        </td>
-                        <td className="px-2 py-1 text-right tabular-nums text-zinc-500 dark:text-zinc-400">
-                          {formatFeatureValue(f.value)}
-                        </td>
-                        <td className="px-2 py-1 text-right tabular-nums text-zinc-400">
-                          {f.weight >= 0 ? "+" : ""}
-                          {f.weight.toFixed(2)}
-                        </td>
-                        <td
-                          className={`px-2 py-1 text-right tabular-nums font-semibold ${
-                            f.contribution > 0.005
-                              ? "text-green-700 dark:text-green-400"
-                              : f.contribution < -0.005
-                                ? "text-red-700 dark:text-red-400"
-                                : "text-zinc-400"
-                          }`}
+            </summary>
+            <div className="space-y-1.5 px-2 pb-2 text-zinc-500 dark:text-zinc-400">
+              {priorityPrediction &&
+              (priorityPrediction.source === "model" ||
+                priorityPrediction.source === "fallback") ? (
+                <div className="overflow-hidden rounded-md border border-zinc-200/70 dark:border-zinc-700/60">
+                  <table className="w-full table-fixed border-collapse text-left">
+                    <thead>
+                      <tr className="bg-zinc-100/70 text-[0.65rem] uppercase tracking-wide text-zinc-400 dark:bg-zinc-800/60">
+                        <th className="px-2 py-1 font-medium">Feature</th>
+                        <th className="w-16 px-2 py-1 text-right font-medium">
+                          Value
+                        </th>
+                        <th className="w-16 px-2 py-1 text-right font-medium">
+                          Weight
+                        </th>
+                        <th className="w-16 px-2 py-1 text-right font-medium">
+                          Effect
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {priorityPrediction.contributions.map((f) => (
+                        <tr
+                          key={f.name}
+                          className="border-t border-zinc-200/60 dark:border-zinc-700/50"
                         >
-                          {f.contribution >= 0 ? "+" : ""}
-                          {f.contribution.toFixed(2)}
+                          <td className="px-2 py-1 text-zinc-600 dark:text-zinc-300">
+                            {f.label}
+                          </td>
+                          <td className="px-2 py-1 text-right tabular-nums text-zinc-500 dark:text-zinc-400">
+                            {formatFeatureValue(f.value)}
+                          </td>
+                          <td className="px-2 py-1 text-right tabular-nums text-zinc-400">
+                            {f.weight >= 0 ? "+" : ""}
+                            {f.weight.toFixed(2)}
+                          </td>
+                          <td
+                            className={`px-2 py-1 text-right tabular-nums font-semibold ${
+                              f.contribution > 0.005
+                                ? "text-green-700 dark:text-green-400"
+                                : f.contribution < -0.005
+                                  ? "text-red-700 dark:text-red-400"
+                                  : "text-zinc-400"
+                            }`}
+                          >
+                            {f.contribution >= 0 ? "+" : ""}
+                            {f.contribution.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="border-t border-zinc-300 bg-zinc-50/80 dark:border-zinc-600 dark:bg-zinc-800/40">
+                        <td
+                          className="px-2 py-1 text-zinc-500 dark:text-zinc-400"
+                          colSpan={3}
+                        >
+                          Baseline {priorityPrediction.bias?.toFixed(2)} + effects
+                          {priorityPrediction.source === "fallback"
+                            ? " (fallback)"
+                            : ""}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums font-semibold text-zinc-700 dark:text-zinc-200">
+                          {priorityPrediction.priority}/10
                         </td>
                       </tr>
-                    ))}
-                    <tr className="border-t border-zinc-300 bg-zinc-50/80 dark:border-zinc-600 dark:bg-zinc-800/40">
-                      <td
-                        className="px-2 py-1 text-zinc-500 dark:text-zinc-400"
-                        colSpan={3}
-                      >
-                        Baseline {priorityPrediction.bias?.toFixed(2)} + effects
-                        {priorityPrediction.source === "fallback"
-                          ? " (fallback)"
-                          : ""}
-                      </td>
-                      <td className="px-2 py-1 text-right tabular-nums font-semibold text-zinc-700 dark:text-zinc-200">
-                        {priorityPrediction.priority}/10
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-zinc-400">
-                Priority explanation unavailable for this article.
-              </p>
-            )}
-          </div>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-zinc-400">
+                  Priority explanation unavailable for this article.
+                </p>
+              )}
+            </div>
+          </details>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-zinc-500 dark:text-zinc-400">
             <span>
