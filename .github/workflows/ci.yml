@@ -15,11 +15,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -35,18 +36,24 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Check OpenAlex ingest route (production)
+      - name: OpenAlex ingest is disabled (PubMed-only)
         run: |
           url="https://pubmedfeed.vercel.app/api/ingest/openalex?topicName=main"
           echo "GET $url"
           code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "$url")
           echo "HTTP $code"
           cat /tmp/body.json
-          test "$code" = "200"
-          grep -q '"ok":true' /tmp/body.json
+          test "$code" = "410"
+          grep -q '"ok":false' /tmp/body.json
 
-      - name: Check OpenAlex feed page
+      - name: Check PubMed feed page
         run: |
-          code=$(curl -sS -o /dev/null -w "%{http_code}" "https://pubmedfeed.vercel.app/feed?source=openalex")
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "https://pubmedfeed.vercel.app/feed?source=pubmed")
           echo "Feed HTTP $code"
+          test "$code" = "200"
+
+      - name: Check Brief homepage
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "https://www.stewardshipbrief.com/")
+          echo "Homepage HTTP $code"
           test "$code" = "200"
