@@ -34,7 +34,6 @@ import RelevanceSlider from "@/components/RelevanceSlider";
 import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
 import AdminSettingSelector from "@/components/AdminSettingSelector";
-import SourceSelector from "@/components/SourceSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 import { loadPriorityModel, type PriorityModel } from "@/lib/brief/priorityModel";
 import { explainArticlePriority } from "@/lib/brief/priorityExplain";
@@ -254,11 +253,6 @@ function ArticleCard({
         {journal && (
           <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 italic">
             {journal}
-          </span>
-        )}
-        {source === "all" && (
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            {item.source === "openalex" ? "OpenAlex" : "PubMed"}
           </span>
         )}
         {pubDateStr && (
@@ -507,7 +501,7 @@ function ArticleCard({
               </strong>
             </span>
             <span>
-              {item.source === "openalex" ? "Work ID" : "PMID"}:{" "}
+              PMID:{" "}
               <strong className="text-zinc-700 dark:text-zinc-300">{item.pmid}</strong>
             </span>
             {item.articles?.publication_types?.length ? (
@@ -728,16 +722,10 @@ export default async function FeedPage({
       >
         <form method="GET" action={BASE_PATH}>
           <input type="hidden" name="topicId" value={topicId} />
-          {source !== "all" && (
-            <input type="hidden" name="source" value={source} />
-          )}
+          <input type="hidden" name="source" value="pubmed" />
           {isAdmin && <input type="hidden" name="admin" value="1" />}
 
           <div className="flex flex-wrap items-end gap-5">
-            <Suspense fallback={null}>
-              <SourceSelector source={source} basePath={BASE_PATH} />
-            </Suspense>
-
             {/* Sort */}
             <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <span className="font-medium">Sort</span>
@@ -889,20 +877,7 @@ export default async function FeedPage({
         <main className="min-w-0 flex-1 lg:max-w-[720px]">
           {list.length === 0 ? (
             <p className="rounded-xl border border-zinc-200 bg-zinc-50/50 py-12 text-center text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/30 dark:text-zinc-400">
-              {source === "openalex"
-                ? "No OpenAlex summaries found for this topic."
-                : source === "pubmed"
-                  ? "No PubMed summaries found for this topic."
-                  : "No summaries found for this topic."}{" "}
-              {source === "openalex" && (
-                <>Run OpenAlex ingest first (see docs/OPENALEX_SETUP.md). </>
-              )}
-              {source === "all" && (
-                <>
-                  The feed lists summarized articles. Raw articles without a
-                  summary will not appear until summarized.{" "}
-                </>
-              )}
+              No PubMed summaries found for this topic.{" "}
               {hasFilters && (
                 <>
                   {" "}

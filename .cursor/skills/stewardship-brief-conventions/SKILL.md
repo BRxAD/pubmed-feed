@@ -111,8 +111,9 @@ Column: `summaries.ml_priority` (`scripts/add_ml_priority.sql`). Helpers: `lib/b
 
 ## Surfaces
 
+- **Source: PubMed only.** OpenAlex ingest is disabled (`/api/ingest/openalex` → 410). No source switcher on `/feed` or dashboard. `parseFeedSource` always returns `pubmed`.
 - **Brief (homepage / email):** curated, priority-gated, 28-day article window; not a raw dump of `/feed`.
-- **`/feed`:** full corpus browser; default sort = ingested; filters/relevance may use cached slim index.
+- **`/feed`:** full PubMed corpus browser; default sort = ingested; filters/relevance may use cached slim index.
 - **`/dashboard`:** analytics for selected article-date range; Top 10 must use same ranker as homepage (`getRankedTopPriorityItems` / `rankTopPriorityItems`).
 
 Tab titles: start with **Dashboard** / **Feed** so the browser tab is obvious. Distinct route icons under `app/dashboard/icon.svg` and `app/feed/icon.svg`.

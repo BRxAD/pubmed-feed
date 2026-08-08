@@ -157,8 +157,7 @@ export default async function DashboardPage({
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Corpus stats for the stewardship feed
-            {data.source !== "all" ? ` · ${data.source}` : ""}.
+            Corpus stats for the PubMed stewardship feed.
           </p>
         </div>
         <Link
@@ -217,9 +216,6 @@ export default async function DashboardPage({
         aria-label="Date range"
       >
         <form method="GET" action="/dashboard" className="flex flex-wrap items-end gap-4">
-          {data.source !== "all" && (
-            <input type="hidden" name="source" value={data.source} />
-          )}
           <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
             <span>Start date</span>
             <input
@@ -244,16 +240,6 @@ export default async function DashboardPage({
           >
             Apply
           </button>
-          <a
-            href={buildDashboardUrl({
-              from: data.range.from,
-              to: data.range.to,
-              source: "all",
-            })}
-            className="self-end pb-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            Reset source
-          </a>
         </form>
         <p className="mt-2 text-xs text-zinc-400">
           Filters use article release/pub date. Charts below use{" "}
@@ -287,7 +273,6 @@ export default async function DashboardPage({
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             Stewardship feed PMIDs in range
-            {data.source !== "all" ? ` (${data.source})` : ""}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 dark:border-zinc-700/60 dark:bg-zinc-900/60">

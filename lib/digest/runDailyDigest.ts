@@ -122,10 +122,7 @@ async function sendSourceDigest(options: {
   };
 }
 
-/**
- * OpenAlex is paused on digest/ingest crons (product decision).
- * Manual `/api/ingest/openalex` still works if needed.
- */
+/** OpenAlex is fully disabled — PubMed only. */
 function isOpenAlexIngestEnabled(): boolean {
   return false;
 }
