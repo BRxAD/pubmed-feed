@@ -201,6 +201,9 @@ function ArticleCard({
   const score = breakdown.finalScore;
   const normalizedScore = normalizeScoreTo100(score);
 
+  /** Canonical ML grade: ingest-time score (handcrafted + embeddings). */
+  const storedMlPriority = item.ml_priority;
+  // Feature breakdown only — emb PCA dims are zero here (no page-load embeddings).
   const priorityPrediction = isAdmin
     ? explainArticlePriority({
         rec: makeRec(item),
@@ -383,7 +386,7 @@ function ArticleCard({
             <p className="font-semibold text-amber-700 dark:text-amber-400">
               Admin · Priority model
             </p>
-            {priorityPrediction && (
+            {storedMlPriority != null ? (
               <>
                 <div
                   className="h-1.5 w-20 rounded-full bg-zinc-200 dark:bg-zinc-600"
@@ -393,30 +396,32 @@ function ArticleCard({
                   <div
                     className="h-full rounded-full bg-amber-500 dark:bg-amber-400"
                     style={{
-                      width: `${(priorityPrediction.priority / 10) * 100}%`,
+                      width: `${(storedMlPriority / 10) * 100}%`,
                     }}
                   />
                 </div>
                 <span className="tabular-nums font-semibold text-amber-700 dark:text-amber-400">
-                  {priorityPrediction.priority}/10
+                  {storedMlPriority}/10
                 </span>
                 <span className="tabular-nums text-zinc-400">
-                  {priorityPrediction.source === "model" ? "ML" : "estimate"}
+                  ML (ingest)
                   {" · "}
                   relevance {normalizedScore}/100
                 </span>
               </>
+            ) : (
+              <span className="tabular-nums text-zinc-400">
+                ML unset · relevance {normalizedScore}/100
+              </span>
             )}
           </div>
 
-          {/* Priority model breakdown — collapsed by default */}
+          {/* Feature sketch — embeddings not loaded on page (egress); score above is stored. */}
           <details className="mb-2 rounded-md border border-zinc-200/70 open:bg-white/40 dark:border-zinc-700/60 dark:open:bg-zinc-900/40">
             <summary className="cursor-pointer select-none px-2 py-1.5 text-[0.65rem] font-medium uppercase tracking-wide text-zinc-400 marker:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-              {priorityPrediction?.source === "model"
-                ? `Priority model · ${priorityPrediction.contributions.length} features · sorted by effect`
-                : priorityPrediction?.source === "fallback"
-                  ? `Priority fallback · ${priorityPrediction.contributions.length} features · sorted by effect`
-                  : "Priority model · unavailable"}
+              {priorityPrediction
+                ? `Feature sketch · ${priorityPrediction.contributions.length} features · embeddings not loaded`
+                : "Feature sketch · unavailable"}
             </summary>
             <div className="space-y-1.5 px-2 pb-2 text-zinc-500 dark:text-zinc-400">
               {priorityPrediction &&
@@ -473,13 +478,12 @@ function ArticleCard({
                           className="px-2 py-1 text-zinc-500 dark:text-zinc-400"
                           colSpan={3}
                         >
-                          Baseline {priorityPrediction.bias?.toFixed(2)} + effects
-                          {priorityPrediction.source === "fallback"
-                            ? " (fallback)"
-                            : ""}
+                          Live sketch (no embeddings) — not the ML grade
                         </td>
                         <td className="px-2 py-1 text-right tabular-nums font-semibold text-zinc-700 dark:text-zinc-200">
-                          {priorityPrediction.priority}/10
+                          {storedMlPriority != null
+                            ? `${storedMlPriority}/10 stored`
+                            : "—"}
                         </td>
                       </tr>
                     </tbody>
@@ -528,17 +532,16 @@ function ArticleCard({
                 </strong>
               </span>
             )}
-            {priorityPrediction && (
+            {storedMlPriority != null ? (
               <span>
-                Predicted priority:{" "}
+                ML priority:{" "}
                 <strong className="text-zinc-700 dark:text-zinc-300">
-                  {priorityPrediction.priority}/10
+                  {storedMlPriority}/10
                 </strong>
-                <span className="text-zinc-400">
-                  {" "}
-                  ({priorityPrediction.source === "model" ? "ML" : "estimate"})
-                </span>
+                <span className="text-zinc-400"> (ingest · with embeddings)</span>
               </span>
+            ) : (
+              <span className="text-zinc-400">ML priority: unset</span>
             )}
             {item.admin_priority == null && (
               <span className="text-zinc-400">Saved priority: unset</span>
@@ -680,8 +683,8 @@ export default async function FeedPage({
     ? await loadPriorityModel(getSupabaseServerClient(), topicId)
     : null;
 
-  // Do not load embedding cache on feed page loads (egress). Admin explain /
-  // priority uses handcrafted features; emb PCA dims stay zero until retrain.
+  // Do not load embedding cache on feed page loads (egress). Admin ML badge
+  // uses stored ml_priority; feature sketch runs without embeddings.
   const embeddingByPmid = new Map<string, number[] | null>();
 
   return (

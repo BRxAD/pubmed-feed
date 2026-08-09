@@ -64,8 +64,9 @@ Think of the product like a newspaper desk:
 |--------|--------|
 | `scripts/add_ml_priority.sql` | **Applied** |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
+| `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
 
-New environments: run both in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
+New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
 ## Ask before changing (hard)
 
@@ -106,11 +107,23 @@ Also: **do not commit or push** unless the user asks.
 
 Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not re-score old rows.
 
+**Canonical ML score = stored `ml_priority` only** (handcrafted + embeddings at ingest). Never treat a page-load recompute without embeddings as the ML grade — that number can disagree and mislead (e.g. Brief gated on stored 5 while Admin showed live 4).
+
+**Feed Admin UI:** show stored `ml_priority` as “ML (ingest)”. Feature breakdown may run without embeddings as a sketch only — label it clearly; do not present its total as the ML score.
+
+## PubMed topic query (hard)
+
+Main topic animal exclusion must be:
+
+`(animals[MeSH] NOT humans[MeSH])`
+
+**Never** bare `NOT animals[MeSH]`. In MeSH, Humans sits under Animals, so the bare form drops almost all MEDLINE human clinical papers. Keep case-report exclusion as before. Script: `scripts/fix_topic_query_animals_not_humans.sql`.
+
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
 - **Brief** — curated, ≥5, 28-day window.
-- **`/feed`** — PubMed browser; default sort ingested; slim index + SQL page for default browse.
+- **`/feed`** — PubMed browser; default sort ingested; slim index + SQL page for default browse. Admin ML badge = stored `ml_priority`.
 - **`/dashboard`** — date-range analytics; Top 10 shares homepage ranker.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
 - Tab titles start with **Dashboard** / **Feed**; distinct route icons.
@@ -132,6 +145,8 @@ Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not 
 
 - Egress cuts: no web embedding reads; Brief cache; dashboard slim + date filter; Brief slim→gate→hydrate.
 - Ingest-time `ml_priority` with embeddings.
+- Feed Admin shows stored `ml_priority` (not live no-embedding recompute).
+- Main topic query uses `(animals[MeSH] NOT humans[MeSH])`.
 - Top 10 SQL prefilter ≥ 6.
 - PubMed-only (OpenAlex UI + ingest disabled).
 - CI smoke: OpenAlex expects **410**; PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
@@ -156,6 +171,7 @@ Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not 
 - Show times in **Eastern**.
 - “Newly summarized” = new summary PMIDs in that ingest window — not “ML ≥ 5”.
 - New summary → embed once → save `ml_priority`.
+- Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 
 ## UI / UX (soft)
 
@@ -167,6 +183,8 @@ Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not 
 - [ ] Thresholds/windows/cron/model untouched (or approved)
 - [ ] No full-corpus abstract / embedding egress on hot paths
 - [ ] Embeddings only at ingest + retrain
+- [ ] UI “ML” = stored `ml_priority` (not page-load no-embedding score)
+- [ ] Topic query uses animals NOT humans (not bare animals)
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
 - [ ] PubMed-only preserved
