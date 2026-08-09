@@ -411,11 +411,11 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
   {
     id: "vet-care",
     url: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1200&q=80",
-    label: "companion animals",
+    label: "dogs",
     source: "unsplash",
-    requireAny: ["veterinary", "animal", "pet", "companion", "one health", "zoonotic"],
-    tags: ["veterinary", "animal", "companion animal", "one health", "zoonotic"],
-    settings: ["animal"],
+    // Photo is clearly dogs — do not use for generic animal / One Health stories.
+    requireAny: ["dogs", "dog"],
+    tags: ["dogs", "dog"],
   },
   {
     id: "livestock",
