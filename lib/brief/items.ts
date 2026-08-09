@@ -61,6 +61,11 @@ export type BriefItem = {
   setting: ArticleSetting | null;
   /** All settings that cleared the classifier floor (multi-label). */
   settings: ArticleSetting[];
+  /**
+   * Human admin override (single label). When set, filters and display use
+   * only this — automated multi-label settings are ignored.
+   */
+  adminSetting: ArticleSetting | null;
   studyLabel: string | null;
   methods: string | null;
   results: string | null;
@@ -632,6 +637,7 @@ export async function getBriefItems(options?: {
       isNew: isWithinHours(row.created_at, 24),
       setting: getItemSetting(feedLike),
       settings: getItemSettings(feedLike),
+      adminSetting,
       studyLabel: studyLabel || null,
       methods: null,
       results: null,
@@ -781,6 +787,7 @@ export async function getBriefItems(options?: {
       };
       item.setting = getItemSetting(feedLike);
       item.settings = getItemSettings(feedLike);
+      item.adminSetting = adminSetting;
 
       abstractByPmid.set(item.pmid, body.abstract);
       headlineMetaByPmid.set(item.pmid, {

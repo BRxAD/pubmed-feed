@@ -69,7 +69,8 @@ export function matchesBriefSettingFilter(
     return true;
   }
 
-  if (!soft) return false;
+  // Human admin override is exclusive: never soft-match into another capsule.
+  if (!soft || item.adminSetting) return false;
 
   const scores = scoreAllSettings({
     title: item.title,

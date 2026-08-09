@@ -1,7 +1,10 @@
 import { getCachedHomepageBriefItems } from "@/lib/brief/homepageCache";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import { assignStoryImages } from "@/lib/brief/storyImages";
-import { parseBriefSetting } from "@/lib/brief/settingFilter";
+import {
+  matchesBriefSettingFilter,
+  parseBriefSetting,
+} from "@/lib/brief/settingFilter";
 import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import BriefPage from "@/components/brief/BriefPage";
 
@@ -14,14 +17,17 @@ export default async function HomePage({
   const setting = parseBriefSetting(settingRaw);
 
   try {
+    // Always load the full All pool so sticky lead + story images are assigned
+    // once, then filter — same PMID keeps the same photo across setting tabs.
     const [brief, topPriority] = await Promise.all([
-      getCachedHomepageBriefItems(setting),
+      getCachedHomepageBriefItems(""),
       getTopPriorityYearItems(setting),
     ]);
-    // Sticky lead + images stay outside the Brief cache so Eastern-day pins
-    // and uniqueness still update without re-querying the candidate pool.
-    const items = await applyStickyHomepageLead(brief.items, setting);
-    const images = await assignStoryImages(items);
+    const allItems = await applyStickyHomepageLead(brief.items, "");
+    const images = await assignStoryImages(allItems);
+    const items = setting
+      ? allItems.filter((item) => matchesBriefSettingFilter(item, setting))
+      : allItems;
 
     return (
       <BriefPage

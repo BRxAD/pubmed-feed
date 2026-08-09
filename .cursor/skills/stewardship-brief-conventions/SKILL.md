@@ -163,7 +163,9 @@ Main topic animal exclusion must be:
 
 - Prefer stored `rank_score` for relevance sort when present.
 - Settings multi-label (`lib/classifySetting.ts`); ED → hospital **and** community; admin override = one label.
+- **Admin setting is exclusive:** when `admin_setting` is set, filters/display use only that label — never soft-match the article into another Brief capsule.
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
+- **Story images stick across setting tabs:** assign photos on the full All pool, then filter; same PMID keeps the same image on Hospital / Outpatient / One Health.
 
 ## Ingest & cron
 
