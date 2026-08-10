@@ -3,10 +3,10 @@ name: stewardship-brief-conventions
 description: >-
   Product conventions for The Stewardship Brief / pubmed-feed (Next.js + Supabase):
   plain-language mental model, how to talk to the user, Brief/feed/dashboard/ingest
-  rules, egress, embeddings lifecycle, Postgres indexes/RLS, PubMed-only, and hard
-  change-control. Use when working on Brief, homepage, /feed, /dashboard, ingest,
-  cron, summaries, ranking, priority ML, embeddings, settings, Supabase, or related
-  API routes.
+  rules, egress, embeddings lifecycle, story images, admin setting overrides,
+  Postgres indexes/RLS, PubMed-only, and hard change-control. Use when working on
+  Brief, homepage, /feed, /dashboard, ingest, cron, summaries, ranking, priority ML,
+  embeddings, story images, settings, Supabase, or related API routes.
 ---
 
 # Stewardship Brief — product conventions
@@ -25,9 +25,9 @@ Apply these when changing Brief, feed, dashboard, ingest, ranking, or Supabase a
 Think of the product like a newspaper desk:
 
 1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary, compute relevance (`rank_score`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row.
-2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade.
-3. **Homepage / Brief** — Show strong stories (priority ≥ **5**) from the last **28** days. Do **not** re-run embeddings per visitor. Read saved grades.
-4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. No re-embedding.
+2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only).
+3. **Homepage / Brief** — Show strong stories (priority ≥ **5**) from the last **28** days. Do **not** re-run embeddings per visitor. Read saved grades. Story photos are assigned on the **All** pool so they stay the same across setting tabs.
+4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding.
 5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings. Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask.
 
 ### Words we use
@@ -97,6 +97,8 @@ Also: **do not commit or push** unless the user asks.
 
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
 
+**Effective setting:** `admin_setting` (exclusive single label) → else auto multi-label from `classifyArticleSettings`.
+
 ## Embeddings & ML priority (hard)
 
 | When | Embeddings? |
@@ -122,7 +124,7 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, ≥5, 28-day window.
+- **Brief** — curated, ≥5, 28-day window. Load All → sticky lead → assign images → filter by setting tab.
 - **`/feed`** — PubMed browser; default sort ingested; slim index + SQL page for default browse. Admin ML badge = stored `ml_priority`.
 - **`/dashboard`** — date-range analytics; Top 10 shares homepage ranker.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
@@ -134,8 +136,8 @@ Main topic animal exclusion must be:
 2. Slim + hydrate (feed pages ≤ ~100; Brief survivors only; dashboard **no** abstracts).
 3. Brief: slim → gate → hydrate (`lib/brief/items.ts`).
 4. Default `/feed`: SQL pagination — no full-corpus walk.
-5. Filters/relevance: cached slim index (`feed-slim-index`, ~10 min); bust on ingest + admin rating.
-6. Cache Brief (`brief-homepage` ~10 min) + Top 10 (`brief-top-priority` ~15 min); bust same way.
+5. Filters/relevance: cached slim index (`feed-slim-index`, ~10 min); bust on ingest + admin priority + admin setting.
+6. Cache Brief (`brief-homepage` ~10 min) + Top 10 (`brief-top-priority` ~15 min); bust same way (incl. admin setting).
 7. Dashboard: date-scoped slim, cap ~1500.
 8. Ingest: write `rank_score` + `ml_priority`; service role; RLS with no anon policies.
 9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns.
@@ -147,7 +149,10 @@ Main topic animal exclusion must be:
 - Ingest-time `ml_priority` with embeddings.
 - Feed Admin shows stored `ml_priority` (not live no-embedding recompute).
 - Main topic query uses `(animals[MeSH] NOT humans[MeSH])`.
-- Top 10 SQL prefilter ≥ 6.
+- Admin setting exclusive; Brief/Top 10/feed caches bust on setting change.
+- Story images assigned on All pool (stable across setting tabs).
+- Dog stock photo (`vet-care` / photo-1548199973) only when text says dog/dogs.
+- Top 10: 365 days, scan ≥ 6, human > ML on ties.
 - PubMed-only (OpenAlex UI + ingest disabled).
 - CI smoke: OpenAlex expects **410**; PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
 - Hot-path indexes + RLS applied in Supabase.
@@ -163,9 +168,16 @@ Main topic animal exclusion must be:
 
 - Prefer stored `rank_score` for relevance sort when present.
 - Settings multi-label (`lib/classifySetting.ts`); ED → hospital **and** community; admin override = one label.
-- **Admin setting is exclusive:** when `admin_setting` is set, filters/display use only that label — never soft-match the article into another Brief capsule.
+- **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
-- **Story images stick across setting tabs:** assign photos on the full All pool, then filter; same PMID keeps the same image on Hospital / Outpatient / One Health.
+- **Top 10 rank:** effective priority desc → human-rated before ML-only → relevance % → journal impact. Window 365 days; scan floor ≥ 6.
+
+## Story images (hard)
+
+- Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab.
+- Prefer null over a weak / wrong photo. Keep uniqueness (catalog id + URL) on the All assignment.
+- Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
+- Do not re-assign images per setting tab.
 
 ## Ingest & cron
 
@@ -187,10 +199,12 @@ Main topic animal exclusion must be:
 - [ ] Embeddings only at ingest + retrain
 - [ ] UI “ML” = stored `ml_priority` (not page-load no-embedding score)
 - [ ] Topic query uses animals NOT humans (not bare animals)
+- [ ] Admin setting exclusive (no soft-match into other capsules)
+- [ ] Story images assigned on All pool; stable across setting tabs
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
 - [ ] PubMed-only preserved
-- [ ] Cache tags busted on ingest / admin rating
+- [ ] Cache tags busted on ingest / admin priority / admin setting
 - [ ] Dashboard Top 10 shares homepage ranker
 - [ ] Eastern times where “day” matters
 - [ ] SQL called out; ASCII-only in SQL comments

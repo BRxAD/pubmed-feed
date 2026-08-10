@@ -319,12 +319,12 @@ async function renderToBlob(
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob((b) => resolve(b), "image/png")
   );
-  if (!blob) throw new Error("Could not encode visual summary");
+  if (!blob) throw new Error("Could not encode graphic takeaway");
   return blob;
 }
 
 /**
- * Compose a shareable visual summary PNG matching the Stewardship Brief card style.
+ * Compose a shareable graphic takeaway PNG matching the Stewardship Brief card style.
  */
 export async function composeVisualSummary(
   input: VisualSummaryInput

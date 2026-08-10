@@ -9,6 +9,7 @@ import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { pickPhotoQuote } from "@/lib/brief/photoQuote";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
+import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -171,6 +172,7 @@ function StoryActions({
           Read article
         </a>
         <ShareMenu item={item} image={image} />
+        <GraphicTakeawayButton item={item} image={image} />
       </div>
       {expanded && showDetail && (
         <DetailPanel item={item} skipMethodsResults={skipMethodsResults} />

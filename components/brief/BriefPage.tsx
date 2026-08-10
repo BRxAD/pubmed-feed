@@ -70,15 +70,15 @@ export default function BriefPage({
     <aside
       className={`mt-12 lg:mt-0 space-y-10 pt-2 border-t lg:border-t-0 ${brief.hairline}`}
     >
-      <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
-        <TopPriorityPanel items={topPriority} />
-      </div>
       <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
         <SaveStreak
           savedCount={saved.size}
           savedItems={savedItems}
           onRemove={(pmid) => toggleSave(pmid)}
         />
+      </div>
+      <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
+        <TopPriorityPanel items={topPriority} />
       </div>
       <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
         <DigestSignup />

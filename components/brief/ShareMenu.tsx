@@ -71,7 +71,7 @@ export default function ShareMenu({ item, image }: Props) {
       } catch (e) {
         if (cancelled || gen !== prepareGen.current) return;
         setError(
-          e instanceof Error ? e.message : "Could not create visual summary"
+          e instanceof Error ? e.message : "Could not create graphic takeaway"
         );
       } finally {
         if (!cancelled && gen === prepareGen.current) setBusy(false);
@@ -92,13 +92,13 @@ export default function ShareMenu({ item, image }: Props) {
     }
   }
 
-  async function shareVisualSummary() {
+  async function shareGraphicTakeaway() {
     setError(null);
     // Must call navigator.share in this click turn — no await before it.
     if (!prepared) {
       setError(
         busy
-          ? "Still preparing image — tap Share visual summary again in a moment"
+          ? "Still preparing image — tap Share graphic takeaway again in a moment"
           : "Image not ready — open Share again"
       );
       return;
@@ -132,20 +132,6 @@ export default function ShareMenu({ item, image }: Props) {
       console.error(e);
       setError(msg);
     }
-  }
-
-  function downloadVisualSummary() {
-    setError(null);
-    if (!prepared) {
-      setError(
-        busy
-          ? "Still preparing image — tap Download again in a moment"
-          : "Image not ready — open Share again"
-      );
-      return;
-    }
-    downloadBlob(prepared.blob, prepared.file.name);
-    setOpen(false);
   }
 
   const shareText = [item.headline, item.bottomLine, item.pubmedUrl]
@@ -196,18 +182,12 @@ export default function ShareMenu({ item, image }: Props) {
             ].join(" ")}
           >
             <MenuButton
-              onClick={() => void shareVisualSummary()}
+              onClick={() => void shareGraphicTakeaway()}
               disabled={busy && !prepared}
             >
               {busy && !prepared
                 ? "Preparing image…"
-                : "Share visual summary"}
-            </MenuButton>
-            <MenuButton
-              onClick={() => downloadVisualSummary()}
-              disabled={busy && !prepared}
-            >
-              Download visual summary
+                : "Share graphic takeaway"}
             </MenuButton>
             <MenuButton onClick={() => void copyPubmedLink()}>
               {copied ? "PubMed link copied" : "Copy PubMed link"}

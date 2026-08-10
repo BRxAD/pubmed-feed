@@ -34,7 +34,10 @@ const STEPS = [
   },
 ] as const;
 
-const REVIEWERS = ["Amy Y. Kang, PharmD, BCIDP"] as const;
+const REVIEWERS = [
+  "Amy Y. Kang, PharmD, BCIDP",
+  "Michelle K. Wong, MPH",
+] as const;
 
 export default function AboutPage() {
   return (
