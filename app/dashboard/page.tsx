@@ -199,6 +199,16 @@ export default async function DashboardPage({
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" />
                 {ingest.summarizedCount.toLocaleString()} newly summarized
               </span>
+              <span className="text-zinc-300 dark:text-zinc-600">·</span>
+              <span
+                className="text-sm text-zinc-600 dark:text-zinc-300"
+                title="New summaries with stored ml_priority ≥ 5"
+              >
+                <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {ingest.mlPriorityGe5Count.toLocaleString()}
+                </span>{" "}
+                ML ≥ 5
+              </span>
             </div>
           </div>
           <p className="text-xs text-zinc-400">

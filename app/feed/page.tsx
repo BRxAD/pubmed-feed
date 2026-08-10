@@ -31,13 +31,13 @@ import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import AdminToggle from "@/components/AdminToggle";
 import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
-import RelevanceWeightsPanel from "@/components/RelevanceWeightsPanel";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
 import AdminSettingSelector from "@/components/AdminSettingSelector";
 import { snapshotFromBreakdown } from "@/lib/relevanceLearning";
 import { loadPriorityModel, type PriorityModel } from "@/lib/brief/priorityModel";
 import { explainArticlePriority } from "@/lib/brief/priorityExplain";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { loadLastIngestStats } from "@/lib/ingestStats";
 import {
   articleExternalUrl,
   parseFeedSource,
@@ -132,6 +132,19 @@ function formatDate(raw: string | null | undefined): string {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatIngestEastern(iso: string | null): string {
+  if (!iso) return "not yet";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "not yet";
+  return d.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /** Feature values span 0/1 flags, 0–1 ratios, and raw term counts in the tens. */
@@ -679,13 +692,19 @@ export default async function FeedPage({
     minPriority > 0 ||
     unratedOnly;
 
+  const supabase = getSupabaseServerClient();
   const priorityModel = isAdmin
-    ? await loadPriorityModel(getSupabaseServerClient(), topicId)
+    ? await loadPriorityModel(supabase, topicId)
     : null;
+
+  // Slim ingest stats only (counts + pmid/ml_priority slice) — no bodies.
+  const ingestStats = await loadLastIngestStats(supabase, topicId);
 
   // Do not load embedding cache on feed page loads (egress). Admin ML badge
   // uses stored ml_priority; feature sketch runs without embeddings.
   const embeddingByPmid = new Map<string, number[] | null>();
+
+  const lastIngestLabel = formatIngestEastern(ingestStats.lastAt);
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-6">
@@ -717,6 +736,22 @@ export default async function FeedPage({
 
       {/* Tab navigation */}
       <FeedNav activeId="main" />
+
+      <p
+        className="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400"
+        aria-label="Last ingest summary"
+      >
+        Last ingest{" "}
+        <span className="tabular-nums text-zinc-700 dark:text-zinc-300">
+          {lastIngestLabel}
+        </span>
+        {" · "}
+        <span className="tabular-nums">{ingestStats.ingestedCount}</span> ingested
+        {" · "}
+        <span className="tabular-nums">{ingestStats.summarizedCount}</span> summarized
+        {" · "}
+        <span className="tabular-nums">{ingestStats.mlPriorityGe5Count}</span> ML ≥ 5
+      </p>
 
       {/* Filter toolbar */}
       <section
@@ -863,15 +898,6 @@ export default async function FeedPage({
             )}
           </div>
 
-          {/* Relevance weights editor — admin only */}
-          {isAdmin && (
-            <Suspense fallback={null}>
-              <RelevanceWeightsPanel
-                settings={feedSettings}
-                settingsHref="/stewardshipbrief/settings"
-              />
-            </Suspense>
-          )}
         </form>
       </section>
 

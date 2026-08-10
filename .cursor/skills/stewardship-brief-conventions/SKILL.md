@@ -19,6 +19,7 @@ Apply these when changing Brief, feed, dashboard, ingest, ranking, or Supabase a
 - Prefer short plain sentences; avoid jargon, or define it in one everyday phrase.
 - Lead with the answer; skip long background unless asked.
 - When something needs the user to act (e.g. run SQL), say exactly what and where.
+- **Warn before any change that would add substantial Supabase egress or data use** (bulk abstracts, embedding JSON, full-corpus walks, large JSON settings reads). Propose a slim alternative; do not ship the heavy path unless the user explicitly accepts the cost.
 
 ## Plain-language mental model (read this first)
 
@@ -191,6 +192,9 @@ Main topic animal exclusion must be:
 
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a dashboard.
+- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
+- Digest email: avoid em dashes (use `:` or `-`).
+- Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 
 ## Implementation checklist
 
@@ -208,5 +212,6 @@ Main topic animal exclusion must be:
 - [ ] Dashboard Top 10 shares homepage ranker
 - [ ] Eastern times where “day” matters
 - [ ] SQL called out; ASCII-only in SQL comments
+- [ ] Warned user if a change would add substantial egress / data use
 - [ ] User-facing reply stays brief and novice-clear
 - [ ] Commit/push only if user asked

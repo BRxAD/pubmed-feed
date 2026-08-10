@@ -46,7 +46,7 @@ export function buildDigestEmail(options: {
       ? `[${sourceLabel}] ASP digest: ${pluralizeStudies(items.length)} ≥${minRelevancePercent}% relevance`
       : `[${sourceLabel}] ASP digest: no new studies ≥${minRelevancePercent}% relevance`;
 
-  const intro = `${sourceLabel} feed — antimicrobial stewardship digest for ${periodLabel}. Studies at or above ${minRelevancePercent}% relevance.`;
+  const intro = `${sourceLabel} feed: antimicrobial stewardship digest for ${periodLabel}. Studies at or above ${minRelevancePercent}% relevance.`;
 
   const textParts = [
     intro,

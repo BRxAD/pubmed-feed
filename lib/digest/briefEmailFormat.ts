@@ -40,8 +40,8 @@ export function buildBriefDigestEmail(options: {
 
   const subject =
     items.length > 0
-      ? `The Stewardship Brief — ${pluralCount(items.length, "headline", "headlines")} · ${dateLabel}`
-      : `The Stewardship Brief — ${dateLabel}`;
+      ? `The Stewardship Brief: ${pluralCount(items.length, "headline", "headlines")} · ${dateLabel}`
+      : `The Stewardship Brief: ${dateLabel}`;
 
   const textParts = [
     "THE STEWARDSHIP BRIEF",

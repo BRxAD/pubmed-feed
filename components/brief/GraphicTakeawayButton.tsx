@@ -156,7 +156,7 @@ export default function GraphicTakeawayButton({ item, image }: Props) {
     <>
       <button
         type="button"
-        className={`${brief.sans} rounded-sm bg-[#FFA69E] px-3 py-1.5 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#ff958a]`}
+        className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-2 py-0.5 text-[0.7rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20`}
         onClick={() => {
           setError(null);
           setOpen(true);
@@ -226,7 +226,7 @@ export default function GraphicTakeawayButton({ item, image }: Props) {
                 type="button"
                 onClick={download}
                 disabled={busy && !prepared}
-                className={`${brief.sans} rounded-sm bg-[#FFA69E] px-4 py-2 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#ff958a] disabled:opacity-50`}
+                className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-3 py-1.5 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20 disabled:opacity-50`}
               >
                 Download
               </button>
