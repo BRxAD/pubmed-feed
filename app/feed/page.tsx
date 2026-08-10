@@ -746,9 +746,10 @@ export default async function FeedPage({
           {lastIngestLabel}
         </span>
         {" · "}
-        <span className="tabular-nums">{ingestStats.ingestedCount}</span> ingested
+        <span className="tabular-nums">{ingestStats.ingestedCount}</span> new
         {" · "}
-        <span className="tabular-nums">{ingestStats.summarizedCount}</span> summarized
+        <span className="tabular-nums">{ingestStats.summarizedCount}</span> newly
+        summarized
         {" · "}
         <span className="tabular-nums">{ingestStats.mlPriorityGe5Count}</span> ML ≥ 5
       </p>

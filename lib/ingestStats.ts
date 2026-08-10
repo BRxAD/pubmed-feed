@@ -2,17 +2,84 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type IngestRunStats = {
-  /** When the last PubMed ingest batch finished (ISO). */
+  /** When the last PubMed ingest run finished (ISO). */
   lastAt: string | null;
-  /** Articles upserted in that batch (same fetched_at stamp). */
+  /** Genuinely new article PMIDs first seen in that run. */
   ingestedCount: number;
-  /** Distinct PMIDs newly summarized for this topic during that ingest window. */
+  /** New summaries written in that run. */
   summarizedCount: number;
   /** Of those new summaries, how many have stored ml_priority ≥ 5. */
   mlPriorityGe5Count: number;
   /** Next scheduled ingest cron (ISO). */
   nextAt: string;
 };
+
+/** Persisted after each ingest — feed/dashboard read this (tiny JSON, not bodies). */
+export type PersistedIngestRun = {
+  topicId: string;
+  ranAt: string;
+  newArticles: number;
+  newSummaries: number;
+  mlPriorityGe5: number;
+};
+
+function lastRunSettingsKey(topicId: string): string {
+  return `pubmed_ingest_last_run:${topicId}`;
+}
+
+/** Save genuinely-new counts from the ingest that just finished. */
+export async function saveLastIngestRunStats(
+  supabase: SupabaseClient,
+  stats: PersistedIngestRun
+): Promise<void> {
+  try {
+    const { error } = await supabase.from("app_settings").upsert(
+      {
+        key: lastRunSettingsKey(stats.topicId),
+        value: JSON.stringify(stats),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
+    if (error) {
+      console.warn("[ingestStats] save last run failed:", error.message);
+    }
+  } catch (err) {
+    console.warn("[ingestStats] save last run threw:", err);
+  }
+}
+
+async function loadPersistedLastRun(
+  supabase: SupabaseClient,
+  topicId: string
+): Promise<PersistedIngestRun | null> {
+  try {
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", lastRunSettingsKey(topicId))
+      .maybeSingle();
+    if (error || !data?.value) return null;
+    const parsed = JSON.parse(String(data.value)) as Partial<PersistedIngestRun>;
+    if (
+      typeof parsed.ranAt !== "string" ||
+      typeof parsed.newArticles !== "number" ||
+      typeof parsed.newSummaries !== "number" ||
+      typeof parsed.mlPriorityGe5 !== "number"
+    ) {
+      return null;
+    }
+    return {
+      topicId,
+      ranAt: parsed.ranAt,
+      newArticles: parsed.newArticles,
+      newSummaries: parsed.newSummaries,
+      mlPriorityGe5: parsed.mlPriorityGe5,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * PubMed ingest cron hours in UTC (Eastern Daylight: UTC−4):
@@ -45,8 +112,8 @@ export function nextIngestAt(now = new Date()): Date {
 
 /**
  * Slim last-ingest stats for feed / dashboard.
- * Uses count-only + a small summaries slice (pmid + ml_priority) — not full
- * article/summary bodies. Safe for page loads on the free-tier egress budget.
+ * Prefers the persisted "genuinely new" snapshot from the last ingest run
+ * (one tiny app_settings row). Falls back to fetched_at batch counting.
  */
 export async function loadLastIngestStats(
   supabase: SupabaseClient,
@@ -61,6 +128,18 @@ export async function loadLastIngestStats(
     nextAt,
   };
 
+  const persisted = await loadPersistedLastRun(supabase, topicId);
+  if (persisted) {
+    return {
+      lastAt: persisted.ranAt,
+      ingestedCount: persisted.newArticles,
+      summarizedCount: persisted.newSummaries,
+      mlPriorityGe5Count: persisted.mlPriorityGe5,
+      nextAt,
+    };
+  }
+
+  // Legacy fallback before the first persisted run exists.
   const { data: newest } = await supabase
     .from("articles")
     .select("fetched_at")
@@ -89,7 +168,6 @@ export async function loadLastIngestStats(
     return { ...empty, lastAt, nextAt };
   }
 
-  // Count only — no article rows egressed.
   const { count: ingestedCount } = await supabase
     .from("articles")
     .select("pmid", { count: "exact", head: true })
@@ -100,7 +178,6 @@ export async function loadLastIngestStats(
     new Date(batchFetchedAt).getTime() + 45 * 60 * 1000
   ).toISOString();
 
-  // Tiny rows: pmid + ml_priority for summaries created in this ingest window.
   const { data: sumRows } = await supabase
     .from("summaries")
     .select("pmid, ml_priority")

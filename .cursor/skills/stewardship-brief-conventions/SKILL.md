@@ -184,7 +184,8 @@ Main topic animal exclusion must be:
 
 - `/api/cron/daily-digest` (+ GitHub Actions). Auth: `CRON_SECRET`.
 - Show times in **Eastern**.
-- “Newly summarized” = new summary PMIDs in that ingest window — not “ML ≥ 5”.
+- “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
+- Ingest stats (feed/dashboard) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.
 - New summary → embed once → save `ml_priority`.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 

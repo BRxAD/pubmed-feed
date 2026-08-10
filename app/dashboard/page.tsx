@@ -185,16 +185,18 @@ export default async function DashboardPage({
               Times in Eastern (America/New_York)
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-600 dark:text-zinc-300">
-              <span>
+              <span
+                title="Articles first seen in this ingest run (not refreshes)"
+              >
                 <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                   {ingest.ingestedCount.toLocaleString()}
                 </span>{" "}
-                ingested
+                new
               </span>
               <span className="text-zinc-300 dark:text-zinc-600">·</span>
               <span
                 className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
-                title="Distinct PMIDs newly summarized for this topic during the last ingest window"
+                title="Summaries written in this ingest run"
               >
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" />
                 {ingest.summarizedCount.toLocaleString()} newly summarized
