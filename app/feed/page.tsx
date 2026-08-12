@@ -38,6 +38,7 @@ import { loadPriorityModel, type PriorityModel } from "@/lib/brief/priorityModel
 import { explainArticlePriority } from "@/lib/brief/priorityExplain";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { loadLastIngestStats } from "@/lib/ingestStats";
+import { getCachedHumanRatedTotal } from "@/lib/humanRatingStats";
 import {
   articleExternalUrl,
   parseFeedSource,
@@ -698,7 +699,10 @@ export default async function FeedPage({
     : null;
 
   // Slim ingest stats only (counts + pmid/ml_priority slice) — no bodies.
-  const ingestStats = await loadLastIngestStats(supabase, topicId);
+  const [ingestStats, humanRatedTotal] = await Promise.all([
+    loadLastIngestStats(supabase, topicId),
+    getCachedHumanRatedTotal(topicId),
+  ]);
 
   // Do not load embedding cache on feed page loads (egress). Admin ML badge
   // uses stored ml_priority; feature sketch runs without embeddings.
@@ -708,7 +712,7 @@ export default async function FeedPage({
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-6">
-      {/* Header: logo + admin toggle */}
+      {/* Header: logo + rating total + admin toggle */}
       <header className="mb-4 flex items-start justify-between gap-4">
         {/* Logo — plain <a> so clicking always triggers a full reload */}
         <a href="/feed" className="inline-block shrink-0">
@@ -722,12 +726,17 @@ export default async function FeedPage({
           />
         </a>
         <div className="flex items-center gap-4">
-          <a
-            href="/dashboard"
-            className="text-sm font-medium text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          <p
+            className="text-right text-sm tabular-nums text-zinc-500 dark:text-zinc-400"
+            title="Cached about once a day — total summaries with a human priority rating"
           >
-            Dashboard
-          </a>
+            <span className="font-semibold text-zinc-800 dark:text-zinc-100">
+              {humanRatedTotal.toLocaleString()}
+            </span>
+            <span className="ml-1.5 text-xs font-medium uppercase tracking-wide">
+              human rated
+            </span>
+          </p>
           <Suspense fallback={null}>
             <AdminToggle isAdmin={isAdmin} basePath={BASE_PATH} />
           </Suspense>

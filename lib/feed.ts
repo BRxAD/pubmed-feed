@@ -34,7 +34,6 @@ import {
 } from "@/lib/brief/priorityModel";
 import { effectivePriority } from "@/lib/brief/priority";
 import {
-  FEED_SELECT_DASHBOARD,
   FEED_SELECT_SLIM,
   FEED_SELECT_SLIM_NO_ADMIN_SETTING,
 } from "@/lib/feedSelect";
@@ -874,104 +873,6 @@ export async function getFeedItems(
     totalPages,
     page: pageNum,
     feedSettings,
-  };
-}
-
-/**
- * Slim feed rows whose article release/pub date overlaps [from, to].
- * For dashboard analytics — avoids walking the full corpus cache.
- * Cap keeps egress bounded; callers should still apply exact coalesce filters.
- */
-export async function getFeedItemsInArticleDateRange(
-  topicId: string,
-  range: { from: string; to: string },
-  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER,
-  options?: { maxRows?: number }
-): Promise<{ items: FeedItem[]; query_string: string }> {
-  const supabase = getSupabaseServerClient();
-  const maxRows = Math.min(
-    SUPABASE_FETCH_SAFETY_MAX,
-    Math.max(1, options?.maxRows ?? 1500)
-  );
-
-  const { data: topic, error: topicError } = await supabase
-    .from("topics")
-    .select("id, query_string")
-    .eq("id", topicId)
-    .maybeSingle();
-
-  if (topicError || !topic) {
-    throw new Error("Topic not found");
-  }
-
-  const query_string =
-    topic.query_string != null && String(topic.query_string).trim()
-      ? String(topic.query_string).trim()
-      : "";
-
-  const defaultTopicId = await getDefaultTopicId();
-  const aiTopicId = await getAIStewardshipTopicId();
-  const isMainFeed =
-    defaultTopicId === topicId &&
-    aiTopicId &&
-    aiTopicId !== defaultTopicId;
-  const topicIdsToFetch = isMainFeed
-    ? [defaultTopicId!, aiTopicId!]
-    : [topicId];
-
-  const from = range.from.slice(0, 10);
-  const to = range.to.slice(0, 10);
-  const dateOr = `and(release_date.gte.${from},release_date.lte.${to}),and(pub_date.gte.${from},pub_date.lte.${to})`;
-
-  const rows: SummaryRow[] = [];
-  let selectColumns = FEED_SELECT_DASHBOARD;
-  for (let offset = 0; offset < maxRows; offset += SUPABASE_FETCH_PAGE) {
-    const end = Math.min(offset + SUPABASE_FETCH_PAGE, maxRows) - 1;
-    let query = supabase
-      .from("summaries")
-      .select(selectColumns)
-      .in("topic_id", topicIdsToFetch)
-      .or(dateOr, { foreignTable: "articles" })
-      .order("created_at", { ascending: false })
-      .range(offset, end);
-    query = applySourceFilter(query, source);
-    let { data, error } = await query;
-    const errMsg = error?.message?.toLowerCase() ?? "";
-    if (
-      errMsg.includes("auto_settings") ||
-      errMsg.includes("admin_setting") ||
-      errMsg.includes("ml_priority")
-    ) {
-      selectColumns = selectColumns
-        .replace(", auto_settings", "")
-        .replace(", admin_setting", "")
-        .replace(", ml_priority", "");
-      let retry = supabase
-        .from("summaries")
-        .select(selectColumns)
-        .in("topic_id", topicIdsToFetch)
-        .or(dateOr, { foreignTable: "articles" })
-        .order("created_at", { ascending: false })
-        .range(offset, end);
-      retry = applySourceFilter(retry, source);
-      const result = await retry;
-      data = result.data;
-      error = result.error;
-    }
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as unknown as SummaryRow[];
-    rows.push(...batch);
-    if (batch.length < end - offset + 1) break;
-  }
-
-  let items = rows;
-  if (isMainFeed && items.length > 0) {
-    items = dedupeByPmid(items);
-  }
-
-  return {
-    items: items.map(mapRawRowToFeedItem),
-    query_string,
   };
 }
 

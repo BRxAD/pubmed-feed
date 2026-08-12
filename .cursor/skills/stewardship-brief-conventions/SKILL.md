@@ -2,16 +2,16 @@
 name: stewardship-brief-conventions
 description: >-
   Product conventions for The Stewardship Brief / pubmed-feed (Next.js + Supabase):
-  plain-language mental model, how to talk to the user, Brief/feed/dashboard/ingest
+  plain-language mental model, how to talk to the user, Brief/feed/ingest
   rules, egress, embeddings lifecycle, story images, admin setting overrides,
   Postgres indexes/RLS, PubMed-only, and hard change-control. Use when working on
-  Brief, homepage, /feed, /dashboard, ingest, cron, summaries, ranking, priority ML,
+  Brief, homepage, /feed, ingest, cron, summaries, ranking, priority ML,
   embeddings, story images, settings, Supabase, or related API routes.
 ---
 
 # Stewardship Brief — product conventions
 
-Apply these when changing Brief, feed, dashboard, ingest, ranking, or Supabase access.
+Apply these when changing Brief, feed, ingest, ranking, or Supabase access.
 
 ## How to talk to the user (hard)
 
@@ -52,7 +52,8 @@ Think of the product like a newspaper desk:
 
 ### What we will not do
 
-- Re-download embedding JSON on Brief/feed/dashboard visits.
+- Re-download embedding JSON on Brief/feed visits.
+- Revive `/dashboard` analytics (retired for egress) without an explicit ask.
 - Bulk-select keywords/MeSH (or abstracts) for the whole corpus on page load when `auto_settings` / slim+hydrate will do.
 - Bust Top 10 or the feed slim index on every admin rating (Brief homepage only).
 - Backfill re-grade all old articles unless asked.
@@ -95,15 +96,14 @@ Also: **do not commit or push** unless the user asks.
 | Brief article window | **28** days | `BRIEF_ARTICLE_WINDOW_DAYS` |
 | Top 10 window | **365** days | `TOP_PRIORITY_ARTICLE_WINDOW_DAYS` |
 | Top 10 scan floor | stored priority ≥ **6** | `TOP_PRIORITY_MIN_PRIORITY` |
-| Dashboard default range | last **28** days | `lib/dashboard.ts` |
 | Priority model | **v5** ridge + PCA-8 | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
-| Ingest slots (Eastern) | **06:00 / 12:00 / 17:00** → UTC **10 / 16 / 21** | `vercel.json`, dashboard |
+| Ingest slots (Eastern) | **06:00 / 12:00 / 17:00** → UTC **10 / 16 / 21** | `vercel.json` |
 | Priority model retrain | every **48 h** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
 | Brief homepage cache | ~**10 min**; bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
-| Dashboard payload | ~**3 h**; bust with feed slim tag (ingest) | `lib/dashboard.ts` |
+| Human-rated total on `/feed` | ~**24 h** TTL; head count only | `lib/humanRatingStats.ts` |
 | Trending keywords | ~**6 h**; bust with feed slim tag (ingest) | `lib/feed.ts` |
 
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
@@ -140,34 +140,35 @@ Main topic animal exclusion must be:
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
 - **Brief** — curated, ≥5, 28-day window. Load All → sticky lead → assign images → filter by setting tab.
-- **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`.
-- **`/dashboard`** — date-range analytics; Top 10 shares homepage ranker.
+- **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
+- **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
-- Tab titles start with **Dashboard** / **Feed**; distinct route icons.
+- Tab titles start with **Feed**; distinct route icons.
 
 ## Data fetching & egress (hard)
 
 1. Never bulk-select `abstract`, `summary_text`, or embedding JSON for the whole corpus on page load.
-2. Slim + hydrate (feed pages ≤ ~100; Brief survivors only; dashboard **no** abstracts).
+2. Slim + hydrate (feed pages ≤ ~100; Brief survivors only).
 3. Brief: slim → gate → hydrate (`lib/brief/items.ts`). Corpus/Brief slim **omit** keywords/MeSH; page-hydrate those for UI / story images.
 4. Default `/feed`: SQL pagination — no full-corpus walk.
 5. Prefer SQL paging for ingested / published / relevance / setting / unrated / min-priority (stored `rank_score`, dates, `auto_settings`). Keyword filter uses a lighter cached keyword index (~**3 h**). Full corpus slim index is a fallback only.
 6. **Cache bust rules (do not “fix” by re-busting everything):**
-   - **Ingest** busts: Brief homepage + feed slim index (trending/dashboard share that tag).
+   - **Ingest** busts: Brief homepage + feed slim index (trending shares that tag).
    - **Admin rating / setting** busts: Brief homepage **only**.
    - **Top 10:** TTL only (~3 days). Tag kept for rare manual bust — never on ingest/rating.
-7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory. Dashboard Top 10 reuses year cache when the date range fits; dashboard payload cached ~**3 h**.
-8. Dashboard: date-scoped select **with** keywords/MeSH for charts (`FEED_SELECT_DASHBOARD`), cap ~1500 — not the corpus ultra-slim.
-9. Ingest cron (`/api/cron/daily-digest`): PubMed summarize only — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
-10. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` applied.
-11. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
-12. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
-13. Select helpers live in `lib/feedSelect.ts`: `FEED_SELECT_SLIM` (no keywords/MeSH), `FEED_SELECT_KEYWORD_INDEX`, `FEED_SELECT_DASHBOARD`.
-14. **Priority model retrain:** every **48 hours** via `/api/cron/retrain-priority` (daily check; skips if last train was within 48h). Admin ratings save feedback only — do **not** retrain inline. Manual: `npm run retrain:priority` or `?force=1`.
+   - **Human-rated total on `/feed`:** TTL only (~24 h); SQL `count` head — no row bodies.
+7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory.
+8. Ingest cron (`/api/cron/daily-digest`): PubMed summarize only — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
+9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` applied.
+10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
+11. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
+12. Select helpers live in `lib/feedSelect.ts`: `FEED_SELECT_SLIM` (no keywords/MeSH), `FEED_SELECT_KEYWORD_INDEX`.
+13. **Priority model retrain:** every **48 hours** via `/api/cron/retrain-priority` (daily check; skips if last train was within 48h). Admin ratings save feedback only — do **not** retrain inline. Manual: `npm run retrain:priority` or `?force=1`.
+14. **`/dashboard` retired** — do not reintroduce full-corpus or large date-range analytics without asking.
 
 ## Current state (done)
 
-- Egress cuts: no web embedding reads; Brief cache; SQL feed paging; slim corpus without keywords/MeSH; `auto_settings` at ingest; Top 10 All-pool 3-day TTL; dashboard/trending longer caches; legacy ASP email retired.
+- Egress cuts: no web embedding reads; Brief cache; SQL feed paging; slim corpus without keywords/MeSH; `auto_settings` at ingest; Top 10 All-pool 3-day TTL; trending longer cache; **dashboard retired**; `/feed` human-rated total (24h head count); legacy ASP email retired.
 - Ingest-time `ml_priority` with embeddings **once**; ingest-time `auto_settings`.
 - Feed Admin shows stored `ml_priority` (not live no-embedding recompute).
 - Main topic query uses `(animals[MeSH] NOT humans[MeSH])`.
@@ -209,17 +210,18 @@ Main topic animal exclusion must be:
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **48 h** since `priority_model.trainedAt`.
 - Show times in **Eastern**.
 - “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
-- Ingest stats (feed/dashboard) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.
+- Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.
 - New summary → embed once → save `ml_priority` + `auto_settings`.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 
 ## UI / UX (soft)
 
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
-- One job per section; don’t turn Brief into a dashboard.
+- One job per section; don’t turn Brief into a stats console.
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
 - Digest email: avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
+- Feed header: cached **human rated** total (~24h head count) — not a live corpus walk.
 
 ## Implementation checklist
 
@@ -236,7 +238,7 @@ Main topic animal exclusion must be:
 - [ ] PubMed-only preserved
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
-- [ ] Dashboard Top 10 shares homepage ranker
+- [ ] `/dashboard` stays retired (redirect only)
 - [ ] Eastern times where “day” matters
 - [ ] SQL called out; ASCII-only in SQL comments
 - [ ] Warned user if a change would add substantial egress / data use

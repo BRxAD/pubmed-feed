@@ -1,5 +1,5 @@
 /**
- * Shared PostgREST select strings for feed / dashboard.
+ * Shared PostgREST select strings for feed.
  * Kept in a tiny module so feedCache can import without circular deps on feed.ts.
  */
 
@@ -16,13 +16,6 @@ export const FEED_SELECT_SLIM =
 
 export const FEED_SELECT_SLIM_NO_ADMIN_SETTING =
   "pmid, created_at, subheading, label, admin_priority, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
-
-/**
- * Dashboard date-scoped charts need keyword / MeSH arrays (still no abstracts).
- * Cap callers at ~1500 rows and cache the dashboard payload.
- */
-export const FEED_SELECT_DASHBOARD =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, source)";
 
 /** Keyword filter index: keywords only (no mesh / bodies). */
 export const FEED_SELECT_KEYWORD_INDEX =

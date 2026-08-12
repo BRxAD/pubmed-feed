@@ -61,7 +61,7 @@ export function citationImpactScore(item: {
 }
 
 /**
- * Shared Top 10 ranking used by the homepage sidebar and the dashboard.
+ * Shared Top 10 ranking used by the homepage sidebar.
  * Rank: effective priority → human rating over ML → clinical rubric
  * (relevance %) → JIF / citation impact.
  */
