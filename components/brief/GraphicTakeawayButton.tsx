@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
@@ -23,15 +24,22 @@ type Prepared = {
 /**
  * Pink CTA to the right of Share — opens a popup with the graphic takeaway
  * preview, then Download or Share.
+ * Portal to document.body so article photo stacking / CSS transforms cannot
+ * cover the dialog on mobile scroll.
  */
 export default function GraphicTakeawayButton({ item, image }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<Prepared | null>(null);
+  const [mounted, setMounted] = useState(false);
   const titleId = useId();
   const prepareGen = useRef(0);
   const preparedUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -152,6 +160,90 @@ export default function GraphicTakeawayButton({ item, image }: Props) {
     }
   }
 
+  const dialog =
+    open && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+          >
+            <button
+              type="button"
+              aria-label="Close"
+              className="absolute inset-0 bg-[#1C0B19]/45"
+              onClick={close}
+            />
+            <div className="relative z-[201] w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] p-5 shadow-[0_16px_40px_rgba(28,11,25,0.2)] sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <h2
+                  id={titleId}
+                  className={`${brief.serif} text-xl font-semibold tracking-tight ${brief.ink}`}
+                >
+                  Graphic takeaway
+                </h2>
+                <button
+                  type="button"
+                  onClick={close}
+                  className={`${brief.action} shrink-0`}
+                >
+                  Close
+                </button>
+              </div>
+              <p
+                className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
+              >
+                Preview, then download or share.
+              </p>
+
+              <div className="mt-4 overflow-hidden rounded-sm border border-[#D8D4C8] bg-[#EFECE4]">
+                {prepared ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- blob preview URL
+                  <img
+                    src={prepared.url}
+                    alt={`Graphic takeaway for ${item.headline}`}
+                    className="h-auto w-full"
+                  />
+                ) : (
+                  <div
+                    className={`flex aspect-[4/5] items-center justify-center px-4 ${brief.sans} text-sm ${brief.muted}`}
+                  >
+                    {busy ? "Preparing graphic…" : "Preview unavailable"}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <p className={`mt-3 ${brief.sans} text-sm text-[#9B3A3A]`}>
+                  {error}
+                </p>
+              )}
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={download}
+                  disabled={busy && !prepared}
+                  className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-3 py-1.5 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20 disabled:opacity-50`}
+                >
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void share()}
+                  disabled={busy && !prepared}
+                  className={`${brief.sans} rounded-sm border border-[#1C0B19] bg-transparent px-4 py-2 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#EFECE4] disabled:opacity-50`}
+                >
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <>
       <button
@@ -164,84 +256,7 @@ export default function GraphicTakeawayButton({ item, image }: Props) {
       >
         Graphic takeaway
       </button>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-        >
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute inset-0 bg-[#1C0B19]/45"
-            onClick={close}
-          />
-          <div className="relative z-[61] w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] p-5 shadow-[0_16px_40px_rgba(28,11,25,0.2)] sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <h2
-                id={titleId}
-                className={`${brief.serif} text-xl font-semibold tracking-tight ${brief.ink}`}
-              >
-                Graphic takeaway
-              </h2>
-              <button
-                type="button"
-                onClick={close}
-                className={`${brief.action} shrink-0`}
-              >
-                Close
-              </button>
-            </div>
-            <p className={`mt-2 ${brief.sans} text-sm leading-relaxed ${brief.muted}`}>
-              Preview, then download or share.
-            </p>
-
-            <div className="mt-4 overflow-hidden rounded-sm border border-[#D8D4C8] bg-[#EFECE4]">
-              {prepared ? (
-                // eslint-disable-next-line @next/next/no-img-element -- blob preview URL
-                <img
-                  src={prepared.url}
-                  alt={`Graphic takeaway for ${item.headline}`}
-                  className="h-auto w-full"
-                />
-              ) : (
-                <div
-                  className={`flex aspect-[4/5] items-center justify-center px-4 ${brief.sans} text-sm ${brief.muted}`}
-                >
-                  {busy ? "Preparing graphic…" : "Preview unavailable"}
-                </div>
-              )}
-            </div>
-
-            {error && (
-              <p className={`mt-3 ${brief.sans} text-sm text-[#9B3A3A]`}>
-                {error}
-              </p>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={download}
-                disabled={busy && !prepared}
-                className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-3 py-1.5 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20 disabled:opacity-50`}
-              >
-                Download
-              </button>
-              <button
-                type="button"
-                onClick={() => void share()}
-                disabled={busy && !prepared}
-                className={`${brief.sans} rounded-sm border border-[#1C0B19] bg-transparent px-4 py-2 text-[0.8125rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#EFECE4] disabled:opacity-50`}
-              >
-                Share
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {dialog}
     </>
   );
 }

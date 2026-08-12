@@ -6,7 +6,6 @@ import {
   type BriefFeedSettings,
 } from "@/lib/brief/feedSettings";
 import { DEFAULT_WEIGHTS, type RankingWeights, type RelevanceBreakdown } from "@/lib/ranking";
-import { relearnPriorityModel } from "@/lib/brief/priorityModel";
 
 export type FeatureSnapshot = {
   stewardshipTitle: number;
@@ -203,21 +202,8 @@ export async function saveAdminPriority(options: {
       feature_snapshot: snapshot,
     });
     if (fbErr) throw new Error(fbErr.message);
-    const weights = await relearnTopicWeights(topicId, supabase);
-
-    const { data: topicRow } = await supabase
-      .from("topics")
-      .select("query_string")
-      .eq("id", topicId)
-      .maybeSingle();
-
-    await relearnPriorityModel(
-      topicId,
-      supabase,
-      String(topicRow?.query_string ?? "").trim(),
-      weights
-    ).catch((err) => {
-      console.warn("[relevanceLearning] priority model retrain skipped:", err);
-    });
+    // Ranking weights still learn from ratings; priority ridge model retrains
+    // on a 48h cron (/api/cron/retrain-priority) — not per rating (egress).
+    await relearnTopicWeights(topicId, supabase);
   }
 }

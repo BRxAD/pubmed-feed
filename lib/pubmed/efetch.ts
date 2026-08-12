@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 export type PubMedRecord = {
   pmid: string;
@@ -23,12 +24,18 @@ const EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
 
 function textVal(v: unknown): string | null {
   if (v == null) return null;
-  if (typeof v === "string") return v.trim() || null;
+  if (typeof v === "string") {
+    const t = decodeHtmlEntities(v).trim();
+    return t || null;
+  }
   if (typeof v === "number" && !Number.isNaN(v)) return String(v).trim() || null;
   if (typeof v === "object") {
     const o = v as Record<string, unknown>;
     const t = o["#text"] ?? o["_"];
-    if (typeof t === "string") return t.trim() || null;
+    if (typeof t === "string") {
+      const s = decodeHtmlEntities(t).trim();
+      return s || null;
+    }
     if (typeof t === "number" && !Number.isNaN(t)) return String(t).trim() || null;
   }
   return null;

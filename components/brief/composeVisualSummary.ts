@@ -1,6 +1,7 @@
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { formatPubmedCitation } from "@/lib/brief/citation";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 const WIDTH = 1600;
 const HEIGHT = 900;
@@ -207,11 +208,13 @@ async function renderToBlob(
   const brandGap = 36;
   const bottomPad = 48;
   const citeLh = 25;
-  const headline = (item.headline || item.title || "").trim();
-  const bottom = item.bottomLine?.trim() ?? "";
+  const headline = decodeHtmlEntities(
+    (item.headline || item.title || "").trim()
+  );
+  const bottom = decodeHtmlEntities(item.bottomLine?.trim() ?? "");
   const citation = formatPubmedCitation({
     authors: item.authors,
-    title: item.title,
+    title: item.title ? decodeHtmlEntities(item.title) : item.title,
     journal: item.journal,
     date: item.date,
     pmid: item.pmid,

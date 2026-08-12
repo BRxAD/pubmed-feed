@@ -27,6 +27,7 @@ import {
   type FeedFilterParams,
 } from "@/lib/filters";
 import type { ArticleSetting } from "@/lib/classifySetting";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 import {
   loadPriorityModel,
   predictArticlePriority,
@@ -294,8 +295,12 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
   const articles: FeedItem["articles"] =
     row.articles != null
       ? {
-          title: row.articles.title ?? null,
-          abstract: row.articles.abstract ?? null,
+          title: row.articles.title
+            ? decodeHtmlEntities(row.articles.title)
+            : null,
+          abstract: row.articles.abstract
+            ? decodeHtmlEntities(row.articles.abstract)
+            : null,
           journal: row.articles.journal ?? null,
           pub_date: row.articles.pub_date ?? null,
           release_date: row.articles.release_date ?? null,
@@ -317,7 +322,9 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
       : null;
   return {
     pmid: row.pmid,
-    summary_text: row.summary_text ?? null,
+    summary_text: row.summary_text
+      ? decodeHtmlEntities(row.summary_text)
+      : null,
     created_at: row.created_at,
     subheading: row.subheading ?? null,
     label: row.label ?? null,

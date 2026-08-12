@@ -27,6 +27,7 @@ import {
   type PriorityPredictionSource,
 } from "@/lib/brief/priorityModel";
 import { getOrCreateEmbeddings, l2Normalize } from "@/lib/brief/embeddings";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 import {
   matchesBriefSettingFilter,
   type BriefSettingFilter,
@@ -549,10 +550,12 @@ export async function getBriefItems(options?: {
     const authors = (row.articles?.authors ?? [])
       .map((a) => String(a).trim())
       .filter(Boolean);
-    const title = row.articles!.title!.trim();
+    const title = decodeHtmlEntities(row.articles!.title!.trim());
     const storedMl = parseStoredMlPriority(row.ml_priority);
     const fields = articleFields.get(row.pmid);
-    const abstract = fields?.abstract || null;
+    const abstract = fields?.abstract
+      ? decodeHtmlEntities(fields.abstract)
+      : null;
     const keywords = fields?.keywords ?? row.articles?.keywords ?? [];
     const meshTerms = fields?.meshTerms ?? row.articles?.mesh_terms ?? [];
 

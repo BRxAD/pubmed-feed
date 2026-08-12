@@ -4,6 +4,7 @@ import {
   classifyArticleSettings,
   type ArticleSetting,
 } from "@/lib/classifySetting";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 export type { ArticleSetting };
 
@@ -212,10 +213,12 @@ export function parseSummaryBullets(
 
   if (!whatIsKnown && !methods && !results && !bottomLine) return null;
   return {
-    whatIsKnown,
-    methods,
-    results,
-    bottomLine: bottomLine ? cleanBottomLine(bottomLine, methods) : null,
+    whatIsKnown: whatIsKnown ? decodeHtmlEntities(whatIsKnown) : null,
+    methods: methods ? decodeHtmlEntities(methods) : null,
+    results: results ? decodeHtmlEntities(results) : null,
+    bottomLine: bottomLine
+      ? decodeHtmlEntities(cleanBottomLine(bottomLine, methods))
+      : null,
   };
 }
 

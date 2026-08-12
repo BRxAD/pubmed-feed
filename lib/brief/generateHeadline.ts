@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -75,7 +76,7 @@ export function allowsCausalLanguage(abstract: string): boolean {
 }
 
 function sanitizeHeadline(raw: string): string {
-  let h = raw
+  let h = decodeHtmlEntities(raw)
     .trim()
     .replace(/^["'""]+|["'""]+$/g, "")
     .replace(/^\[HEADLINE\]\s*/i, "")

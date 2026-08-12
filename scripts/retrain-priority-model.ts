@@ -1,14 +1,12 @@
 /**
- * Retrain the priority model for every topic, without waiting for an admin to
- * save a rating. Needed after the feature vector or clinical vocabulary
- * changes, since a stored model from an older version is discarded on load.
+ * Retrain the priority model for every topic (force — ignores 48h gate).
+ * Scheduled retrain: GET /api/cron/retrain-priority (every 48h via daily check).
  *
  *   npm run retrain:priority
  */
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import { relearnPriorityModel } from "@/lib/brief/priorityModel";
-import { mergeFeedSettings, toRankingWeights } from "@/lib/brief/feedSettings";
+import { runScheduledPriorityRetrain } from "@/lib/brief/retrainSchedule";
 
 function loadEnv(): Record<string, string> {
   const raw = readFileSync(".env.local", "utf8");
@@ -35,29 +33,18 @@ async function main() {
     env.SUPABASE_SERVICE_ROLE_KEY ?? ""
   );
 
-  const { data: topics, error } = await supabase
-    .from("topics")
-    .select("id, name, query_string, ranking_weights");
-  if (error) throw new Error(error.message);
-
-  for (const topic of topics ?? []) {
-    const settings = mergeFeedSettings(
-      topic.ranking_weights as Record<string, unknown> | null
-    );
-    const model = await relearnPriorityModel(
-      String(topic.id),
-      supabase,
-      String(topic.query_string ?? "").trim(),
-      toRankingWeights(settings)
-    );
-
-    if (!model) {
-      console.log(`${topic.name}: not enough ratings, model cleared`);
+  const result = await runScheduledPriorityRetrain(supabase, { force: true });
+  for (const row of result.results) {
+    if (row.error) {
+      console.log(`${row.topicName}: error — ${row.error}`);
+      continue;
+    }
+    if (row.reason === "not_enough_ratings") {
+      console.log(`${row.topicName}: not enough ratings, model cleared`);
       continue;
     }
     console.log(
-      `${topic.name}: trained on ${model.sampleCount} ratings, ` +
-        `${model.featureNames.length} features, bias ${model.bias.toFixed(2)}`
+      `${row.topicName}: trained on ${row.sampleCount} ratings at ${row.trainedAt}`
     );
   }
 }

@@ -5,6 +5,7 @@ import {
   headlineFromSummaryText,
   headlineNeedsGeneration,
 } from "@/lib/brief/generateHeadline";
+import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 const CONCURRENCY = 4;
 
@@ -74,7 +75,7 @@ export async function ensureBriefHeadlines(
             err instanceof Error ? err.message : err
           );
           const fromSummary = headlineFromSummaryText(c.summaryText);
-          if (fromSummary) c.headline = fromSummary;
+          if (fromSummary) c.headline = decodeHtmlEntities(fromSummary);
         }
       })
     );
@@ -86,8 +87,8 @@ export function resolveStoredHeadline(
   summaryText: string,
   title: string
 ): string {
-  if (storedHeadline?.trim()) return storedHeadline.trim();
+  if (storedHeadline?.trim()) return decodeHtmlEntities(storedHeadline.trim());
   const fromSummary = headlineFromSummaryText(summaryText);
-  if (fromSummary) return fromSummary;
-  return title.trim();
+  if (fromSummary) return decodeHtmlEntities(fromSummary);
+  return decodeHtmlEntities(title.trim());
 }
