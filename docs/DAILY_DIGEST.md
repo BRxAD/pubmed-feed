@@ -113,3 +113,16 @@ DIGEST_RECIPIENT_EMAILS=brad.langford@utoronto.ca,colleague@hospital.org
 ```
 
 (This overrides the `NCBI_EMAIL` default.)
+
+## Keep Brief email out of spam (checklist)
+
+Auth for `stewardshipbrief.com` is mostly in place (Resend DKIM + `send.` SPF/MX + DMARC `p=none`). Still check Resend and habits:
+
+1. **Resend → Domains** — `stewardshipbrief.com` (or `send.`) shows **Verified** (SPF + DKIM green).
+2. **`BRIEF_FROM_EMAIL`** — must be on that verified domain, e.g. `The Stewardship Brief <brief@stewardshipbrief.com>` (never `onboarding@resend.dev`). Confirm via `/api/health/env` → `briefFromUsesOnboarding: false`.
+3. **`DIGEST_REPLY_TO`** — a real inbox people can answer (already preferred).
+4. **Resend → Emails → open a recent Brief send → Deliverability Insights** — fix any warnings (DMARC, off-domain links, missing text).
+5. **DMARC** — keep `_dmarc` TXT; after reports look clean, consider tightening from `p=none` to `p=quarantine` (optional; ask first if unsure).
+6. **Ask subscribers** — mark one message **Not junk / Not spam**, and allowlist `brief@stewardshipbrief.com` (or whatever From you use). Institutional filters often need IT allowlisting.
+7. **Warm reputation** — new domains land in junk more often; consistent daily sends with low bounce/complaint rates improve placement over 1–2 weeks.
+8. After code changes that affect From/headers/body, **redeploy** before the next 07:00 EDT Brief cron.

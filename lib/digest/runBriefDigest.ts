@@ -167,6 +167,14 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     };
   }
 
+  const listIdHost = (() => {
+    try {
+      return new URL(base).hostname.replace(/^www\./, "");
+    } catch {
+      return "stewardshipbrief.com";
+    }
+  })();
+
   const result = await sendDigestEmailToEach({
     recipients,
     subject,
@@ -179,9 +187,11 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       try {
         unsubscribePageUrl = unsubscribeUrlForEmail(base, email);
         unsubscribeApiUrl = unsubscribeApiUrlForEmail(base, email);
-      } catch {
-        unsubscribePageUrl = undefined;
-        unsubscribeApiUrl = undefined;
+      } catch (err) {
+        console.warn(
+          "[brief-digest] unsubscribe token unavailable:",
+          err instanceof Error ? err.message : err
+        );
       }
       const personalized = buildBriefDigestEmail({
         items,
@@ -191,17 +201,21 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         logoLightUrl,
         unsubscribeUrl: unsubscribePageUrl,
       });
+      // Gmail/Yahoo bulk-sender rules: one-click List-Unsubscribe + clear List-Id.
+      const headers: Record<string, string> = {
+        "List-Id": `The Stewardship Brief <brief.${listIdHost}>`,
+        Precedence: "list",
+      };
+      if (unsubscribeApiUrl) {
+        headers["List-Unsubscribe"] = `<${unsubscribeApiUrl}>`;
+        headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+      } else if (unsubscribePageUrl) {
+        headers["List-Unsubscribe"] = `<${unsubscribePageUrl}>`;
+      }
       return {
         html: personalized.html,
         text: personalized.text,
-        ...(unsubscribeApiUrl
-          ? {
-              headers: {
-                "List-Unsubscribe": `<${unsubscribeApiUrl}>`,
-                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-              },
-            }
-          : {}),
+        headers,
       };
     },
   });

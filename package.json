@@ -14,7 +14,8 @@
     "ingest:ai-stewardship": "tsx scripts/run-ai-stewardship-initial-ingest.ts",
     "retrain:priority": "tsx --tsconfig scripts/priority-eval/tsconfig.json scripts/retrain-priority-model.ts",
     "eval:priority": "tsx --tsconfig scripts/priority-eval/tsconfig.json scripts/priority-eval/export-dataset.ts",
-    "recompute:rank-scores": "tsx --env-file=.env.local scripts/recompute-rank-scores.ts"
+    "recompute:rank-scores": "tsx --env-file=.env.local scripts/recompute-rank-scores.ts",
+    "backfill:ml-priority": "tsx --tsconfig scripts/priority-eval/tsconfig.json --env-file=.env.local scripts/backfill-ml-priority-handcrafted.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",

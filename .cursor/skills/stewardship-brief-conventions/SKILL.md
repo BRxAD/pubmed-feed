@@ -110,6 +110,8 @@ Also: **do not commit or push** unless the user asks.
 
 Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not re-score old rows.
 
+**Explicit handcrafted backfill (when asked):** `npm run backfill:ml-priority` → `scripts/backfill-ml-priority-handcrafted.ts`. Fills null `ml_priority` only where `admin_priority` is also null, last N months (default 12). Uses model + handcrafted features with **embeddings off**; never reads/writes `emb:*` cache. Prefer `--dry-run` first.
+
 **Canonical ML score = stored `ml_priority` only** (handcrafted + embeddings at ingest). Never treat a page-load recompute without embeddings as the ML grade — that number can disagree and mislead (e.g. Brief gated on stored 5 while Admin showed live 4).
 
 **Feed Admin UI:** show stored `ml_priority` as “ML (ingest)”. Feature breakdown may run without embeddings as a sketch only — label it clearly; do not present its total as the ML score.
@@ -194,7 +196,7 @@ Main topic animal exclusion must be:
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a dashboard.
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
-- Digest email: avoid em dashes (use `:` or `-`).
+- Digest email: avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 
 ## Implementation checklist

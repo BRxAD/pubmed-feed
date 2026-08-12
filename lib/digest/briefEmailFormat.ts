@@ -40,8 +40,11 @@ export function buildBriefDigestEmail(options: {
 
   const subject =
     items.length > 0
-      ? `The Stewardship Brief: ${pluralCount(items.length, "headline", "headlines")} · ${dateLabel}`
-      : `The Stewardship Brief: ${dateLabel}`;
+      ? `${pluralCount(items.length, "headline", "headlines")} · ${dateLabel}`
+      : dateLabel;
+
+  // Prefer brand-domain links in the body (inbox filters penalize mostly-off-domain URLs).
+  const briefHost = briefUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "");
 
   const textParts = [
     "THE STEWARDSHIP BRIEF",
@@ -77,7 +80,7 @@ export function buildBriefDigestEmail(options: {
     logoBlock,
     `<p style="margin:0;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:${olive}">${escapeHtml(dateLabel)}</p>`,
     `</div>`,
-    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:20px 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open the daily brief →</a></p>`,
+    `<p style="font-family:system-ui,sans-serif;font-size:13px;margin:20px 0 24px"><a href="${escapeHtml(briefUrl)}" style="color:${steel};text-decoration:none;font-weight:500">Open today's brief on ${escapeHtml(briefHost)} →</a></p>`,
   ];
 
   if (items.length === 0) {
@@ -94,30 +97,41 @@ export function buildBriefDigestEmail(options: {
       item.headline,
       item.bottomLine ?? "",
       meta,
-      item.pubmedUrl,
+      `Brief: ${briefUrl}`,
+      `PubMed: ${item.pubmedUrl}`,
       ""
     );
 
     htmlParts.push(`
       <article style="margin:0 0 28px;padding:0 0 28px;border-bottom:1px solid ${hairline};font-family:system-ui,sans-serif">
         <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
-          <a href="${escapeHtml(item.pubmedUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
+          <a href="${escapeHtml(briefUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
         </h2>
         ${item.bottomLine ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
-        ${meta ? `<p style="margin:0;font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>` : ""}
+        <p style="margin:0;font-size:12px;line-height:1.5;color:${olive}">
+          ${meta ? `<span style="font-weight:500;letter-spacing:0.08em;text-transform:uppercase">${escapeHtml(meta)}</span> · ` : ""}
+          <a href="${escapeHtml(item.pubmedUrl)}" style="color:${steel};text-decoration:underline">PubMed</a>
+        </p>
       </article>
     `);
   }
 
   htmlParts.push(
     `<div style="margin-top:32px;padding:16px;background:${paperWarm};border:1px solid ${hairline};text-align:center">
-      <a href="${escapeHtml(briefUrl)}" style="font-family:system-ui,sans-serif;font-size:14px;font-weight:500;color:${steel};text-decoration:none">View full brief →</a>
+      <a href="${escapeHtml(briefUrl)}" style="font-family:system-ui,sans-serif;font-size:14px;font-weight:500;color:${steel};text-decoration:none">View full brief on ${escapeHtml(briefHost)} →</a>
     </div>`,
-    `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center">The Stewardship Brief · Daily antimicrobial stewardship digest</p>`
+    `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:24px;text-align:center;line-height:1.55">
+      The Stewardship Brief · Daily antimicrobial stewardship digest<br />
+      You receive this because you subscribed at ${escapeHtml(briefHost)}.
+    </p>`
   );
 
   if (unsubscribeUrl) {
-    textParts.push("", `Unsubscribe: ${unsubscribeUrl}`);
+    textParts.push(
+      "",
+      "You subscribed at " + briefHost + ".",
+      `Unsubscribe: ${unsubscribeUrl}`
+    );
     htmlParts.push(
       `<p style="font-family:system-ui,sans-serif;font-size:11px;color:${olive};margin-top:16px;text-align:center">
         <a href="${escapeHtml(unsubscribeUrl)}" style="color:${olive};text-decoration:underline">Unsubscribe</a>
