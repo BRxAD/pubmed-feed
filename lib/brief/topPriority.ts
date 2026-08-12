@@ -18,9 +18,16 @@ export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
  */
 export const TOP_PRIORITY_MIN_PRIORITY = 6;
 
-/** Revalidated on admin rating changes; the TTL only bounds ingest-driven drift. */
+/**
+ * Optional tag for rare manual busts. Ingest and admin ratings do **not**
+ * revalidate this — Top 10 refreshes on TTL only (~3 days) to limit egress.
+ */
 export const TOP_PRIORITY_CACHE_TAG = "brief-top-priority";
-const TOP_PRIORITY_CACHE_SECONDS = 900;
+/** ~3 days — not busted on every ingest/rating. */
+const TOP_PRIORITY_CACHE_SECONDS = 60 * 60 * 24 * 3;
+
+/** Enough ranked ≥6 rows so setting tabs can still fill ~10 after filter. */
+const TOP_PRIORITY_POOL_LIMIT = 500;
 
 export type TopPriorityItem = Pick<
   BriefItem,
@@ -29,11 +36,13 @@ export type TopPriorityItem = Pick<
   | "title"
   | "effectivePriority"
   | "adminPriority"
+  | "adminSetting"
   | "relevancePercent"
   | "pubmedUrl"
   | "date"
   | "setting"
   | "settings"
+  | "keywords"
   | "jif"
   | "sjrScimago"
 >;
@@ -80,20 +89,57 @@ function toTopPriorityItem(item: BriefItem): TopPriorityItem {
     title: item.title,
     effectivePriority: item.effectivePriority,
     adminPriority: item.adminPriority,
+    adminSetting: item.adminSetting,
     relevancePercent: item.relevancePercent,
     pubmedUrl: item.pubmedUrl,
     date: item.date,
     setting: item.setting,
     settings: item.settings,
+    keywords: item.keywords,
     jif: item.jif,
     sjrScimago: item.sjrScimago,
   };
 }
 
-function articleDateIso(item: BriefItem): string | null {
+function articleDateIso(item: BriefItem | TopPriorityItem): string | null {
   const raw = item.date?.trim() || null;
   if (!raw) return null;
   return raw.slice(0, 10);
+}
+
+/** Minimal BriefItem shape for setting soft-match against a cached pool row. */
+function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
+  return {
+    pmid: item.pmid,
+    source: "pubmed",
+    headline: item.headline,
+    title: item.title,
+    journal: null,
+    jif: item.jif,
+    jifIsHigh: false,
+    isQ1: false,
+    sjrScimago: item.sjrScimago,
+    date: item.date,
+    createdAt: "",
+    isNew: false,
+    setting: item.setting,
+    settings: item.settings,
+    adminSetting: item.adminSetting,
+    studyLabel: null,
+    methods: null,
+    results: null,
+    bottomLine: null,
+    relevancePercent: item.relevancePercent,
+    predictedPriority: item.effectivePriority,
+    adminPriority: item.adminPriority,
+    effectivePriority: item.effectivePriority,
+    prioritySource: item.adminPriority != null ? "admin" : "model",
+    pubmedUrl: item.pubmedUrl,
+    authors: [],
+    keywords: item.keywords ?? [],
+    meshTerms: [],
+    abstractSnippet: null,
+  };
 }
 
 /**
@@ -116,7 +162,7 @@ export async function getRankedTopPriorityItems(options?: {
   );
   const setting = options?.setting ?? "";
   const softSetting = options?.softSetting ?? Boolean(setting);
-  const limit = Math.min(50, Math.max(1, options?.limit ?? 10));
+  const limit = Math.min(500, Math.max(1, options?.limit ?? 10));
 
   const result = await getBriefItems({
     daysBack: windowDays,
@@ -153,33 +199,38 @@ export async function getRankedTopPriorityItems(options?: {
 }
 
 /**
- * Top 10 PubMed studies from the past 12 months (article date),
- * stored priority ≥ 6. Soft setting match so capsules can fill to 10 when
- * classifiers left many rows unclassified.
+ * Full-year ≥6 pool (All settings). Cached once; tabs filter in memory.
  */
-async function rankTopPriorityYearItems(
-  setting: BriefSettingFilter
-): Promise<TopPriorityItem[]> {
+async function loadTopPriorityYearPool(): Promise<TopPriorityItem[]> {
   return getRankedTopPriorityItems({
-    setting,
+    setting: "",
     articleDateWithinDays: TOP_PRIORITY_ARTICLE_WINDOW_DAYS,
-    softSetting: true,
-    limit: 10,
+    softSetting: false,
+    limit: TOP_PRIORITY_POOL_LIMIT,
   });
 }
 
-/**
- * Ranking a full year of studies means scoring every candidate, which is too
- * costly to repeat per request. Cache it; admin rating changes bust the tag.
- */
-const loadTopPriorityYearItems = unstable_cache(
-  rankTopPriorityYearItems,
-  ["brief-top-priority-year-v3"],
+const loadCachedTopPriorityYearPool = unstable_cache(
+  loadTopPriorityYearPool,
+  ["brief-top-priority-year-pool-v1"],
   { revalidate: TOP_PRIORITY_CACHE_SECONDS, tags: [TOP_PRIORITY_CACHE_TAG] }
 );
 
+/**
+ * Top 10 PubMed studies from the past 12 months (article date),
+ * stored priority ≥ 6. Soft setting match so capsules can fill to 10 when
+ * classifiers left many rows unclassified.
+ *
+ * Loads the shared All pool from cache, then filters — never rebuilds per tab.
+ */
 export async function getTopPriorityYearItems(
   setting: BriefSettingFilter = ""
 ): Promise<TopPriorityItem[]> {
-  return loadTopPriorityYearItems(setting);
+  const pool = await loadCachedTopPriorityYearPool();
+  if (!setting) return pool.slice(0, 10);
+  return pool
+    .filter((item) =>
+      matchesBriefSettingFilter(asBriefForSettingFilter(item), setting, true)
+    )
+    .slice(0, 10);
 }

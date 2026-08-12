@@ -46,6 +46,22 @@ begin
   end if;
 end $$;
 
+-- auto_settings GIN (scripts/add_auto_settings.sql)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'summaries'
+      and column_name = 'auto_settings'
+  ) then
+    execute $i$
+      create index if not exists summaries_auto_settings_gin
+        on public.summaries using gin (auto_settings)
+    $i$;
+  end if;
+end $$;
+
 -- Top 10 scan floor (>= 6)
 create index if not exists summaries_topic_top_priority_admin_idx
   on public.summaries (topic_id, created_at desc)

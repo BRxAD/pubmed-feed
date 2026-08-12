@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   getDefaultTopicId,
@@ -38,7 +39,7 @@ import {
   PRIORITY_FEATURE_NAMES,
   priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
-import { getRankedTopPriorityItems } from "@/lib/brief/topPriority";
+import { getRankedTopPriorityItems, getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import { briefSettingsLabel } from "@/lib/brief/settingFilter";
 import {
   loadLastIngestStats,
@@ -48,6 +49,7 @@ import {
 import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
+import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 
 export type { IngestRunStats };
 export { nextIngestAt };
@@ -228,6 +230,11 @@ export const SUPABASE_SCHEMA_SUMMARY: SchemaTable[] = [
         notes: "First ML rating at ingest (embeddings); admin_priority wins when set",
       },
       { name: "admin_setting", type: "text", notes: "hospital | community | long-term care | animal | environment" },
+      {
+        name: "auto_settings",
+        type: "text[]",
+        notes: "Ingest multi-label settings; admin_setting wins when set",
+      },
     ],
   },
   {
@@ -300,6 +307,26 @@ export async function getDashboardData(options?: {
 }): Promise<DashboardData> {
   const range = parseDashboardRange(options?.from, options?.to);
   const source = parseFeedSource(options?.source ?? undefined);
+  return loadCachedDashboardData(range.from, range.to, source);
+}
+
+const loadCachedDashboardData = unstable_cache(
+  async (
+    from: string,
+    to: string,
+    source: FeedSourceFilter
+  ): Promise<DashboardData> => getDashboardDataUncached({ from, to, source }),
+  ["dashboard-data-v1"],
+  { revalidate: 60 * 60 * 3, tags: [FEED_SLIM_INDEX_CACHE_TAG] }
+);
+
+async function getDashboardDataUncached(options: {
+  from: string;
+  to: string;
+  source: FeedSourceFilter;
+}): Promise<DashboardData> {
+  const range = { from: options.from, to: options.to };
+  const source = options.source;
 
   const topicId = await getDefaultTopicId();
   if (!topicId) throw new Error("Default topic not found");
@@ -491,23 +518,29 @@ export async function getDashboardData(options?: {
     })
   );
 
-  // Same rules as the homepage Top 10: brief-eligible (priority ≥ 5), PubMed,
-  // rank by priority → human → relevance → JIF/SJR — then clipped to the
-  // dashboard date range.
-  const fromMs = Date.parse(`${range.from}T12:00:00Z`);
-  const todayMs = Date.parse(`${todayIso()}T12:00:00Z`);
-  const windowDays = Number.isFinite(fromMs)
-    ? Math.min(
-        365,
-        Math.max(1, Math.ceil((todayMs - fromMs) / (24 * 60 * 60 * 1000)) + 1)
-      )
-    : 28;
-  const topPriority = await getRankedTopPriorityItems({
-    articleDateWithinDays: windowDays,
-    from: range.from,
-    to: range.to,
-    limit: 10,
+  // Prefer the cached homepage Top 10 (15 min) when it already covers the
+  // dashboard date range — avoids a second 365-day slim walk per /dashboard load.
+  const yearTop = await getTopPriorityYearItems("");
+  let topPriority = yearTop.filter((item) => {
+    const d = item.date?.slice(0, 10) ?? "";
+    return d >= range.from && d <= range.to;
   });
+  if (topPriority.length < 10) {
+    const fromMs = Date.parse(`${range.from}T12:00:00Z`);
+    const todayMs = Date.parse(`${todayIso()}T12:00:00Z`);
+    const windowDays = Number.isFinite(fromMs)
+      ? Math.min(
+          365,
+          Math.max(1, Math.ceil((todayMs - fromMs) / (24 * 60 * 60 * 1000)) + 1)
+        )
+      : 28;
+    topPriority = await getRankedTopPriorityItems({
+      articleDateWithinDays: windowDays,
+      from: range.from,
+      to: range.to,
+      limit: 10,
+    });
+  }
   const topTen: DashboardTopItem[] = topPriority.map((item) => ({
     pmid: item.pmid,
     title: item.title?.trim() || item.headline || "Untitled",

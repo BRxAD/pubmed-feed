@@ -147,8 +147,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
   }
 
   const sendEmpty =
-    process.env.BRIEF_DIGEST_SEND_IF_EMPTY === "1" ||
-    process.env.DIGEST_SEND_IF_EMPTY === "1";
+    process.env.BRIEF_DIGEST_SEND_IF_EMPTY === "1";
 
   if (items.length === 0 && !sendEmpty) {
     return {

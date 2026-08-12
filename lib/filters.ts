@@ -372,12 +372,37 @@ function matchesKeyword(item: FeedItem, keyword: string): boolean {
   return searchable.includes(canonical);
 }
 
+function parseStoredAutoSettings(
+  raw: string[] | null | undefined
+): ArticleSetting[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const allowed = new Set<string>([
+    "hospital",
+    "community",
+    "long-term care",
+    "dentistry",
+    "one-health",
+    "global-health",
+    "animal",
+    "environment",
+  ]);
+  const out: ArticleSetting[] = [];
+  for (const v of raw) {
+    const s = String(v ?? "").trim();
+    if (allowed.has(s)) out.push(s as ArticleSetting);
+  }
+  return out;
+}
+
 /**
  * All effective settings for a feed item.
- * Manual admin override wins as a single label; else multi-label auto-classify.
+ * Manual admin override wins as a single label; else stored ingest
+ * auto_settings; else live multi-label classify (legacy rows).
  */
 export function getItemSettings(item: FeedItem): ArticleSetting[] {
   if (item.admin_setting) return [item.admin_setting];
+  const stored = parseStoredAutoSettings(item.auto_settings);
+  if (stored.length > 0) return stored;
   return classifyArticleSettings({
     title: item.articles?.title,
     abstract: item.articles?.abstract,

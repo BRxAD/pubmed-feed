@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import type { FeedSource, FeedSourceFilter } from "@/lib/feedSource";
 import { DEFAULT_FEED_SOURCE_FILTER } from "@/lib/feedSource";
@@ -32,10 +33,14 @@ import {
 } from "@/lib/brief/priorityModel";
 import { effectivePriority } from "@/lib/brief/priority";
 import {
+  FEED_SELECT_DASHBOARD,
   FEED_SELECT_SLIM,
   FEED_SELECT_SLIM_NO_ADMIN_SETTING,
 } from "@/lib/feedSelect";
-import { getCachedSlimSummaryRows } from "@/lib/feedCache";
+import {
+  FEED_SLIM_INDEX_CACHE_TAG,
+  getCachedSlimSummaryRows,
+} from "@/lib/feedCache";
 
 export {
   FEED_SELECT_FULL,
@@ -64,6 +69,18 @@ function parseAdminSetting(raw: string | null | undefined): ArticleSetting | nul
   if (!raw?.trim()) return null;
   const v = raw.trim() as ArticleSetting;
   return VALID_ADMIN_SETTINGS.has(v) ? v : null;
+}
+
+function parseAutoSettings(
+  raw: string[] | null | undefined
+): ArticleSetting[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: ArticleSetting[] = [];
+  for (const v of raw) {
+    const s = String(v ?? "").trim() as ArticleSetting;
+    if (VALID_ADMIN_SETTINGS.has(s)) out.push(s);
+  }
+  return out.length > 0 ? out : null;
 }
 
 const DEFAULT_TOPIC_NAME = "antimicrobial stewardship";
@@ -112,6 +129,8 @@ export type FeedItem = {
   ml_priority: number | null;
   /** Manual setting override; wins over auto-classification when set. */
   admin_setting: ArticleSetting | null;
+  /** Ingest-time auto multi-label settings; used when admin_setting is null. */
+  auto_settings: ArticleSetting[] | null;
   /** SCImago 2025 Q1 flag. */
   is_q1: boolean;
   /** SCImago SJR when journal is Q1; otherwise null. */
@@ -168,8 +187,7 @@ function applySourceFilter<T extends { eq: Function; or: Function }>(
 }
 
 /**
- * Fill abstract / summary_text for a small page of items after slim bulk fetch.
- * mesh_terms are already on the slim select.
+ * Fill abstract / summary_text / keywords / mesh for a small page after slim fetch.
  */
 async function hydrateFeedItemBodies(
   supabase: ReturnType<typeof getSupabaseServerClient>,
@@ -184,6 +202,8 @@ async function hydrateFeedItemBodies(
     {
       summary_text: string | null;
       abstract: string | null;
+      keywords: string[] | null;
+      mesh_terms: string[] | null;
     }
   >();
 
@@ -192,19 +212,27 @@ async function hydrateFeedItemBodies(
     const chunk = pmids.slice(i, i + chunkSize);
     const { data, error } = await supabase
       .from("summaries")
-      .select("pmid, summary_text, articles!inner(abstract)")
+      .select(
+        "pmid, summary_text, articles!inner(abstract, keywords, mesh_terms)"
+      )
       .in("pmid", chunk);
     if (error || !data) continue;
     for (const row of data as unknown as Array<{
       pmid?: string;
       summary_text?: string | null;
-      articles?: { abstract?: string | null } | null;
+      articles?: {
+        abstract?: string | null;
+        keywords?: string[] | null;
+        mesh_terms?: string[] | null;
+      } | null;
     }>) {
       const pmid = String(row.pmid ?? "").trim();
       if (!pmid || byPmid.has(pmid)) continue;
       byPmid.set(pmid, {
         summary_text: row.summary_text ?? null,
         abstract: row.articles?.abstract ?? null,
+        keywords: row.articles?.keywords ?? null,
+        mesh_terms: row.articles?.mesh_terms ?? null,
       });
     }
   }
@@ -219,6 +247,8 @@ async function hydrateFeedItemBodies(
         ? {
             ...item.articles,
             abstract: body.abstract ?? item.articles.abstract,
+            keywords: body.keywords ?? item.articles.keywords,
+            mesh_terms: body.mesh_terms ?? item.articles.mesh_terms,
           }
         : item.articles,
     };
@@ -245,6 +275,7 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
     admin_priority?: number | null;
     ml_priority?: number | null;
     admin_setting?: string | null;
+    auto_settings?: string[] | null;
     articles?: {
       title?: string | null;
       abstract?: string | null;
@@ -297,6 +328,7 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
     admin_priority: row.admin_priority ?? null,
     ml_priority,
     admin_setting: parseAdminSetting(row.admin_setting),
+    auto_settings: parseAutoSettings(row.auto_settings),
     is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
     sjr_scimago: scimago?.sjr ?? null,
     jif_2024: null,
@@ -364,34 +396,97 @@ function dedupeByPmid(items: SummaryRow[]): SummaryRow[] {
 }
 
 /**
- * Fast path: default ingested sort with no filters — only load the current page
- * from Postgres (plus a small over-fetch when merging two topics).
+ * Fast SQL page path: ingested / published / relevance without keyword filter.
+ * Setting + Unrated + Min priority stay in SQL (auto_settings / stored grades).
  */
-async function fetchIngestedPage(options: {
+async function fetchSqlFeedPage(options: {
   supabase: ReturnType<typeof getSupabaseServerClient>;
   topicIds: string[];
   isMainFeed: boolean;
   source: FeedSourceFilter;
   page: number;
   pageSize: number;
+  sort: FeedSort;
+  unratedOnly?: boolean;
+  minPriority?: number | null;
+  setting?: ArticleSetting | null;
 }): Promise<{
   items: FeedItem[];
   totalCount: number;
   page: number;
   error: { message: string } | null;
 }> {
-  const { supabase, topicIds, isMainFeed, source, pageSize } = options;
+  const { supabase, topicIds, isMainFeed, source, pageSize, sort } = options;
   const pageNum = Math.max(1, options.page);
+  const unratedOnly = Boolean(options.unratedOnly);
+  const minPriority =
+    options.minPriority != null && options.minPriority > 0
+      ? Math.min(10, Math.max(1, options.minPriority))
+      : null;
+  const setting = options.setting ?? null;
+
+  const applyPriorityFilters = <
+    T extends { is: Function; or: Function; gte: Function; contains: Function },
+  >(
+    query: T
+  ): T => {
+    let q = query;
+    if (unratedOnly) {
+      q = q.is("admin_priority", null) as T;
+    }
+    if (minPriority != null) {
+      if (unratedOnly) {
+        q = q.gte("ml_priority", minPriority) as T;
+      } else {
+        q = q.or(
+          `admin_priority.gte.${minPriority},and(admin_priority.is.null,ml_priority.gte.${minPriority})`
+        ) as T;
+      }
+    }
+    if (setting) {
+      const quoted =
+        setting.includes(" ") || setting.includes("-")
+          ? `"${setting}"`
+          : setting;
+      q = q.or(
+        `admin_setting.eq.${quoted},and(admin_setting.is.null,auto_settings.cs.{${quoted}})`
+      ) as T;
+    }
+    return q;
+  };
+
+  const applySort = <T extends { order: Function }>(query: T): T => {
+    if (sort === "relevance") {
+      return query.order("rank_score", {
+        ascending: false,
+        nullsFirst: false,
+      }) as T;
+    }
+    if (sort === "published") {
+      return query
+        .order("release_date", {
+          ascending: false,
+          foreignTable: "articles",
+          nullsFirst: false,
+        })
+        .order("pub_date", {
+          ascending: false,
+          foreignTable: "articles",
+          nullsFirst: false,
+        }) as T;
+    }
+    return query.order("created_at", { ascending: false }) as T;
+  };
 
   let countQuery = supabase
     .from("summaries")
     .select("pmid, articles!inner(source)", { count: "exact", head: true })
     .in("topic_id", topicIds);
   countQuery = applySourceFilter(countQuery, source);
+  countQuery = applyPriorityFilters(countQuery);
   const { count, error: countError } = await countQuery;
   if (countError) return { items: [], totalCount: 0, page: 1, error: countError };
 
-  // Over-fetch when merging topics so in-page PMID dedupe still fills the page.
   const overFetch = isMainFeed ? pageSize + 40 : pageSize;
   const from = (pageNum - 1) * pageSize;
   const to = from + overFetch - 1;
@@ -401,20 +496,38 @@ async function fetchIngestedPage(options: {
       .from("summaries")
       .select(selectColumns)
       .in("topic_id", topicIds)
-      .order("created_at", { ascending: false })
       .range(from, to);
     query = applySourceFilter(query, source);
+    query = applyPriorityFilters(query);
+    query = applySort(query);
     return query;
   };
 
   let { data, error } = await selectPage(FEED_SELECT_SLIM);
   const pageErr = error?.message?.toLowerCase() ?? "";
-  if (pageErr.includes("admin_setting") || pageErr.includes("ml_priority")) {
-    let fallbackSelect = pageErr.includes("admin_setting")
-      ? FEED_SELECT_SLIM_NO_ADMIN_SETTING
-      : FEED_SELECT_SLIM;
+  if (
+    pageErr.includes("admin_setting") ||
+    pageErr.includes("ml_priority") ||
+    pageErr.includes("auto_settings")
+  ) {
+    let fallbackSelect = FEED_SELECT_SLIM;
+    if (pageErr.includes("admin_setting")) {
+      fallbackSelect = FEED_SELECT_SLIM_NO_ADMIN_SETTING;
+    }
     if (pageErr.includes("ml_priority")) {
       fallbackSelect = fallbackSelect.replace(", ml_priority", "");
+    }
+    if (pageErr.includes("auto_settings")) {
+      fallbackSelect = fallbackSelect.replace(", auto_settings", "");
+    }
+    // Without auto_settings, drop setting SQL filter and fall back to index path.
+    if (pageErr.includes("auto_settings") && setting) {
+      return {
+        items: [],
+        totalCount: 0,
+        page: 1,
+        error: { message: "auto_settings column missing" },
+      };
     }
     const fallback = await selectPage(fallbackSelect);
     data = fallback.data;
@@ -430,7 +543,6 @@ async function fetchIngestedPage(options: {
   items = await attachJif(supabase, items);
   items = await hydrateFeedItemBodies(supabase, items);
 
-  // Summary-row count can slightly inflate main-feed totals (same PMID, two topics).
   const totalCount = Math.max(count ?? items.length, items.length);
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safePage = Math.min(pageNum, totalPages);
@@ -505,41 +617,53 @@ export async function getFeedItems(
     Math.max(1, options?.pageSize ?? PAGE_SIZE)
   );
 
-  // Fast path: default browse — page from Postgres, skip full corpus walk.
-  const useSqlIngestedPage =
-    sort === "ingested" &&
-    !hasActiveFilters(filters) &&
+  // Fast path: SQL paging for ingested / published / relevance (no keyword).
+  // Setting + Unrated + Min priority stay in SQL via auto_settings / stored grades.
+  const useSqlPage =
+    !filters?.keyword?.trim() &&
     pageSize <= 100 &&
     !(cursor?.trim());
 
-  if (useSqlIngestedPage) {
-    const sql = await fetchIngestedPage({
+  if (useSqlPage) {
+    const sql = await fetchSqlFeedPage({
       supabase,
       topicIds: topicIdsToFetch,
       isMainFeed: Boolean(isMainFeed),
       source,
       page,
       pageSize,
+      sort,
+      unratedOnly: filters?.unratedOnly,
+      minPriority: filters?.minPriority,
+      setting: filters?.setting ?? null,
     });
-    if (sql.error) throw new Error(sql.error.message);
-    const totalPages = Math.max(1, Math.ceil(sql.totalCount / pageSize));
-    const lastItem =
-      sql.items.length > 0 ? sql.items[sql.items.length - 1] : null;
-    return {
-      items: sql.items,
-      nextCursor: lastItem?.created_at ?? null,
-      query_string,
-      totalCount: sql.totalCount,
-      totalPages,
-      page: sql.page,
-      feedSettings,
-    };
+    if (sql.error?.message.includes("auto_settings")) {
+      // Column not migrated yet — fall through to slim index.
+    } else {
+      if (sql.error) throw new Error(sql.error.message);
+      const totalPages = Math.max(1, Math.ceil(sql.totalCount / pageSize));
+      const lastItem =
+        sql.items.length > 0 ? sql.items[sql.items.length - 1] : null;
+      return {
+        items: sql.items,
+        nextCursor: lastItem?.created_at ?? null,
+        query_string,
+        totalCount: sql.totalCount,
+        totalPages,
+        page: sql.page,
+        feedSettings,
+      };
+    }
   }
 
-  // Full-index path (filters, relevance/published sort, dashboard bulk).
+  // Full-index path (keyword filter, or auto_settings not migrated yet).
   let rawItems: SummaryRow[];
   try {
-    rawItems = await getCachedSlimSummaryRows(topicIdsToFetch, source);
+    rawItems = await getCachedSlimSummaryRows(
+      topicIdsToFetch,
+      source,
+      filters?.keyword?.trim() ? "keyword" : "corpus"
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to load feed index";
     if (msg.toLowerCase().includes("admin_setting")) {
@@ -793,17 +917,40 @@ export async function getFeedItemsInArticleDateRange(
   const dateOr = `and(release_date.gte.${from},release_date.lte.${to}),and(pub_date.gte.${from},pub_date.lte.${to})`;
 
   const rows: SummaryRow[] = [];
+  let selectColumns = FEED_SELECT_DASHBOARD;
   for (let offset = 0; offset < maxRows; offset += SUPABASE_FETCH_PAGE) {
     const end = Math.min(offset + SUPABASE_FETCH_PAGE, maxRows) - 1;
     let query = supabase
       .from("summaries")
-      .select(FEED_SELECT_SLIM)
+      .select(selectColumns)
       .in("topic_id", topicIdsToFetch)
       .or(dateOr, { foreignTable: "articles" })
       .order("created_at", { ascending: false })
       .range(offset, end);
     query = applySourceFilter(query, source);
-    const { data, error } = await query;
+    let { data, error } = await query;
+    const errMsg = error?.message?.toLowerCase() ?? "";
+    if (
+      errMsg.includes("auto_settings") ||
+      errMsg.includes("admin_setting") ||
+      errMsg.includes("ml_priority")
+    ) {
+      selectColumns = selectColumns
+        .replace(", auto_settings", "")
+        .replace(", admin_setting", "")
+        .replace(", ml_priority", "");
+      let retry = supabase
+        .from("summaries")
+        .select(selectColumns)
+        .in("topic_id", topicIdsToFetch)
+        .or(dateOr, { foreignTable: "articles" })
+        .order("created_at", { ascending: false })
+        .range(offset, end);
+      retry = applySourceFilter(retry, source);
+      const result = await retry;
+      data = result.data;
+      error = result.error;
+    }
     if (error) throw new Error(error.message);
     const batch = (data ?? []) as unknown as SummaryRow[];
     rows.push(...batch);
@@ -823,12 +970,9 @@ export async function getFeedItemsInArticleDateRange(
 
 export type TrendingKeyword = { keyword: string; count: number };
 
-/**
- * Top 10 keywords from summaries for this topic in the last 30 days.
- */
-export async function getTrendingKeywords(
+async function fetchTrendingKeywordsUncached(
   topicId: string,
-  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER
+  source: FeedSourceFilter
 ): Promise<TrendingKeyword[]> {
   const supabase = getSupabaseServerClient();
   const thirtyDaysAgo = new Date();
@@ -877,4 +1021,21 @@ export async function getTrendingKeywords(
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+}
+
+const loadCachedTrendingKeywords = unstable_cache(
+  fetchTrendingKeywordsUncached,
+  ["feed-trending-keywords-v2"],
+  { revalidate: 60 * 60 * 6, tags: [FEED_SLIM_INDEX_CACHE_TAG] }
+);
+
+/**
+ * Top 10 keywords from summaries for this topic in the last 30 days.
+ * Cached ~6 h (busts with feed slim index on ingest).
+ */
+export async function getTrendingKeywords(
+  topicId: string,
+  source: FeedSourceFilter = DEFAULT_FEED_SOURCE_FILTER
+): Promise<TrendingKeyword[]> {
+  return loadCachedTrendingKeywords(topicId, source);
 }

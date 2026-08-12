@@ -36,8 +36,8 @@ import { mergeLearnedWeights, mergeStoredFeedSettings } from "@/lib/relevanceLea
 import { toPenaltyWeights } from "@/lib/brief/feedSettings";
 import { computeStoredRankScore } from "@/lib/rankScore";
 import { scoreFirstMlPriorities } from "@/lib/brief/firstRating";
+import { classifyArticleSettings } from "@/lib/classifySetting";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
-import { TOP_PRIORITY_CACHE_TAG } from "@/lib/brief/topPriority";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
 
@@ -636,6 +636,12 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               subheading: classification.study_subheading,
               label: classification.study_label,
               rank_score,
+              auto_settings: classifyArticleSettings({
+                title: r.title,
+                abstract: r.abstract,
+                keywords: r.keywords,
+                meshTerms: r.meshTerms,
+              }),
             };
             if (headline) row.headline = headline;
             const ml = mlScores[batchIdx];
@@ -650,21 +656,28 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
             );
 
             if (sumErr) {
-              // Column not migrated yet — retry without ml_priority.
-              if (
-                ml != null &&
-                /ml_priority/i.test(sumErr.message)
-              ) {
-                delete row.ml_priority;
+              // Column not migrated yet — retry without new columns.
+              const missingMl = /ml_priority/i.test(sumErr.message);
+              const missingAuto = /auto_settings/i.test(sumErr.message);
+              if (missingMl || missingAuto) {
+                if (missingMl) delete row.ml_priority;
+                if (missingAuto) delete row.auto_settings;
                 const retry = await supabase.from("summaries").upsert(row, {
                   onConflict: "topic_id,pmid",
                 });
                 if (retry.error) {
                   throw new Error(`upsert failed: ${retry.error.message}`);
                 }
-                console.warn(
-                  "[ingest] ml_priority column missing; run scripts/add_ml_priority.sql"
-                );
+                if (missingMl) {
+                  console.warn(
+                    "[ingest] ml_priority column missing; run scripts/add_ml_priority.sql"
+                  );
+                }
+                if (missingAuto) {
+                  console.warn(
+                    "[ingest] auto_settings column missing; run scripts/add_auto_settings.sql"
+                  );
+                }
                 return r.pmid;
               }
               throw new Error(`upsert failed: ${sumErr.message}`);
@@ -711,7 +724,6 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     });
 
     revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
-    revalidateTag(TOP_PRIORITY_CACHE_TAG, "max");
     revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");
 
     return NextResponse.json({

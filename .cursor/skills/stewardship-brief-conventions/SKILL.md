@@ -64,6 +64,7 @@ Think of the product like a newspaper desk:
 | Script | Status |
 |--------|--------|
 | `scripts/add_ml_priority.sql` | **Applied** |
+| `scripts/add_auto_settings.sql` | **Run in Supabase** (GIN on `auto_settings`) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
 
@@ -139,12 +140,13 @@ Main topic animal exclusion must be:
 2. Slim + hydrate (feed pages ≤ ~100; Brief survivors only; dashboard **no** abstracts).
 3. Brief: slim → gate → hydrate (`lib/brief/items.ts`).
 4. Default `/feed`: SQL pagination — no full-corpus walk.
-5. Filters/relevance: cached slim index (`feed-slim-index`, ~10 min); bust on ingest + admin priority + admin setting.
-6. Cache Brief (`brief-homepage` ~10 min) + Top 10 (`brief-top-priority` ~15 min); bust same way (incl. admin setting).
-7. Dashboard: date-scoped slim, cap ~1500.
-8. Ingest: write `rank_score` + `ml_priority`; service role; RLS with no anon policies.
-9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns.
+5. Filters/relevance/published: SQL paging when possible (stored `rank_score` / dates / `auto_settings`). Keyword filter uses a lighter cached keyword index (~**3 h** TTL). Slim corpus cache busts on **ingest only** (not every admin rating).
+6. Cache Brief (`brief-homepage` ~10 min; busts on ingest + admin rating/setting). Top 10 (`brief-top-priority` ~**3 days** TTL only — **not** busted on ingest/rating). **Cache All pool once**, filter setting tabs in memory. Dashboard Top 10 reuses year cache when the date range fits; dashboard payload cached ~**3 h**.
+7. Dashboard: date-scoped slim **with** keywords/MeSH for charts, cap ~1500 (not the corpus ultra-slim).
+8. Ingest cron (`/api/cron/daily-digest`): PubMed summarize only — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
+9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Also `scripts/add_auto_settings.sql`.
 10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
+11. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
 
 ## Current state (done)
 
@@ -152,11 +154,13 @@ Main topic animal exclusion must be:
 - Ingest-time `ml_priority` with embeddings.
 - Feed Admin shows stored `ml_priority` (not live no-embedding recompute).
 - Main topic query uses `(animals[MeSH] NOT humans[MeSH])`.
-- Admin setting exclusive; Brief/Top 10/feed caches bust on setting change.
+- Admin setting exclusive; Brief cache busts on setting change; feed slim index does **not** (TTL / ingest).
 - Story images assigned on All pool (stable across setting tabs).
 - Dog stock photo (`vet-care` / photo-1548199973) only when text says dog/dogs.
-- Top 10: 365 days, scan ≥ 6, human > ML on ties.
+- Top 10: 365 days, scan ≥ 6, human > ML on ties; cache ~**3 days** All-pool (no ingest/rating bust; tabs filter in memory).
 - PubMed-only (OpenAlex UI + ingest disabled).
+- Legacy ASP Literature Feed emails **retired**; Brief email only via `brief-digest`.
+- Ingest writes `auto_settings` (+ `ml_priority` with embeddings once). Bulk feed/Brief slim omit keywords/MeSH; page-hydrate for UI.
 - CI smoke: OpenAlex expects **410**; PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
 - Hot-path indexes + RLS applied in Supabase.
 
@@ -188,7 +192,7 @@ Main topic animal exclusion must be:
 - Show times in **Eastern**.
 - “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
 - Ingest stats (feed/dashboard) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.
-- New summary → embed once → save `ml_priority`.
+- New summary → embed once → save `ml_priority` + `auto_settings`.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 
 ## UI / UX (soft)

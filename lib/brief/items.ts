@@ -157,35 +157,53 @@ function parseAdminSettingValue(
   return null;
 }
 
-/** Slim Brief index: no abstract / summary_text bodies. */
+/** Slim Brief index: no abstract / summary_text / keywords / mesh bodies. */
 const BRIEF_SELECT_SLIM =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
 
 const BRIEF_SELECT_SLIM_NO_HEADLINE =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, source)";
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
 
 const HYDRATE_CHUNK = 80;
 
-async function hydrateAbstractsByPmid(
+async function hydrateArticleFieldsByPmid(
   supabase: ReturnType<typeof getSupabaseServerClient>,
   pmids: string[]
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+): Promise<
+  Map<
+    string,
+    { abstract: string; keywords: string[]; meshTerms: string[] }
+  >
+> {
+  const map = new Map<
+    string,
+    { abstract: string; keywords: string[]; meshTerms: string[] }
+  >();
   const unique = [...new Set(pmids.filter(Boolean))];
   for (let i = 0; i < unique.length; i += HYDRATE_CHUNK) {
     const chunk = unique.slice(i, i + HYDRATE_CHUNK);
     const { data, error } = await supabase
       .from("articles")
-      .select("pmid, abstract")
+      .select("pmid, abstract, keywords, mesh_terms")
       .in("pmid", chunk);
     if (error) {
-      console.warn("[brief] abstract hydrate failed:", error.message);
+      console.warn("[brief] article field hydrate failed:", error.message);
       continue;
     }
     for (const row of data ?? []) {
-      const pmid = String((row as { pmid?: string }).pmid ?? "").trim();
-      const abs = (row as { abstract?: string | null }).abstract?.trim() ?? "";
-      if (pmid && abs) map.set(pmid, abs);
+      const r = row as {
+        pmid?: string;
+        abstract?: string | null;
+        keywords?: string[] | null;
+        mesh_terms?: string[] | null;
+      };
+      const pmid = String(r.pmid ?? "").trim();
+      if (!pmid) continue;
+      map.set(pmid, {
+        abstract: r.abstract?.trim() ?? "",
+        keywords: Array.isArray(r.keywords) ? r.keywords : [],
+        meshTerms: Array.isArray(r.mesh_terms) ? r.mesh_terms : [],
+      });
     }
   }
   return map;
@@ -425,7 +443,9 @@ export async function getBriefItems(options?: {
   if (
     errMsg.includes("headline") ||
     errMsg.includes("mesh_terms") ||
+    errMsg.includes("keywords") ||
     errMsg.includes("admin_setting") ||
+    errMsg.includes("auto_settings") ||
     errMsg.includes("authors") ||
     errMsg.includes("ml_priority") ||
     errMsg.includes("rank_score")
@@ -434,8 +454,14 @@ export async function getBriefItems(options?: {
     if (errMsg.includes("mesh_terms")) {
       slimSelect = slimSelect.replace(", mesh_terms", "");
     }
+    if (errMsg.includes("keywords")) {
+      slimSelect = slimSelect.replace(", keywords", "");
+    }
     if (errMsg.includes("admin_setting")) {
       slimSelect = slimSelect.replace(", admin_setting", "");
+    }
+    if (errMsg.includes("auto_settings")) {
+      slimSelect = slimSelect.replace(", auto_settings", "");
     }
     if (errMsg.includes("authors")) {
       slimSelect = slimSelect.replace(", authors", "");
@@ -461,6 +487,7 @@ export async function getBriefItems(options?: {
     ml_priority?: number | null;
     rank_score?: number | null;
     admin_setting?: string | null;
+    auto_settings?: string[] | null;
     articles?: {
       title?: string | null;
       journal?: string | null;
@@ -488,7 +515,7 @@ export async function getBriefItems(options?: {
     )
     .map((row) => row.pmid);
 
-  const abstractForScore = await hydrateAbstractsByPmid(
+  const articleFields = await hydrateArticleFieldsByPmid(
     supabase,
     needsScorePmids
   );
@@ -501,7 +528,7 @@ export async function getBriefItems(options?: {
       return {
         pmid,
         title: row.articles?.title ?? null,
-        abstract: abstractForScore.get(pmid) ?? null,
+        abstract: articleFields.get(pmid)?.abstract ?? null,
       };
     });
     const embedMaxFresh =
@@ -524,7 +551,10 @@ export async function getBriefItems(options?: {
       .filter(Boolean);
     const title = row.articles!.title!.trim();
     const storedMl = parseStoredMlPriority(row.ml_priority);
-    const abstract = abstractForScore.get(row.pmid) ?? null;
+    const fields = articleFields.get(row.pmid);
+    const abstract = fields?.abstract || null;
+    const keywords = fields?.keywords ?? row.articles?.keywords ?? [];
+    const meshTerms = fields?.meshTerms ?? row.articles?.mesh_terms ?? [];
 
     const rec: PubMedRecord = {
       pmid: row.pmid,
@@ -533,8 +563,8 @@ export async function getBriefItems(options?: {
       journal: row.articles?.journal ?? null,
       pubDate: row.articles?.pub_date ?? null,
       publicationTypes: row.articles?.publication_types ?? [],
-      meshTerms: row.articles?.mesh_terms ?? [],
-      keywords: row.articles?.keywords ?? [],
+      meshTerms,
+      keywords,
       authors,
     };
 
@@ -593,6 +623,11 @@ export async function getBriefItems(options?: {
     const studyLabel = formatStudyLabel(studyLabelRaw || null);
     const jifEntry = lookupJif(row.articles?.journal);
     const adminSetting = parseAdminSettingValue(row.admin_setting);
+    const autoSettings = Array.isArray(row.auto_settings)
+      ? (row.auto_settings
+          .map((s) => String(s ?? "").trim())
+          .filter(Boolean) as ArticleSetting[])
+      : null;
 
     const feedLike: FeedItem = {
       pmid: row.pmid,
@@ -606,6 +641,7 @@ export async function getBriefItems(options?: {
       admin_priority: row.admin_priority ?? null,
       ml_priority: storedMl,
       admin_setting: adminSetting,
+      auto_settings: autoSettings,
       is_q1: Boolean(scimago) || isQ1Journal(row.articles?.journal),
       sjr_scimago: scimago?.sjr ?? null,
       articles: {
@@ -616,8 +652,8 @@ export async function getBriefItems(options?: {
         release_date: row.articles?.release_date ?? null,
         fetched_at: row.articles?.fetched_at ?? null,
         publication_types: row.articles?.publication_types ?? null,
-        keywords: row.articles?.keywords ?? null,
-        mesh_terms: row.articles?.mesh_terms ?? null,
+        keywords,
+        mesh_terms: meshTerms,
         source: row.articles?.source ?? null,
       },
     };
@@ -649,8 +685,8 @@ export async function getBriefItems(options?: {
       prioritySource,
       pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
       authors,
-      keywords: (row.articles?.keywords ?? []).slice(0, 8),
-      meshTerms: (row.articles?.mesh_terms ?? []).slice(0, 12),
+      keywords: keywords.slice(0, 8),
+      meshTerms: meshTerms.slice(0, 12),
       abstractSnippet: null,
     };
 
@@ -693,6 +729,19 @@ export async function getBriefItems(options?: {
   }
 
   const items = filtered.slice(0, maxItems);
+
+  // Page-hydrate keywords/mesh for survivors (story images + soft setting match).
+  // Unscored rows already have fields from the handcrafted path above.
+  const needKw = items.filter((i) => i.keywords.length === 0).map((i) => i.pmid);
+  if (needKw.length > 0) {
+    const kwFields = await hydrateArticleFieldsByPmid(supabase, needKw);
+    for (const item of items) {
+      const f = kwFields.get(item.pmid);
+      if (!f) continue;
+      item.keywords = f.keywords.slice(0, 8);
+      item.meshTerms = f.meshTerms.slice(0, 12);
+    }
+  }
 
   if (
     minItems > 0 &&
@@ -758,6 +807,9 @@ export async function getBriefItems(options?: {
 
       const slim = slimRows.find((r) => r.pmid === item.pmid);
       const adminSetting = parseAdminSettingValue(slim?.admin_setting);
+      const autoSettings = Array.isArray(slim?.auto_settings)
+        ? (slim!.auto_settings as ArticleSetting[])
+        : null;
       const feedLike: FeedItem = {
         pmid: item.pmid,
         summary_text: body.summaryText,
@@ -770,6 +822,7 @@ export async function getBriefItems(options?: {
         admin_priority: item.adminPriority,
         ml_priority: parseStoredMlPriority(slim?.ml_priority),
         admin_setting: adminSetting,
+        auto_settings: autoSettings,
         is_q1: item.isQ1,
         sjr_scimago: item.sjrScimago,
         articles: {
