@@ -1,11 +1,9 @@
-import { getCachedHomepageBriefItems } from "@/lib/brief/homepageCache";
+import { getCachedHomepageReady } from "@/lib/brief/homepageCache";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
-import { assignStoryImages } from "@/lib/brief/storyImages";
 import {
   matchesBriefSettingFilter,
   parseBriefSetting,
 } from "@/lib/brief/settingFilter";
-import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import BriefPage from "@/components/brief/BriefPage";
 
 export default async function HomePage({
@@ -17,24 +15,22 @@ export default async function HomePage({
   const setting = parseBriefSetting(settingRaw);
 
   try {
-    // Always load the full All pool so sticky lead + story images are assigned
-    // once, then filter — same PMID keeps the same photo across setting tabs.
-    const [brief, topPriority] = await Promise.all([
-      getCachedHomepageBriefItems(""),
+    // Ready payload caches All-pool + sticky lead + story images once;
+    // setting tabs filter in memory so the same PMID keeps the same photo.
+    const [ready, topPriority] = await Promise.all([
+      getCachedHomepageReady(),
       getTopPriorityYearItems(setting),
     ]);
-    const allItems = await applyStickyHomepageLead(brief.items, "");
-    const images = await assignStoryImages(allItems);
     const items = setting
-      ? allItems.filter((item) => matchesBriefSettingFilter(item, setting))
-      : allItems;
+      ? ready.items.filter((item) => matchesBriefSettingFilter(item, setting))
+      : ready.items;
 
     return (
       <BriefPage
         items={items}
         topPriority={topPriority}
         setting={setting}
-        images={images}
+        images={ready.images}
       />
     );
   } catch (err) {

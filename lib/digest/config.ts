@@ -77,4 +77,4 @@ export function getDigestReplyTo(): string | undefined {
 }
 
 /** Cap for ingest cron summarize batch (`DIGEST_MAX_SUMMARIES`). */
-export const DEFAULT_DIGEST_MAX_SUMMARIES = 100;
+export const DEFAULT_DIGEST_MAX_SUMMARIES = 40;

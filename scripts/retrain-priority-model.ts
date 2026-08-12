@@ -1,6 +1,6 @@
 /**
- * Retrain the priority model for every topic (force — ignores 48h gate).
- * Scheduled retrain: GET /api/cron/retrain-priority (every 48h via daily check).
+ * Retrain the priority model for every topic (force — ignores weekly gate).
+ * Scheduled retrain: GET /api/cron/retrain-priority (weekly via daily check).
  *
  *   npm run retrain:priority
  */

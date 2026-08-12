@@ -4,8 +4,9 @@
 
 | Job | EDT | UTC cron | Route |
 |-----|-----|----------|--------|
-| PubMed ingest + summarize | 06:00, 12:00, 17:00 | `0 10/16/21 * * *` | `/api/cron/daily-digest` |
+| PubMed ingest + summarize | 06:00, 17:00 | `0 10 * * *` / `0 21 * * *` | `/api/cron/daily-digest` |
 | Stewardship Brief email | 07:00 | `0 11 * * *` | `/api/cron/brief-digest` |
+| Priority model retrain check | 18:00 | `0 22 * * *` | `/api/cron/retrain-priority` (weekly gate) |
 
 OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (no `DIGEST_SEND_LEGACY`, no abstract digests on the ingest cron).
 
@@ -18,7 +19,7 @@ OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (n
 | `DIGEST_REPLY_TO` / `NCBI_EMAIL` | Reply-To for Brief mail |
 | `DIGEST_RECIPIENT_EMAILS` | Optional admin recipients added to Brief subscribers |
 | `CRON_SECRET` | Secure cron routes |
-| `DIGEST_MAX_SUMMARIES` | Cap per ingest pass (default 100) |
+| `DIGEST_MAX_SUMMARIES` | Cap per ingest pass (default 40) |
 | `BRIEF_DIGEST_SEND_IF_EMPTY` | Set `1` to email even when no new headlines |
 
 ## Test

@@ -203,7 +203,7 @@ export async function saveAdminPriority(options: {
     });
     if (fbErr) throw new Error(fbErr.message);
     // Ranking weights still learn from ratings; priority ridge model retrains
-    // on a 48h cron (/api/cron/retrain-priority) — not per rating (egress).
+    // weekly via cron (/api/cron/retrain-priority) — not per rating (egress).
     await relearnTopicWeights(topicId, supabase);
   }
 }

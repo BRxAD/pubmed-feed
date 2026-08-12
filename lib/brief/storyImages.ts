@@ -248,12 +248,28 @@ function genericFallbackCandidates(
 
 const urlHealthCache = new Map<string, boolean>();
 
+/** Curated catalog hosts — skip remote HEAD/GET (client onError demotes). */
+function isTrustedCatalogHost(url: string): boolean {
+  if (url.startsWith("/")) return true;
+  try {
+    const host = new URL(url).hostname;
+    return (
+      host === "images.unsplash.com" ||
+      host === "images.pexels.com" ||
+      host === "upload.wikimedia.org" ||
+      host.endsWith(".wikimedia.org")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function isImageUrlReachable(url: string): Promise<boolean> {
   const cached = urlHealthCache.get(url);
   if (cached != null) return cached;
 
-  // Local public assets — skip remote HEAD (relative paths fail server-side fetch).
-  if (url.startsWith("/")) {
+  // Local + curated CDN assets — no server-side probe (saves Fluid CPU).
+  if (isTrustedCatalogHost(url)) {
     urlHealthCache.set(url, true);
     return true;
   }

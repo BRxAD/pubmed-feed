@@ -29,7 +29,7 @@ Think of the product like a newspaper desk:
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only).
 3. **Homepage / Brief** — Show strong stories (priority ≥ **5**) from the last **28** days. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
-5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **48-hour** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. Manual force: `npm run retrain:priority` or cron `?force=1`.
+5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
 ### Words we use
 
@@ -98,9 +98,10 @@ Also: **do not commit or push** unless the user asks.
 | Top 10 scan floor | stored priority ≥ **6** | `TOP_PRIORITY_MIN_PRIORITY` |
 | Priority model | **v5** ridge + PCA-8 | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
-| Ingest slots (Eastern) | **06:00 / 12:00 / 17:00** → UTC **10 / 16 / 21** | `vercel.json` |
-| Priority model retrain | every **48 h** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**10 min**; bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
+| Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** | `vercel.json` |
+| Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
+| Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Human-rated total on `/feed` | ~**24 h** TTL; head count only | `lib/humanRatingStats.ts` |
@@ -116,7 +117,7 @@ Also: **do not commit or push** unless the user asks.
 |------|-------------|
 | **Ingest first rating** | **Yes** — `scoreFirstMlPriorities` → `summaries.ml_priority` |
 | **Page load** | **No** — read `ml_priority` |
-| **Retrain** | **Yes** — fit model only; scheduled every **48 h**, not per rating |
+| **Retrain** | **Yes** — fit model only; scheduled every **7 days**, not per rating |
 
 Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not re-score old rows.
 
@@ -139,7 +140,7 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, ≥5, 28-day window. Load All → sticky lead → assign images → filter by setting tab.
+- **Brief** — curated, ≥5, 28-day window. Cached ready payload (~1 h): All → sticky lead → images; filter setting tabs in memory.
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
@@ -163,7 +164,7 @@ Main topic animal exclusion must be:
 10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
 11. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
 12. Select helpers live in `lib/feedSelect.ts`: `FEED_SELECT_SLIM` (no keywords/MeSH), `FEED_SELECT_KEYWORD_INDEX`.
-13. **Priority model retrain:** every **48 hours** via `/api/cron/retrain-priority` (daily check; skips if last train was within 48h). Admin ratings save feedback only — do **not** retrain inline. Manual: `npm run retrain:priority` or `?force=1`.
+13. **Priority model retrain:** every **7 days** via `/api/cron/retrain-priority` (daily check; skips if last train was within the week). Admin ratings save feedback only — do **not** retrain inline. Manual: `npm run retrain:priority` or `?force=1`.
 14. **`/dashboard` retired** — do not reintroduce full-corpus or large date-range analytics without asking.
 
 ## Current state (done)
@@ -203,11 +204,13 @@ Main topic animal exclusion must be:
 - Prefer null over a weak / wrong photo. Keep uniqueness (catalog id + URL) on the All assignment.
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
 - Do not re-assign images per setting tab.
+- Skip server-side URL health probes for curated catalog hosts (Unsplash/Pexels/Wikimedia/local); client `onError` demotes broken images.
 
 ## Ingest & cron
 
 - `/api/cron/daily-digest` (+ GitHub Actions). Auth: `CRON_SECRET`.
-- `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **48 h** since `priority_model.trainedAt`.
+- `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
+- Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
 - Show times in **Eastern**.
 - “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
 - Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.

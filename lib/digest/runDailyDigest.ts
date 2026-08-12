@@ -2,9 +2,7 @@ import { getDefaultTopicId } from "@/lib/feed";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { GET as runPubmedIngest } from "@/app/api/ingest/route";
 import { NextRequest } from "next/server";
-
-/** Cap how many articles one ingest cron pass will summarize. */
-const DEFAULT_INGEST_MAX_SUMMARIES = 100;
+import { DEFAULT_DIGEST_MAX_SUMMARIES } from "@/lib/digest/config";
 
 /** Run ingest in-process — avoids Vercel Deployment Protection on self-fetch URLs. */
 async function triggerIngest(path: string): Promise<Record<string, unknown>> {
@@ -37,7 +35,7 @@ export type DailyDigestResult = {
 };
 
 /**
- * PubMed ingest + summarize only (3× daily).
+ * PubMed ingest + summarize only (2× daily).
  * Stewardship Brief email is sent separately by `/api/cron/brief-digest`.
  * Legacy ASP Literature Feed emails are retired.
  */
@@ -52,9 +50,9 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     Math.max(
       1,
       parseInt(
-        process.env.DIGEST_MAX_SUMMARIES ?? String(DEFAULT_INGEST_MAX_SUMMARIES),
+        process.env.DIGEST_MAX_SUMMARIES ?? String(DEFAULT_DIGEST_MAX_SUMMARIES),
         10
-      ) || DEFAULT_INGEST_MAX_SUMMARIES
+      ) || DEFAULT_DIGEST_MAX_SUMMARIES
     )
   );
 

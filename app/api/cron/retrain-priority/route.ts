@@ -6,12 +6,12 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * Retrain priority models when due (≥ 48h since last train).
+ * Retrain priority models when due (≥ 7 days since last train).
  * Schedule: daily check at 22:00 UTC (18:00 Eastern) — actual retrain at most
- * every 48 hours. Admin ratings no longer retrain inline (egress).
+ * weekly. Admin ratings no longer retrain inline (egress / Fluid CPU).
  *
  *   GET /api/cron/retrain-priority?secret=YOUR_CRON_SECRET
- *   GET /api/cron/retrain-priority?secret=...&force=1  (ignore 48h gate)
+ *   GET /api/cron/retrain-priority?secret=...&force=1  (ignore weekly gate)
  *   Authorization: Bearer YOUR_CRON_SECRET
  */
 export async function GET(request: NextRequest) {

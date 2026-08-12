@@ -10,8 +10,8 @@ import {
   toRankingWeights,
 } from "@/lib/brief/feedSettings";
 
-/** Priority model retrain cadence — not on every admin rating (egress). */
-export const PRIORITY_RETRAIN_INTERVAL_MS = 48 * 60 * 60 * 1000;
+/** Priority model retrain cadence — not on every admin rating (CPU / egress). */
+export const PRIORITY_RETRAIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function isPriorityRetrainDue(
   model: PriorityModel | null,
@@ -34,7 +34,7 @@ export type PriorityRetrainTopicResult = {
 };
 
 /**
- * Retrain each topic's priority model when due (≥ 48h since trainedAt),
+ * Retrain each topic's priority model when due (≥ 7 days since trainedAt),
  * or immediately when force=true (manual / npm script).
  */
 export async function runScheduledPriorityRetrain(
@@ -63,7 +63,7 @@ export async function runScheduledPriorityRetrain(
           topicId,
           topicName,
           skipped: true,
-          reason: "within_48h",
+          reason: "within_interval",
           sampleCount: existing?.sampleCount,
           trainedAt: existing?.trainedAt,
         });

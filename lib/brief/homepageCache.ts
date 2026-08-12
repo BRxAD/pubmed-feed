@@ -1,18 +1,27 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { getBriefItems, type BriefFeedResult } from "@/lib/brief/items";
+import { getBriefItems, type BriefItem } from "@/lib/brief/items";
 import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
-import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
+import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
+import {
+  assignStoryImages,
+  type StoryImageMatch,
+} from "@/lib/brief/storyImages";
 
-/** Bust on ingest and admin priority changes. */
+/** Bust on ingest and admin priority/setting changes. */
 export const BRIEF_HOMEPAGE_CACHE_TAG = "brief-homepage";
-const BRIEF_HOMEPAGE_CACHE_SECONDS = 600;
 
-async function loadHomepageBriefItems(
-  setting: BriefSettingFilter
-): Promise<BriefFeedResult> {
-  return getBriefItems({
-    setting,
+/** Ready payload (All pool + sticky lead + story images) — ~1 h TTL. */
+const HOMEPAGE_READY_CACHE_SECONDS = 3600;
+
+export type HomepageReadyPayload = {
+  items: BriefItem[];
+  images: Record<string, StoryImageMatch | null>;
+};
+
+async function loadHomepageReady(): Promise<HomepageReadyPayload> {
+  const brief = await getBriefItems({
+    setting: "",
     // Article-date window is authoritative; created_at is not used as a
     // gate here (backfill would crowd out recent pubs).
     daysBack: 90,
@@ -20,17 +29,21 @@ async function loadHomepageBriefItems(
     maxItems: 50,
     articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
   });
+  const items = await applyStickyHomepageLead(brief.items, "");
+  const images = await assignStoryImages(items);
+  return { items, images };
 }
 
-const loadCachedHomepageBriefItems = unstable_cache(
-  loadHomepageBriefItems,
-  ["brief-homepage-items-v1"],
-  { revalidate: BRIEF_HOMEPAGE_CACHE_SECONDS, tags: [BRIEF_HOMEPAGE_CACHE_TAG] }
+const loadCachedHomepageReady = unstable_cache(
+  loadHomepageReady,
+  ["brief-homepage-ready-v1"],
+  {
+    revalidate: HOMEPAGE_READY_CACHE_SECONDS,
+    tags: [BRIEF_HOMEPAGE_CACHE_TAG],
+  }
 );
 
-/** Cached Brief candidate pool for the homepage (~10 min). */
-export async function getCachedHomepageBriefItems(
-  setting: BriefSettingFilter = ""
-): Promise<BriefFeedResult> {
-  return loadCachedHomepageBriefItems(setting);
+/** Cached All-pool Brief + sticky lead + story images (~1 h). */
+export async function getCachedHomepageReady(): Promise<HomepageReadyPayload> {
+  return loadCachedHomepageReady();
 }

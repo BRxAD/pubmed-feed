@@ -83,9 +83,9 @@ async function loadPersistedLastRun(
 
 /**
  * PubMed ingest cron hours in UTC (Eastern Daylight: UTC−4):
- * 06:00 / 12:00 / 17:00 Eastern → 10:00 / 16:00 / 21:00 UTC.
+ * 06:00 / 17:00 Eastern → 10:00 / 21:00 UTC.
  */
-const INGEST_CRON_UTC_HOURS = [10, 16, 21] as const;
+const INGEST_CRON_UTC_HOURS = [10, 21] as const;
 
 /** Next scheduled ingest instant after `now`. */
 export function nextIngestAt(now = new Date()): Date {

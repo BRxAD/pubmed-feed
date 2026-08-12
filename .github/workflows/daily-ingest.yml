@@ -2,8 +2,8 @@ name: Daily PubMed ingest
 
 on:
   schedule:
-    # 12:00 Eastern (EDT = UTC-4) → 16:00 UTC
-    - cron: "0 16 * * *"
+    # 06:00 Eastern (EDT = UTC-4) → 10:00 UTC
+    - cron: "0 10 * * *"
     # 17:00 Eastern (EDT = UTC-4) → 21:00 UTC
     - cron: "0 21 * * *"
   workflow_dispatch:
