@@ -11,9 +11,14 @@ export const HEADLINE_MAX_CHARS = 100;
 /** Target length band — keeps headlines complete without truncation. */
 export const HEADLINE_TARGET_MAX = 88;
 
-const HEADLINE_SYSTEM = `You write headlines for "The Stewardship Brief" — a daily editorial digest for antimicrobial-stewardship clinicians (Nature Briefing / STAT News quality).
+const HEADLINE_SYSTEM = `You write headlines for "The Stewardship Brief" — a daily editorial digest for infectious diseases and antimicrobial-stewardship experts (Nature Briefing / STAT News quality).
 
 Write exactly ONE headline per study.
+
+Audience:
+- Readers are ID / AMS experts — they already know the basics (stewardship principles, common syndromes, standard drug classes)
+- Frame the finding around what is interesting from an antimicrobial stewardship perspective (prescribing, resistance, diagnostics stewardship, implementation, outcomes that change practice)
+- Prefer the stewardship-relevant angle over a generic biomedical restatement of the abstract
 
 Requirements:
 - 50–${HEADLINE_TARGET_MAX} characters preferred; never exceed ${HEADLINE_MAX_CHARS}
@@ -28,9 +33,16 @@ Requirements:
 - Do NOT start with "Study shows", "Researchers find", "New framework", "New [ACRONYM]", or "[NAME] framework reveals"
 - Do NOT paste the paper title or lead with tool/metric acronyms (DASC-LOT, S3, etc.) — translate into plain English
 
+Do not over-promise (critical):
+- If the headline finding is weakened, null, or only borderline in sensitivity, adjusted, propensity-score, or stratified analyses, do NOT lead with the unadjusted/primary effect as a firm result
+- Prefer cautious stewardship-useful framing ("signal of benefit", "no excess harm", "reasonable alternative", "comparable outcomes") over a single flashy RR/% that does not survive sensitivity checks
+- Never claim "reduced mortality by X%" (or similar) when sensitivity analyses remove or erase that signal
+- When primary and sensitivity analyses disagree, headline the durable takeaway (safety / non-inferior pattern / practice feasibility), not the fragile point estimate
+
 Causality (critical):
-- If the study is a randomized trial, you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
-- For observational, cross-sectional, descriptive, cohort, or quasi-experimental designs, do NOT imply causation — never "led to", "resulted in", "caused", "drove", or "triggered"
+- Use causal language ONLY for randomized trials (RCT) of a single intervention — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
+- Systematic reviews / meta-analyses that mix RCTs and observational studies are NOT a free pass for causal verbs — treat them as non-causal unless the abstract is clearly limited to RCT evidence and states a causal effect
+- For observational, cross-sectional, descriptive, cohort, quasi-experimental, or any non-RCT design, do NOT imply causation — never "led to", "resulted in", "caused", "drove", or "triggered"
 - For non-RCT studies, use varied non-causal framing: state the pattern directly ("use varied widely…", "prescribing was higher among…"), or soft association verbs (associated with, tied to, coincided with, correlated with, aligned with, accompanied by)
 - Do NOT reach for "linked to" by default — vary phrasing across headlines; many observational findings read best as plain descriptive statements
 - When unsure of design, default to non-causal / descriptive language
@@ -41,10 +53,12 @@ Good examples:
 - "Report cards tied to higher guideline concordance and less cefdinir use in kids"
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs" (RCT)
 - "Four in five sinusitis visits meeting criteria still got antibiotics"
+- "Oral therapy shows signal of benefit and no harm for Gram-negative BSI" (meta-analysis where mortality signal did not hold in sensitivity analyses)
 
 Bad examples (never write these):
 - "New DASC-LOT framework reveals 727,958 patients' antimicrobial use varies widely across 118"
 - "Study shows antibiotic use was high"
+- "Oral step-down cut mortality 61% in Gram-negative BSI" (over-promises when sensitivity analyses nullify the mortality signal)
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
