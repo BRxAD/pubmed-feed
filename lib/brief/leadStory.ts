@@ -79,9 +79,12 @@ function withLeadFirst(items: BriefItem[], leadPmid: string): BriefItem[] {
 /**
  * Homepage-only sticky lead for the calendar day (Eastern midnight).
  *
- * - Same ranking rules produce a natural candidate (items[0]).
- * - That candidate becomes the day's lead, and stays lead until a study with
- *   strictly higher effective priority appears, or the Eastern date rolls over.
+ * - Ranking rules produce a natural candidate (items[0]) — recency-first or
+ *   priority-first depending on brief settings.
+ * - That candidate becomes the day's lead.
+ * - Sticky only blocks *lower*-priority churn from stealing the lead mid-day.
+ *   Equal or higher priority at natural #1 always wins (so a newer same-score
+ *   story can replace yesterday's pin under lead-by-recency).
  * - Filtered setting views are left alone so sticky lead is not rewritten.
  */
 export async function applyStickyHomepageLead(
@@ -92,7 +95,7 @@ export async function applyStickyHomepageLead(
   if (setting) return items;
 
   const todayEt = easternDateIso();
-  const candidate = items[0];
+  const natural = items[0]!;
   const sticky = await loadStickyLead();
 
   const stickyInPool =
@@ -100,34 +103,33 @@ export async function applyStickyHomepageLead(
       ? items.find((i) => i.pmid === sticky.pmid)
       : undefined;
 
-  // New day, missing sticky, or lead left the pool → adopt current #1.
+  // New day, missing sticky, or lead left the pool → adopt natural #1.
   if (!stickyInPool) {
     await saveStickyLead({
-      pmid: candidate.pmid,
+      pmid: natural.pmid,
       dateEt: todayEt,
-      effectivePriority: candidate.effectivePriority,
+      effectivePriority: natural.effectivePriority,
       updatedAt: new Date().toISOString(),
     });
     return items;
   }
 
-  // Strictly higher effective priority bumps the day's lead.
-  if (candidate.effectivePriority > stickyInPool.effectivePriority) {
-    await saveStickyLead({
-      pmid: candidate.pmid,
-      dateEt: todayEt,
-      effectivePriority: candidate.effectivePriority,
-      updatedAt: new Date().toISOString(),
-    });
-    return items;
-  }
-
-  // Keep sticky lead; refresh stored priority in case the lead was re-rated
-  // without losing the pin (ties and lower scores do not bump).
+  // Natural #1 with equal-or-higher priority replaces sticky.
   if (
-    sticky &&
-    stickyInPool.effectivePriority !== sticky.effectivePriority
+    natural.pmid !== stickyInPool.pmid &&
+    natural.effectivePriority >= stickyInPool.effectivePriority
   ) {
+    await saveStickyLead({
+      pmid: natural.pmid,
+      dateEt: todayEt,
+      effectivePriority: natural.effectivePriority,
+      updatedAt: new Date().toISOString(),
+    });
+    return items;
+  }
+
+  // Keep sticky lead; refresh stored priority if the lead was re-rated.
+  if (stickyInPool.effectivePriority !== sticky.effectivePriority) {
     await saveStickyLead({
       pmid: stickyInPool.pmid,
       dateEt: todayEt,

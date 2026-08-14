@@ -141,6 +141,7 @@ Main topic animal exclusion must be:
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
 - **Brief** — curated, ≥5, 28-day window. Cached ready payload (~1 h): All → sticky lead → images; filter setting tabs in memory.
+  - **Sticky lead:** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Equal or higher priority at natural #1 always wins (so a newer same-score story can replace an older pin when lead-by-recency is on).
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
