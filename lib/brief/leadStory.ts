@@ -129,7 +129,10 @@ export async function applyStickyHomepageLead(
   }
 
   // Keep sticky lead; refresh stored priority if the lead was re-rated.
-  if (stickyInPool.effectivePriority !== sticky.effectivePriority) {
+  if (
+    sticky &&
+    stickyInPool.effectivePriority !== sticky.effectivePriority
+  ) {
     await saveStickyLead({
       pmid: stickyInPool.pmid,
       dateEt: todayEt,
