@@ -20,6 +20,19 @@ jobs:
             echo "CRON_SECRET is not set. Add it under Settings → Secrets and variables → Actions."
             exit 1
           fi
-          curl -fsS -X GET \
+          # Cron now returns non-2xx when ingest fails; also require JSON ok:true.
+          body="$(mktemp)"
+          code="$(curl -sS -o "$body" -w "%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            "https://pubmedfeed.vercel.app/api/cron/daily-digest"
+            --max-time 320 \
+            "https://pubmedfeed.vercel.app/api/cron/daily-digest")"
+          echo "HTTP $code"
+          cat "$body"
+          echo
+          if [ "$code" != "200" ]; then
+            exit 1
+          fi
+          if ! grep -q '"ok":true' "$body"; then
+            echo "daily-digest JSON ok is not true"
+            exit 1
+          fi

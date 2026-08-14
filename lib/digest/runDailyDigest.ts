@@ -13,7 +13,7 @@ async function triggerIngest(path: string): Promise<Record<string, unknown>> {
     string,
     unknown
   >;
-  if (!response.ok) {
+  if (!response.ok || data.ok === false) {
     throw new Error(
       `${path} → ${String(data.error ?? response.statusText)} (HTTP ${response.status})`
     );
@@ -38,6 +38,9 @@ export type DailyDigestResult = {
  * PubMed ingest + summarize only (2× daily).
  * Stewardship Brief email is sent separately by `/api/cron/brief-digest`.
  * Legacy ASP Literature Feed emails are retired.
+ *
+ * Throws if PubMed ingest fails so cron callers get a non-2xx and GitHub/Vercel
+ * cannot report a false success (which left /feed "Last ingest" stuck).
  */
 export async function runDailyDigest(): Promise<DailyDigestResult> {
   const topicId = await getDefaultTopicId();
@@ -56,17 +59,9 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     )
   );
 
-  let ingestPubmed: Record<string, unknown>;
-  try {
-    ingestPubmed = await triggerIngest(
-      `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${maxSummaries}`
-    );
-  } catch (err) {
-    ingestPubmed = {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+  const ingestPubmed = await triggerIngest(
+    `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${maxSummaries}`
+  );
 
   return {
     ok: true,
