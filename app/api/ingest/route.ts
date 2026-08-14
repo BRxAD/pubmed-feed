@@ -169,25 +169,29 @@ function prioritizeUnsummarizedPmids(
   };
 }
 
-/** Which PMIDs already exist in articles (slim pmid-only lookup). */
-async function fetchExistingArticlePmids(
+/** Which PMIDs already exist in articles, with their fetched_at (slim lookup). */
+async function fetchExistingArticleMeta(
   supabase: SupabaseClient,
   pmids: string[]
-): Promise<Set<string>> {
-  const existing = new Set<string>();
+): Promise<Map<string, string | null>> {
+  const existing = new Map<string, string | null>();
   const CHUNK = 200;
   for (let i = 0; i < pmids.length; i += CHUNK) {
     const chunk = pmids.slice(i, i + CHUNK);
     const { data, error } = await supabase
       .from("articles")
-      .select("pmid")
+      .select("pmid, fetched_at")
       .in("pmid", chunk);
     if (error) {
       console.warn("[ingest] existing articles lookup failed:", error.message);
       continue;
     }
     for (const row of data ?? []) {
-      if (row?.pmid) existing.add(String(row.pmid));
+      if (!row?.pmid) continue;
+      existing.set(
+        String(row.pmid),
+        typeof row.fetched_at === "string" ? row.fetched_at : null
+      );
     }
   }
   return existing;
@@ -472,11 +476,11 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
 
     const fetchedAt = new Date().toISOString();
     const todayStr = getTodayISO();
-    const existingPmids = await fetchExistingArticlePmids(
+    const existingMeta = await fetchExistingArticleMeta(
       supabase,
       records.map((r) => r.pmid)
     );
-    const newArticleCount = records.filter((r) => !existingPmids.has(r.pmid)).length;
+    const newArticleCount = records.filter((r) => !existingMeta.has(r.pmid)).length;
 
     type ArticleRow = {
       pmid: string;
@@ -493,7 +497,8 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       mesh_terms: string[];
       authors: string[];
       source: string;
-      fetched_at?: string;
+      /** Always set — PostgREST upsert nulls omitted NOT NULL columns on update. */
+      fetched_at: string;
     };
 
     const articleRows: ArticleRow[] = records.map((r) => {
@@ -503,9 +508,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       const pubmedDate = toDateOnly((r as PubMedRecord & { pubmedDate?: string | null }).pubmedDate ?? null);
       const releaseDateRaw = articleDate ?? epubDate ?? pubmedDate ?? pubDate ?? todayStr;
       const releaseDate = clampToToday(releaseDateRaw) ?? todayStr;
-      const isNew = !existingPmids.has(r.pmid);
+      const priorFetched = existingMeta.get(r.pmid);
 
-      const row: ArticleRow = {
+      return {
         pmid: r.pmid,
         title: r.title ?? null,
         abstract: r.abstract ?? null,
@@ -520,10 +525,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         mesh_terms: r.meshTerms ?? [],
         authors: r.authors ?? [],
         source: "pubmed",
+        // Preserve first-seen stamp on refresh; stamp now only for brand-new PMIDs.
+        fetched_at: priorFetched ?? fetchedAt,
       };
-      // Stamp fetched_at only on first insert so later crons do not erase "new".
-      if (isNew) row.fetched_at = fetchedAt;
-      return row;
     });
 
     // ── 6. Upsert articles (in chunks to avoid payload limits) ────────────────
@@ -723,8 +727,17 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       mlPriorityGe5: mlPriorityGe5Count,
     });
 
-    revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
-    revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");
+    // Cache bust is best-effort — durable ingest already succeeded. Outside a
+    // Next request context (scripts) revalidateTag throws; never fail the run.
+    try {
+      revalidateTag(FEED_SLIM_INDEX_CACHE_TAG, "max");
+      revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");
+    } catch (err) {
+      console.warn(
+        "[ingest] revalidateTag skipped:",
+        err instanceof Error ? err.message : err
+      );
+    }
 
     return NextResponse.json({
       ok: true,

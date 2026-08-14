@@ -10,6 +10,8 @@
 
 OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (no `DIGEST_SEND_LEGACY`, no abstract digests on the ingest cron).
 
+Scheduled ingest is **Vercel Cron only**. The GitHub `daily-ingest` workflow is manual (`workflow_dispatch`) so it cannot double-fire and overwrite a productive run.
+
 ## Env (Vercel)
 
 | Variable | Purpose |

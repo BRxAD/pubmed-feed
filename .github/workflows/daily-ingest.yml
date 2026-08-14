@@ -1,11 +1,8 @@
 name: Daily PubMed ingest
 
+# Manual catch-up only. Scheduled ingest is Vercel Cron (vercel.json) so we
+# do not double-fire and overwrite a productive run with a later empty pass.
 on:
-  schedule:
-    # 06:00 Eastern (EDT = UTC-4) → 10:00 UTC
-    - cron: "0 10 * * *"
-    # 17:00 Eastern (EDT = UTC-4) → 21:00 UTC
-    - cron: "0 21 * * *"
   workflow_dispatch:
 
 jobs:
@@ -20,7 +17,7 @@ jobs:
             echo "CRON_SECRET is not set. Add it under Settings → Secrets and variables → Actions."
             exit 1
           fi
-          # Cron now returns non-2xx when ingest fails; also require JSON ok:true.
+          # Cron returns non-2xx when ingest fails; also require JSON ok:true.
           body="$(mktemp)"
           code="$(curl -sS -o "$body" -w "%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \

@@ -98,7 +98,7 @@ Also: **do not commit or push** unless the user asks.
 | Top 10 scan floor | stored priority ≥ **6** | `TOP_PRIORITY_MIN_PRIORITY` |
 | Priority model | **v5** ridge + PCA-8 | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
-| Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** | `vercel.json` |
+| Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (Vercel Cron only) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
 | Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
@@ -208,7 +208,7 @@ Main topic animal exclusion must be:
 
 ## Ingest & cron
 
-- `/api/cron/daily-digest` (+ GitHub Actions). Auth: `CRON_SECRET`.
+- `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch`). Auth: `CRON_SECRET`.
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
 - Show times in **Eastern**.
