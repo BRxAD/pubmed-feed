@@ -402,6 +402,73 @@ function dedupeByPmid(items: SummaryRow[]): SummaryRow[] {
 }
 
 /**
+ * Feed ranking (canonical):
+ * - Ingested: most recently fetched first, then effective priority (admin → ML).
+ * - Published: newest article/release date first, then effective priority.
+ * - Relevance: highest rank_score first (unchanged).
+ */
+function feedReleaseOrPubDate(item: FeedItem): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const release = item.articles?.release_date?.trim();
+  const pub = item.articles?.pub_date?.trim();
+  const raw = release ?? pub ?? "";
+  if (!raw) return "";
+  return raw > today ? today : raw;
+}
+
+function feedIngestTime(item: FeedItem): string {
+  const fetched = item.articles?.fetched_at?.trim() ?? "";
+  const created = item.created_at?.trim() ?? "";
+  return fetched || created || "";
+}
+
+function feedEffectivePriority(item: FeedItem): number {
+  const ml =
+    item.ml_priority != null && Number.isFinite(item.ml_priority)
+      ? item.ml_priority
+      : 0;
+  return effectivePriority(item.admin_priority, ml);
+}
+
+function sortFeedItemsByRecencyThenPriority(
+  items: FeedItem[],
+  sort: FeedSort
+): FeedItem[] {
+  if (sort === "relevance") {
+    return [...items].sort((a, b) => {
+      const scoreDiff = (b.rank_score ?? 0) - (a.rank_score ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const pDiff = feedEffectivePriority(b) - feedEffectivePriority(a);
+      if (pDiff !== 0) return pDiff;
+      return a.pmid.localeCompare(b.pmid);
+    });
+  }
+
+  return [...items].sort((a, b) => {
+    if (sort === "published") {
+      const da = feedReleaseOrPubDate(a);
+      const db = feedReleaseOrPubDate(b);
+      if (da !== db) {
+        if (!da) return 1;
+        if (!db) return -1;
+        return db.localeCompare(da);
+      }
+    } else {
+      const ia = feedIngestTime(a);
+      const ib = feedIngestTime(b);
+      if (ia !== ib) {
+        if (!ia) return 1;
+        if (!ib) return -1;
+        return ib.localeCompare(ia);
+      }
+    }
+    const pDiff = feedEffectivePriority(b) - feedEffectivePriority(a);
+    if (pDiff !== 0) return pDiff;
+    return a.pmid.localeCompare(b.pmid);
+  });
+}
+
+/**
  * Fast SQL page path: ingested / published / relevance without keyword filter.
  * Setting + Unrated + Min priority stay in SQL (auto_settings / stored grades).
  */
@@ -463,12 +530,15 @@ async function fetchSqlFeedPage(options: {
 
   const applySort = <T extends { order: Function }>(query: T): T => {
     if (sort === "relevance") {
-      return query.order("rank_score", {
-        ascending: false,
-        nullsFirst: false,
-      }) as T;
+      return query
+        .order("rank_score", {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .order("created_at", { ascending: false }) as T;
     }
     if (sort === "published") {
+      // Recency first (article date); priority tie-break applied in memory.
       return query
         .order("release_date", {
           ascending: false,
@@ -479,9 +549,21 @@ async function fetchSqlFeedPage(options: {
           ascending: false,
           foreignTable: "articles",
           nullsFirst: false,
+        })
+        .order("fetched_at", {
+          ascending: false,
+          foreignTable: "articles",
+          nullsFirst: false,
         }) as T;
     }
-    return query.order("created_at", { ascending: false }) as T;
+    // Ingested: first-seen time on the article, then summary created_at.
+    return query
+      .order("fetched_at", {
+        ascending: false,
+        foreignTable: "articles",
+        nullsFirst: false,
+      })
+      .order("created_at", { ascending: false }) as T;
   };
 
   let countQuery = supabase
@@ -546,6 +628,7 @@ async function fetchSqlFeedPage(options: {
   rows = rows.slice(0, pageSize);
 
   let items = rows.map(mapRawRowToFeedItem);
+  items = sortFeedItemsByRecencyThenPriority(items, sort);
   items = await attachJif(supabase, items);
   items = await hydrateFeedItemBodies(supabase, items);
 
@@ -710,20 +793,6 @@ export async function getFeedItems(
     itemsWithJif = applyFiltersToFeedItems(itemsWithJif, filters);
   }
 
-  const releaseOrPub = (item: FeedItem): string => {
-    const today = new Date().toISOString().slice(0, 10);
-    const release = item.articles?.release_date?.trim();
-    const pub = item.articles?.pub_date?.trim();
-    const raw = release ?? pub ?? "";
-    if (!raw) return "";
-    return raw > today ? today : raw;
-  };
-  const ingestTime = (item: FeedItem): string => {
-    const fetched = item.articles?.fetched_at?.trim() ?? "";
-    const created = item.created_at?.trim() ?? "";
-    return fetched || created || "";
-  };
-
   if (sort === "relevance" && query_string) {
     const withStored = itemsWithJif.filter(
       (item) => item.rank_score != null && Number.isFinite(item.rank_score)
@@ -731,13 +800,11 @@ export async function getFeedItems(
     const preferStored = withStored >= itemsWithJif.length * 0.5;
 
     if (preferStored) {
-      itemsWithJif = itemsWithJif
-        .map((item) => ({
-          ...item,
-          rank_score:
-            (item.rank_score ?? 0) + priorityScoreBoost(item.admin_priority),
-        }))
-        .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
+      itemsWithJif = itemsWithJif.map((item) => ({
+        ...item,
+        rank_score:
+          (item.rank_score ?? 0) + priorityScoreBoost(item.admin_priority),
+      }));
     } else {
       const recFromItem = (item: FeedItem): PubMedRecord => ({
         pmid: item.pmid,
@@ -750,62 +817,33 @@ export async function getFeedItems(
         keywords: item.articles?.keywords ?? [],
         authors: [],
       });
-      itemsWithJif = itemsWithJif
-        .map((item) => {
-          if (item.rank_score != null && Number.isFinite(item.rank_score)) {
-            return {
-              ...item,
-              rank_score:
-                item.rank_score + priorityScoreBoost(item.admin_priority),
-            };
-          }
-          const rec = recFromItem(item);
-          const jifIsHigh =
-            item.is_q1 || isHighImpactJournal(item.articles?.journal);
-          const breakdown = computeBreakdown(
-            query_string,
-            rec,
-            learnedWeights,
-            true,
-            jifIsHigh,
-            scoringOptions
-          );
-          const rank_score =
-            breakdown.finalScore + priorityScoreBoost(item.admin_priority);
-          return { ...item, rank_score };
-        })
-        .sort((a, b) => (b.rank_score ?? 0) - (a.rank_score ?? 0));
+      itemsWithJif = itemsWithJif.map((item) => {
+        if (item.rank_score != null && Number.isFinite(item.rank_score)) {
+          return {
+            ...item,
+            rank_score:
+              item.rank_score + priorityScoreBoost(item.admin_priority),
+          };
+        }
+        const rec = recFromItem(item);
+        const jifIsHigh =
+          item.is_q1 || isHighImpactJournal(item.articles?.journal);
+        const breakdown = computeBreakdown(
+          query_string,
+          rec,
+          learnedWeights,
+          true,
+          jifIsHigh,
+          scoringOptions
+        );
+        const rank_score =
+          breakdown.finalScore + priorityScoreBoost(item.admin_priority);
+        return { ...item, rank_score };
+      });
     }
-  } else if (sort === "published") {
-    itemsWithJif = itemsWithJif.sort((a, b) => {
-      const da = releaseOrPub(a);
-      const db = releaseOrPub(b);
-      if (da !== db) {
-        if (!da) return 1;
-        if (!db) return -1;
-        return db.localeCompare(da);
-      }
-      return ingestTime(b).localeCompare(ingestTime(a));
-    });
-  } else {
-    itemsWithJif = itemsWithJif.sort((a, b) => {
-      const ia = ingestTime(a);
-      const ib = ingestTime(b);
-      if (ia !== ib) {
-        if (!ia) return 1;
-        if (!ib) return -1;
-        return ib.localeCompare(ia);
-      }
-      const da = releaseOrPub(a);
-      const db = releaseOrPub(b);
-      if (da !== db) {
-        if (!da) return 1;
-        if (!db) return -1;
-        return db.localeCompare(da);
-      }
-      return a.pmid.localeCompare(b.pmid);
-    });
   }
+
+  itemsWithJif = sortFeedItemsByRecencyThenPriority(itemsWithJif, sort);
 
   if (filters?.unratedOnly) {
     itemsWithJif = itemsWithJif.filter((item) => item.admin_priority == null);

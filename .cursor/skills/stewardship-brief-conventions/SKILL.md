@@ -104,7 +104,7 @@ Also: **do not commit or push** unless the user asks.
 | Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
-| Human-rated total on `/feed` | ~**24 h** TTL; head count only | `lib/humanRatingStats.ts` |
+| Feed default sort | **Ingested**: newest first, then effective priority | `lib/feed.ts` |
 | Trending keywords | ~**6 h**; bust with feed slim tag (ingest) | `lib/feed.ts` |
 
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
@@ -142,6 +142,7 @@ Main topic animal exclusion must be:
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
 - **Brief** — curated, ≥5, 28-day window. Cached ready payload (~1 h): All → sticky lead → images; filter setting tabs in memory.
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
+  - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
 - Tab titles start with **Feed**; distinct route icons.
@@ -224,6 +225,7 @@ Main topic animal exclusion must be:
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
 - Digest email: avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
+- Feed sort: newest first (ingested=`fetched_at`, published=article date), then effective priority within the same time.
 - Feed header: cached **human rated** total (~24h head count) — not a live corpus walk.
 
 ## Implementation checklist
@@ -241,6 +243,7 @@ Main topic animal exclusion must be:
 - [ ] PubMed-only preserved
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
+- [ ] Feed sort: newest first, then effective priority (ingested / published)
 - [ ] `/dashboard` stays retired (redirect only)
 - [ ] Eastern times where “day” matters
 - [ ] SQL called out; ASCII-only in SQL comments
