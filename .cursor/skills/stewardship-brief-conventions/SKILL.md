@@ -29,7 +29,7 @@ Think of the product like a newspaper desk:
 
 1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
-3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
+3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Default order: **prefer newest published, else newest ingest** (`max(publish, fetched_at)`), then priority. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
 5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
@@ -105,7 +105,7 @@ Also: **do not commit or push** unless the user asks.
 | Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (**Vercel Cron only**) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v3` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v4` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at` first, then effective priority | `lib/feed.ts` |
@@ -155,9 +155,11 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v3`): All → sticky lead → images; filter setting tabs in memory.
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v4`): All → sticky lead → images; filter setting tabs in memory.
+  - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
+- **Brief digest email** — headline links to **PubMed**; no separate PubMed line under the story. Article date sits tightly **above** the headline. “Open today’s brief” / footer still point at the site.
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
@@ -203,7 +205,8 @@ Main topic animal exclusion must be:
 - Ingest hardening (Aug 2026): article upsert **always** sends `fetched_at` (preserve first-seen; never omit → PostgREST null); `runDailyDigest` **throws** on ingest failure (HTTP 500, no false-green cron); wrap `revalidateTag` in try/catch so cache bust never fails the run.
 - Production schedule: **Vercel Cron only**; GitHub Actions ingest is **manual `workflow_dispatch`** (no schedule).
 - Feed sort: newest first, then effective priority (ingested / published).
-- Sticky lead: equal-or-higher natural #1 replaces pin (not strictly-higher).
+- Brief sort: prefer published, else recent ingest (`max(publish, fetched_at)`); sticky lead equal-or-higher replaces.
+- Digest email: headline → PubMed; date above headline; no separate PubMed link under each story.
 - Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses.
 
 ## Still open (optional later)
@@ -249,8 +252,9 @@ Main topic animal exclusion must be:
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
-- Digest email: avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
+- Digest email: headline links to PubMed (no separate PubMed line); article date sits tightly above the headline. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
+- Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
 - Feed sort: newest first (ingested=`fetched_at`, published=article date), then effective priority within the same time.
 - Feed header: cached **human rated** total (~24h head count) — not a live corpus walk.
 
@@ -271,7 +275,8 @@ Main topic animal exclusion must be:
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
 - [ ] Feed sort: newest first, then effective priority (ingested / published)
-- [ ] Sticky lead: equal-or-higher replaces (not strictly-higher)
+- [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
+- [ ] Digest email: headline → PubMed; date above headline; no under-story PubMed link
 - [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise
 - [ ] Article upsert always sends `fetched_at` (preserve first-seen)
 - [ ] Digest cron fails loud on ingest error; revalidateTag try/catch

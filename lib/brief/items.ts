@@ -57,6 +57,8 @@ export type BriefItem = {
   sjrScimago: number | null;
   date: string | null;
   createdAt: string;
+  /** First-seen ingest stamp (`articles.fetched_at`); null if unknown. */
+  fetchedAt: string | null;
   isNew: boolean;
   /** Primary (highest-scoring) setting. */
   setting: ArticleSetting | null;
@@ -123,17 +125,40 @@ function isPubMedArticle(pmid: string, source: string | null | undefined): boole
   return /^\d+$/.test(id);
 }
 
+function parseTimestamp(raw: string | null | undefined): number {
+  if (!raw?.trim()) return 0;
+  const t = new Date(
+    raw.includes("T") ? raw : `${String(raw).slice(0, 10)}T12:00:00`
+  ).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 /** Prefer article/release date; fall back to summary created_at. */
 function articleTimestamp(item: {
   date: string | null;
   createdAt: string;
 }): number {
-  const raw = item.date ?? item.createdAt;
-  if (!raw) return 0;
-  const t = new Date(
-    raw.includes("T") ? raw : `${String(raw).slice(0, 10)}T12:00:00`
-  ).getTime();
-  return Number.isNaN(t) ? 0 : t;
+  return parseTimestamp(item.date ?? item.createdAt);
+}
+
+/** First-seen ingest time; fall back to summary created_at. */
+function ingestTimestamp(item: {
+  fetchedAt?: string | null;
+  createdAt: string;
+}): number {
+  return parseTimestamp(item.fetchedAt ?? item.createdAt);
+}
+
+/**
+ * Recency for lead-by-recency: prefer a fresh publish date, but let a newer
+ * ingest surface when there is no newer publication to feature.
+ */
+function briefRecencyTimestamp(item: {
+  date: string | null;
+  fetchedAt?: string | null;
+  createdAt: string;
+}): number {
+  return Math.max(articleTimestamp(item), ingestTimestamp(item));
 }
 
 function parseStoredMlPriority(raw: unknown): number | null {
@@ -284,7 +309,8 @@ export async function getBriefItems(options?: {
   articleDateWithinDays?: number;
   /**
    * Ordering applied before the maxItems cut. "recency" (default) follows the
-   * brief's leadByRecency setting. "priority" ranks purely by effective
+   * brief's leadByRecency setting (max of publish date and ingest time, then
+   * publish, then ingest, then priority). "priority" ranks purely by effective
    * priority, so an older-but-higher-rated study is never cut from the pool by
    * a newer, lower-rated one.
    */
@@ -673,6 +699,7 @@ export async function getBriefItems(options?: {
       sjrScimago: scimago?.sjr ?? null,
       date: row.articles?.release_date ?? row.articles?.pub_date ?? null,
       createdAt: row.created_at,
+      fetchedAt: row.articles?.fetched_at ?? null,
       isNew: isWithinHours(row.created_at, 24),
       setting: getItemSetting(feedLike),
       settings: getItemSettings(feedLike),
@@ -705,11 +732,20 @@ export async function getBriefItems(options?: {
       if (b.effectivePriority !== a.effectivePriority) {
         return b.effectivePriority - a.effectivePriority;
       }
-      const tDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (tDiff !== 0) return tDiff;
+      const recencyDiff = briefRecencyTimestamp(b) - briefRecencyTimestamp(a);
+      if (recencyDiff !== 0) return recencyDiff;
+      const pubDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (pubDiff !== 0) return pubDiff;
+      const ingestDiff = ingestTimestamp(b) - ingestTimestamp(a);
+      if (ingestDiff !== 0) return ingestDiff;
     } else {
-      const tDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (tDiff !== 0) return tDiff;
+      // Prefer newest publish; if nothing newer was published, newest ingest wins.
+      const recencyDiff = briefRecencyTimestamp(b) - briefRecencyTimestamp(a);
+      if (recencyDiff !== 0) return recencyDiff;
+      const pubDiff = articleTimestamp(b) - articleTimestamp(a);
+      if (pubDiff !== 0) return pubDiff;
+      const ingestDiff = ingestTimestamp(b) - ingestTimestamp(a);
+      if (ingestDiff !== 0) return ingestDiff;
       if (b.effectivePriority !== a.effectivePriority) {
         return b.effectivePriority - a.effectivePriority;
       }

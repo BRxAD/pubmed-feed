@@ -94,24 +94,24 @@ export function buildBriefDigestEmail(options: {
     const meta = formatDateLabel(item.date);
 
     textParts.push(
+      meta,
       item.headline,
       item.bottomLine ?? "",
-      meta,
-      `Brief: ${briefUrl}`,
-      `PubMed: ${item.pubmedUrl}`,
+      item.pubmedUrl,
       ""
     );
 
     htmlParts.push(`
       <article style="margin:0 0 28px;padding:0 0 28px;border-bottom:1px solid ${hairline};font-family:system-ui,sans-serif">
+        ${
+          meta
+            ? `<p style="margin:0 0 4px;font-size:11px;line-height:1.3;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>`
+            : ""
+        }
         <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
-          <a href="${escapeHtml(briefUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
+          <a href="${escapeHtml(item.pubmedUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
         </h2>
-        ${item.bottomLine ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
-        <p style="margin:0;font-size:12px;line-height:1.5;color:${olive}">
-          ${meta ? `<span style="font-weight:500;letter-spacing:0.08em;text-transform:uppercase">${escapeHtml(meta)}</span> · ` : ""}
-          <a href="${escapeHtml(item.pubmedUrl)}" style="color:${steel};text-decoration:underline">PubMed</a>
-        </p>
+        ${item.bottomLine ? `<p style="margin:0;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
       </article>
     `);
   }

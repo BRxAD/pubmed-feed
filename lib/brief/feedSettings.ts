@@ -14,8 +14,9 @@ export type BriefFeedConfig = {
   largeStudyThreshold: number;
   smallSampleMax: number;
   /**
-   * When true (default): lead by newest article date, then highest priority.
-   * When false: lead by highest priority, then newest article date.
+   * When true (default): lead by newest of publish date or ingest time
+   * (prefer published, then ingest), then highest priority.
+   * When false: lead by highest priority, then that same recency.
    */
   leadByRecency: boolean;
 };

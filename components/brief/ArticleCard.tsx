@@ -259,7 +259,7 @@ export function LeadStory({
       )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-3 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
+        className={`${brief.serif} mt-1 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
       >
         <a
           href={item.pubmedUrl}
@@ -340,7 +340,7 @@ export function FeaturedStory({
       )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-2 ${
+        className={`${brief.serif} mt-1 ${
           compact ? "text-lg" : "text-xl"
         } font-bold leading-snug tracking-[-0.01em]`}
       >

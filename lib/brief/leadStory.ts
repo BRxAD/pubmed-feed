@@ -79,8 +79,8 @@ function withLeadFirst(items: BriefItem[], leadPmid: string): BriefItem[] {
 /**
  * Homepage-only sticky lead for the calendar day (Eastern midnight).
  *
- * - Ranking rules produce a natural candidate (items[0]) — recency-first or
- *   priority-first depending on brief settings.
+ * - Ranking rules produce a natural candidate (items[0]) — recency-first
+ *   (newest of publish date or ingest) or priority-first depending on brief settings.
  * - That candidate becomes the day's lead.
  * - Sticky only blocks *lower*-priority churn from stealing the lead mid-day.
  *   Equal or higher priority at natural #1 always wins (so a newer same-score

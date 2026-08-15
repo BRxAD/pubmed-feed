@@ -121,6 +121,7 @@ function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
     sjrScimago: item.sjrScimago,
     date: item.date,
     createdAt: "",
+    fetchedAt: null,
     isNew: false,
     setting: item.setting,
     settings: item.settings,
