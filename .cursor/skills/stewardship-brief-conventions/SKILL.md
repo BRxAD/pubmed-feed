@@ -4,14 +4,16 @@ description: >-
   Product conventions for The Stewardship Brief / pubmed-feed (Next.js + Supabase):
   plain-language mental model, how to talk to the user, Brief/feed/ingest
   rules, egress, embeddings lifecycle, story images, admin setting overrides,
-  Postgres indexes/RLS, PubMed-only, and hard change-control. Use when working on
-  Brief, homepage, /feed, ingest, cron, summaries, ranking, priority ML,
-  embeddings, story images, settings, Supabase, or related API routes.
+  summary/headline voice (ID/AMS experts, cautious claims), Postgres indexes/RLS,
+  PubMed-only, and hard change-control. Use when working on Brief, homepage,
+  /feed, ingest, cron, summaries, headlines, ranking, priority ML, embeddings,
+  story images, settings, Supabase, or related API routes.
 ---
 
 # Stewardship Brief — product conventions
 
-Apply these when changing Brief, feed, ingest, ranking, or Supabase access.
+Apply these when changing Brief, feed, ingest, ranking, summaries/headlines, or Supabase access.
+This file is the source of truth — overwrite older convention notes that conflict.
 
 ## How to talk to the user (hard)
 
@@ -25,9 +27,9 @@ Apply these when changing Brief, feed, ingest, ranking, or Supabase access.
 
 Think of the product like a newspaper desk:
 
-1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row.
-2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only).
-3. **Homepage / Brief** — Show strong stories (priority ≥ **5**) from the last **28** days. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs.
+1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
+2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
+3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
 5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
@@ -43,11 +45,12 @@ Think of the product like a newspaper desk:
 | **Hydrate** | After picking winners, fetch long text / keywords / MeSH **only for those**. |
 | **Egress** | Bytes leaving Supabase (free plan has a monthly cap). |
 | **Train ≠ serve** | Better model (train) is incomplete until ingest **saves** a grade (serve). |
+| **Effective priority** | `admin_priority` if set, else `ml_priority`, else legacy handcrafted. |
 
 ### Brief load in three steps (required)
 
 1. **Slim pass** — Candidates without abstract / `summary_text` / keywords / MeSH bodies; include `auto_settings`.
-2. **Gate** — Keep saved priority ≥ 5. Legacy null `ml_priority`: handcrafted OK.
+2. **Gate** — Keep **effective** priority ≥ 5. Legacy null `ml_priority`: handcrafted OK. Admin override can exclude an ML ≥ 5 paper.
 3. **Hydrate survivors** — Bodies (+ keywords/MeSH for images) only for homepage/digest winners. Top 10 skips body hydrate (may still page-hydrate keywords for soft setting match).
 
 ### What we will not do
@@ -57,6 +60,7 @@ Think of the product like a newspaper desk:
 - Bulk-select keywords/MeSH (or abstracts) for the whole corpus on page load when `auto_settings` / slim+hydrate will do.
 - Bust Top 10 or the feed slim index on every admin rating (Brief homepage only).
 - Backfill re-grade all old articles unless asked.
+- Regenerate existing summaries/headlines unless asked (new prompts apply **going forward**).
 - Change Brief ≥5 / Top 10 ≥6 / date windows without asking.
 - Commit/push unless the user asks.
 - Re-enable OpenAlex.
@@ -92,24 +96,35 @@ Also: **do not commit or push** unless the user asks.
 
 | Concept | Value | Source |
 |--------|--------|--------|
-| Brief eligibility | effective priority ≥ **5** | `lib/brief/priority.ts` |
-| Brief article window | **28** days | `BRIEF_ARTICLE_WINDOW_DAYS` |
+| Brief eligibility | **effective** priority ≥ **5** | `lib/brief/priority.ts` |
+| Brief article window | **28** days (article/release date) | `BRIEF_ARTICLE_WINDOW_DAYS` |
 | Top 10 window | **365** days | `TOP_PRIORITY_ARTICLE_WINDOW_DAYS` |
 | Top 10 scan floor | stored priority ≥ **6** | `TOP_PRIORITY_MIN_PRIORITY` |
 | Priority model | **v5** ridge + PCA-8 | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
-| Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (Vercel Cron only) | `vercel.json` |
+| Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (**Vercel Cron only**) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v3` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
-| Feed default sort | **Ingested**: newest first, then effective priority | `lib/feed.ts` |
+| Feed default sort | **Ingested**: newest `fetched_at` first, then effective priority | `lib/feed.ts` |
 | Trending keywords | ~**6 h**; bust with feed slim tag (ingest) | `lib/feed.ts` |
 
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
 
 **Effective setting:** `admin_setting` (exclusive single label) → else stored `auto_settings` → else live `classifyArticleSettings` (legacy rows only).
+
+## Summaries & headlines (hard)
+
+Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** ingest/generation only unless the user asks to regenerate old rows.
+
+- **Audience:** ID / AMS experts — they already know stewardship basics; do not over-explain foundations.
+- **Angle:** Frame METHODS / RESULTS / BOTTOM LINE / headlines around antimicrobial stewardship (prescribing, resistance, diagnostics stewardship, implementation, practice-changing outcomes) — not a generic biomedical restatement.
+- **BOTTOM LINE:** May (and often should) name study design up front (“Systematic review showed…”, “In this multicenter cohort…”, “In this randomized trial…”). Prefer that over a vague “this study”.
+- **Do not over-promise:** If sensitivity / adjusted / propensity / stratified analyses weaken or erase the primary effect, do **not** lead with the fragile point estimate. Headline the durable takeaway (signal of benefit, no excess harm, comparable outcomes, feasibility). RESULTS should note the tension; BOTTOM LINE follows the authors’ durable conclusion.
+- **Causality:** Causal verbs **only** for RCTs of a clear intervention. Systematic reviews / meta-analyses that mix observational data are **non-causal** unless clearly limited to RCT evidence. Observational / cohort / cross-sectional / quasi-experimental → associations or patterns only. When unsure, default non-causal.
+- **Good caution example:** “Oral therapy shows signal of benefit and no harm for Gram-negative BSI” — not “cut mortality 61%” when sensitivity analyses nullify that signal.
 
 ## Embeddings & ML priority (hard)
 
@@ -140,8 +155,9 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, ≥5, 28-day window. Cached ready payload (~1 h): All → sticky lead → images; filter setting tabs in memory.
-  - **Sticky lead:** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Equal or higher priority at natural #1 always wins (so a newer same-score story can replace an older pin when lead-by-recency is on).
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v3`): All → sticky lead → images; filter setting tabs in memory.
+  - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
+  - Setting tabs do not rewrite sticky lead.
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
@@ -176,20 +192,26 @@ Main topic animal exclusion must be:
 - Feed Admin shows stored `ml_priority` (not live no-embedding recompute).
 - Main topic query uses `(animals[MeSH] NOT humans[MeSH])`.
 - Admin setting exclusive; Brief cache busts on setting/rating; feed slim + Top 10 do **not**.
-- Story images assigned on All pool (stable across setting tabs).
+- Story images assigned on All pool (stable across setting tabs); skip URL health probes for curated CDN hosts.
 - Dog stock photo (`vet-care` / photo-1548199973) only when text says dog/dogs.
 - Top 10: 365 days, scan ≥ 6, human > ML on ties; cache ~**3 days** All-pool (tabs filter in memory).
 - PubMed-only (OpenAlex UI + ingest disabled).
 - Legacy ASP Literature Feed emails **retired**; Brief email only via `brief-digest`.
 - CI smoke: OpenAlex expects **410**; PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
 - Hot-path indexes + RLS + `auto_settings` applied in Supabase.
+- Fluid CPU cuts: summarize cap **40**; ingest **2×/day** (06:00 + 17:00 ET); priority retrain **weekly**; homepage ready cache ~1 h.
+- Ingest hardening (Aug 2026): article upsert **always** sends `fetched_at` (preserve first-seen; never omit → PostgREST null); `runDailyDigest` **throws** on ingest failure (HTTP 500, no false-green cron); wrap `revalidateTag` in try/catch so cache bust never fails the run.
+- Production schedule: **Vercel Cron only**; GitHub Actions ingest is **manual `workflow_dispatch`** (no schedule).
+- Feed sort: newest first, then effective priority (ingested / published).
+- Sticky lead: equal-or-higher natural #1 replaces pin (not strictly-higher).
+- Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses.
 
 ## Still open (optional later)
 
 - Embeddings still stored as big JSON in `app_settings` — longer-term: dedicated table or drop after scoring.
 - Optional SEO: `metadataBase` / OG cleanup on public pages.
 - Shrinking Top 10’s 365-day window — **ask first**.
-- No surprise backfills or bulk recompute scripts without go-ahead.
+- No surprise backfills, bulk recompute, or mass headline/summary regenerations without go-ahead.
 
 ## Ranking & settings
 
@@ -210,13 +232,16 @@ Main topic animal exclusion must be:
 
 ## Ingest & cron
 
-- `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch`). Auth: `CRON_SECRET`.
+- `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
 - Show times in **Eastern**.
 - “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
-- Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`; stamp `fetched_at` only on first insert.
-- New summary → embed once → save `ml_priority` + `auto_settings`.
+- Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`.
+- **`fetched_at` (hard):** always include on article upsert. New rows get the run stamp; existing rows keep prior `fetched_at`. **Never omit** the field on refresh (omitting made PostgREST null → NOT NULL outage).
+- **Fail loud:** `runDailyDigest` must throw when PubMed ingest fails so cron returns HTTP 500 (no silent success).
+- Cache bust after ingest: Brief homepage + feed slim; `revalidateTag` must be try/catch — never fail the ingest run.
+- New summary → embed once → save `ml_priority` + `auto_settings` + headline under current prompt rules.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 
 ## UI / UX (soft)
@@ -235,16 +260,22 @@ Main topic animal exclusion must be:
 - [ ] No full-corpus abstract / embedding / keywords+MeSH egress on hot paths (slim omit; page-hydrate)
 - [ ] Embeddings only at ingest + scheduled/manual retrain (not per rating)
 - [ ] UI “ML” = stored `ml_priority` (not page-load no-embedding score)
+- [ ] Brief gate / “why missing” uses **effective** priority (admin wins over ML)
 - [ ] Topic query uses animals NOT humans (not bare animals)
 - [ ] Admin setting exclusive (no soft-match into other capsules)
 - [ ] Prefer stored `auto_settings` (ingest write; no live classify when present)
-- [ ] Story images assigned on All pool; stable across setting tabs
+- [ ] Story images assigned on All pool; stable across setting tabs; curated hosts skip URL probe
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
 - [ ] PubMed-only preserved
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
 - [ ] Feed sort: newest first, then effective priority (ingested / published)
+- [ ] Sticky lead: equal-or-higher replaces (not strictly-higher)
+- [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise
+- [ ] Article upsert always sends `fetched_at` (preserve first-seen)
+- [ ] Digest cron fails loud on ingest error; revalidateTag try/catch
+- [ ] Ingest schedule = Vercel Cron only (Actions manual)
 - [ ] `/dashboard` stays retired (redirect only)
 - [ ] Eastern times where “day” matters
 - [ ] SQL called out; ASCII-only in SQL comments
