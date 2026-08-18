@@ -134,7 +134,12 @@ export default function ShareMenu({ item, image }: Props) {
     }
   }
 
-  const shareText = [item.headline, item.bottomLine, item.pubmedUrl]
+  const shareText = [
+    item.headline,
+    item.bottomLine,
+    item.pubmedUrl,
+    "via The Stewardship Brief - www.stewardshipbrief.com",
+  ]
     .filter(Boolean)
     .join("\n\n");
 
