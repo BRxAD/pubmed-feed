@@ -75,6 +75,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_auto_settings.sql` | **Applied** (GIN on `auto_settings`) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
+| `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (main AMS `query_string`: core AND quality block) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -151,6 +152,8 @@ Main topic animal exclusion must be:
 `(animals[MeSH] NOT humans[MeSH])`
 
 **Never** bare `NOT animals[MeSH]`. In MeSH, Humans sits under Animals, so the bare form drops almost all MEDLINE human clinical papers. Keep case-report exclusion as before. Script: `scripts/fix_topic_query_animals_not_humans.sql`.
+
+**Main AMS topic shape (preferred):** stewardship/use/exposure **core** `AND` a **high-signal** block (guidelines / SR-MA / RCT / cohort / cross-sectional / observational / national-international / stewardship program or generic intervention-implementation), then NOT animal-only + case reports (+ optional Comment/Editorial/Letter). Do **not** require specific ASP tactics (pre-auth, handshake, etc.). Prefer slightly more sensitive than a design-only filter so large cohorts and novel interventions still enter. Apply via `scripts/update_topic_query_ams_quality_filter.sql`. Do not re-add bare `antibiotic treatment` / `antimicrobial treatment` ORs to the core without asking (they flood low-priority ID papers).
 
 ## Surfaces
 
@@ -265,7 +268,7 @@ Main topic animal exclusion must be:
 - [ ] Embeddings only at ingest + scheduled/manual retrain (not per rating)
 - [ ] UI “ML” = stored `ml_priority` (not page-load no-embedding score)
 - [ ] Brief gate / “why missing” uses **effective** priority (admin wins over ML)
-- [ ] Topic query uses animals NOT humans (not bare animals)
+- [ ] Topic query uses animals NOT humans (not bare animals); AMS core AND quality block (no tactic lock-in)
 - [ ] Admin setting exclusive (no soft-match into other capsules)
 - [ ] Prefer stored `auto_settings` (ingest write; no live classify when present)
 - [ ] Story images assigned on All pool; stable across setting tabs; curated hosts skip URL probe
