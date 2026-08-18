@@ -75,7 +75,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_auto_settings.sql` | **Applied** (GIN on `auto_settings`) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
-| `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (AMS MeSH/phrase alone enough; use/exposure need quality block; no AI topic-name skip) |
+| `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (user-edited journal list: JAMA only; trimmed Nature set + priority ID journals) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -153,7 +153,7 @@ Main topic animal exclusion must be:
 
 **Never** bare `NOT animals[MeSH]`. In MeSH, Humans sits under Animals, so the bare form drops almost all MEDLINE human clinical papers. Keep case-report exclusion as before. Script: `scripts/fix_topic_query_animals_not_humans.sql`.
 
-**Main AMS topic shape (preferred):** `"Antimicrobial Stewardship"[MeSH]` or stewardship Title/Abstract phrases alone are enough. Broader antibiotic/antimicrobial **use/exposure** terms still need a high-signal block (guidelines / SR-MA / RCT / cohort / cross-sectional / observational / national-international / program or generic intervention-implementation). Then NOT animal-only + case reports (+ optional Comment/Editorial/Letter). Do **not** require specific ASP tactics. AI stewardship papers that match belong in the **main** feed — do not maintain a separate AI topic query, and do not use `NOT ILIKE '%artificial intelligence%'` when updating main topic rows (that only skipped the old AI topic name; it never filtered PubMed AI papers). Apply via `scripts/update_topic_query_ams_quality_filter.sql`. Do not re-add bare `antibiotic treatment` / `antimicrobial treatment` ORs without asking.
+**Main AMS topic shape (preferred):** `"Antimicrobial Stewardship"[MeSH]` or stewardship Title/Abstract phrases alone are enough. Broader antibiotic/antimicrobial **use/exposure** terms still need a high-signal block (guidelines / SR-MA / RCT / cohort / cross-sectional / observational / national-international / program or generic intervention-implementation). Separately, bare **antibiotic/antimicrobial** Title/Abstract terms match when the journal is in the priority set (Lancet family, NEJM, **JAMA** only — not full JAMA Network, Nature / Nat Med / Nat Microbiol / Nat Commun / npj Antimicrob Resist, CMI / CMI Communications, ICHE, CID, OFID, ASHE). Then NOT animal-only + case reports (+ optional Comment/Editorial/Letter). Do **not** require specific ASP tactics. AI stewardship papers that match belong in the **main** feed — do not maintain a separate AI topic query, and do not use `NOT ILIKE '%artificial intelligence%'` when updating main topic rows. Apply via `scripts/update_topic_query_ams_quality_filter.sql`. Do not re-add bare `antibiotic treatment` / `antimicrobial treatment` ORs without asking.
 
 ## Surfaces
 
