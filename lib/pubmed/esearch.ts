@@ -5,8 +5,8 @@ const ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 /**
  * PMIDs returned per ESearch page. 500 is a safe size:
  * - well within NCBI's 10,000 cap
- * - query-string is short enough for GET requests
  * - response JSON is fast to parse
+ * Requests use POST so long topic queries do not hit HTTP 414.
  */
 const PAGE_SIZE = 500;
 
@@ -35,11 +35,20 @@ function delay(ms: number): Promise<void> {
 async function esearchFetch(
   params: URLSearchParams
 ): Promise<{ pmids: string[]; count: number; queryUrl: string }> {
-  const queryUrl = `${ESEARCH_URL}?${params.toString()}`;
+  // Long topic queries exceed GET URL limits (HTTP 414). NCBI E-utilities
+  // accepts the same parameters via POST body.
+  const body = params.toString();
+  const queryUrl = `${ESEARCH_URL}?db=${encodeURIComponent(params.get("db") ?? "pubmed")}&term=(post)`;
 
   let res: Response;
   try {
-    res = await fetch(queryUrl);
+    res = await fetch(ESEARCH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`PubMed ESearch request failed: ${msg}`);

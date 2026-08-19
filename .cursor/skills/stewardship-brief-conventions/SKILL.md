@@ -246,6 +246,7 @@ Main topic animal exclusion must be:
 - Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`.
 - **`fetched_at` (hard):** always include on article upsert. New rows get the run stamp; existing rows keep prior `fetched_at`. **Never omit** the field on refresh (omitting made PostgREST null → NOT NULL outage).
 - **Fail loud:** `runDailyDigest` must throw when PubMed ingest fails so cron returns HTTP 500 (no silent success).
+- **PubMed ESearch:** use **HTTP POST** (not GET) so long topic queries do not fail with HTTP 414 Request-URI Too Long.
 - Cache bust after ingest: Brief homepage + feed slim; `revalidateTag` must be try/catch — never fail the ingest run.
 - New summary → embed once → save `ml_priority` + `auto_settings` + headline under current prompt rules.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
