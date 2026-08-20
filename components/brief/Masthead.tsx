@@ -8,7 +8,7 @@ type Props = {
 export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
-      <div className="mx-auto max-w-6xl px-4 pt-6 pb-6 sm:px-6 lg:px-8">
+      <div className={`${brief.shell} pt-6 pb-6`}>
         <div className="brief-masthead-settle flex flex-col items-center text-center">
           <Image
             src="/stewardship-brief-logo.png"
@@ -34,7 +34,7 @@ export default function Masthead({ dateLabel }: Props) {
       </div>
 
       {/* Steel hairline over plum rule — ties home to About without a hero band */}
-      <div className="mx-auto max-w-6xl">
+      <div className={brief.shell}>
         <div className="h-px bg-[#7BC1D4]/55" aria-hidden />
         <div className={`border-b-2 ${brief.rule}`} />
       </div>

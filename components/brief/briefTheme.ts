@@ -19,6 +19,8 @@ export const brief = {
   accentHover: "hover:text-[#1C0B19]",
   rule: "border-[#1C0B19]",
   hairline: "border-[#D8D4C8]",
+  /** Full viewport width with side breathing room — nav, masthead, brief, footer. */
+  shell: "mx-auto w-full px-4 sm:px-6 lg:px-8 xl:px-12",
   kicker:
     "brief-sans text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#2A79A7]",
   meta:
