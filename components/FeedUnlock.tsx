@@ -33,7 +33,7 @@ export default function FeedUnlock() {
         setStatus("error");
         setError(
           data.error === "Unauthorized" || res.status === 401
-            ? "That secret does not match. Check CRON_SECRET (or BRIEF_ADMIN_SECRET) in Vercel."
+            ? "That secret does not match. Use the same value that unlocks Brief settings (CRON_SECRET in Vercel)."
             : data.error ?? "Could not unlock the feed."
         );
         return;
@@ -52,16 +52,17 @@ export default function FeedUnlock() {
     <div className="mx-auto max-w-lg px-4 py-16 font-sans text-zinc-900 dark:text-zinc-100">
       <h1 className="text-2xl font-semibold tracking-tight">Feed access</h1>
       <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-        The literature feed and news approvals require your admin secret (
-        <code className="text-xs">CRON_SECRET</code> or{" "}
-        <code className="text-xs">BRIEF_ADMIN_SECRET</code>).
+        Use the same admin secret as Brief settings (
+        <code className="text-xs">/stewardshipbrief/settings</code>
+        ). That is your <code className="text-xs">CRON_SECRET</code> in Vercel (or{" "}
+        <code className="text-xs">BRIEF_ADMIN_SECRET</code> if set).
       </p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
           type="password"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
-          placeholder="Admin secret"
+          placeholder="Same secret as Brief settings"
           autoComplete="current-password"
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
         />

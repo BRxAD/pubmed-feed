@@ -82,12 +82,13 @@ export default function BriefPage({
         ) : (
           <>
             {/*
-              News left of lead; Also + tools stay in the lead column so a tall
-              news panel cannot leave a gap under the lead.
+              Three columns on large screens: news | lead+also | tools.
+              Lead and Also share a column so tools stay up top and Also
+              sits tight under the lead (news height cannot open a gap).
             */}
-            <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(200px,240px)_minmax(0,1fr)] lg:gap-x-10">
+            <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(180px,220px)] lg:gap-x-8">
               <aside
-                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1 lg:sticky lg:top-4"
+                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1"
                 aria-label="In the news"
               >
                 <InTheNewsPanel items={newsItems} variant="onSteel" />
@@ -135,25 +136,26 @@ export default function BriefPage({
                     </div>
                   </section>
                 )}
-
-                <aside
-                  className={`mt-10 grid gap-8 border-t ${brief.hairline} pt-8 sm:grid-cols-2 lg:grid-cols-3`}
-                >
-                  <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
-                    <SaveStreak
-                      savedCount={saved.size}
-                      savedItems={savedItems}
-                      onRemove={(pmid) => toggleSave(pmid)}
-                    />
-                  </div>
-                  <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
-                    <TopPriorityPanel items={topPriority} />
-                  </div>
-                  <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5 sm:col-span-2 lg:col-span-1">
-                    <DigestSignup />
-                  </div>
-                </aside>
               </div>
+
+              <aside
+                className="order-3 flex flex-col gap-8"
+                aria-label="Brief tools"
+              >
+                <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
+                  <SaveStreak
+                    savedCount={saved.size}
+                    savedItems={savedItems}
+                    onRemove={(pmid) => toggleSave(pmid)}
+                  />
+                </div>
+                <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
+                  <TopPriorityPanel items={topPriority} />
+                </div>
+                <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
+                  <DigestSignup />
+                </div>
+              </aside>
             </div>
           </>
         )}

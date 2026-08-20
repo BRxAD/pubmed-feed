@@ -28,7 +28,6 @@ import {
 } from "@/lib/classifySetting";
 import { lookupJif, isHighImpactJournal } from "@/lib/jif";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
-import AdminToggle from "@/components/AdminToggle";
 import FeedNav from "@/components/FeedNav";
 import RelevanceSlider from "@/components/RelevanceSlider";
 import AdminPrioritySelector from "@/components/AdminPrioritySelector";
@@ -81,7 +80,8 @@ function buildFeedUrl(params: {
     q.set("minPriority", String(params.minPriority));
   if (params.setting) q.set("setting", params.setting);
   if (params.unratedOnly) q.set("unrated", "1");
-  if (params.admin) q.set("admin", "1");
+  // Unlocked feed is always admin; keep admin=1 on all in-app links.
+  q.set("admin", "1");
   if (params.secret?.trim()) q.set("secret", params.secret.trim());
   return `${BASE_PATH}?${q.toString()}`;
 }
@@ -623,7 +623,6 @@ export default async function FeedPage({
     minRelevance: minRelevanceRaw,
     minPriority: minPriorityRaw,
     setting: settingRaw,
-    admin: adminRaw,
     unrated: unratedRaw,
     secret: secretRaw,
   } = await searchParams;
@@ -638,8 +637,8 @@ export default async function FeedPage({
   const sort: FeedSort = parseFeedSort(sortRaw);
   const keyword = keywordRaw?.trim() ?? "";
   const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
-  // Secret unlocks the page; admin=1 still controls admin UI details.
-  const isAdmin = adminRaw === "1";
+  // Secret-gated feed always opens in admin format (ratings, ML details, news queue).
+  const isAdmin = true;
   // Min relevance filter is only available in admin mode
   const minRelevance = isAdmin
     ? Math.max(0, Math.min(100, parseFloat(minRelevanceRaw ?? "0") || 0))
@@ -761,9 +760,12 @@ export default async function FeedPage({
               human rated
             </span>
           </p>
-          <Suspense fallback={null}>
-            <AdminToggle isAdmin={isAdmin} basePath={BASE_PATH} />
-          </Suspense>
+          <span
+            className="flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+            title="Unlocked feed is always in admin mode"
+          >
+            Admin
+          </span>
         </div>
       </header>
 
@@ -808,7 +810,7 @@ export default async function FeedPage({
           <input type="hidden" name="topicId" value={topicId} />
           <input type="hidden" name="source" value="pubmed" />
           <input type="hidden" name="secret" value={feedSecret} />
-          {isAdmin && <input type="hidden" name="admin" value="1" />}
+          <input type="hidden" name="admin" value="1" />
 
           <div className="flex flex-wrap items-end gap-5">
             {/* Sort */}
