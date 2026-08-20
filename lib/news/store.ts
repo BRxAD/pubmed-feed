@@ -14,9 +14,45 @@ const FETCH_TIMEOUT_MS = 12_000;
 const MAX_PER_FEED = 25;
 /** Cap HTML og:image lookups per cron run (external sites, not Supabase). */
 const MAX_OG_IMAGE_FETCHES = 12;
+/** Homepage + approval queue only keep items from this many days. */
+export const NEWS_MAX_AGE_DAYS = 7;
 
 const NEWS_SELECT =
   "id, source_id, guid, title, url, published_at, summary, image_url, status, approved_at, created_at";
+
+function newsCutoffIso(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - NEWS_MAX_AGE_DAYS);
+  return d.toISOString();
+}
+
+/** Prefer publish date; fall back to ingest time. */
+function newsItemInstant(item: {
+  publishedAt: string | null;
+  createdAt: string;
+}): number | null {
+  const raw = item.publishedAt || item.createdAt;
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? null : t;
+}
+
+function isWithinNewsWindow(item: {
+  publishedAt: string | null;
+  createdAt: string;
+}): boolean {
+  const t = newsItemInstant(item);
+  if (t == null) return false;
+  return t >= Date.parse(newsCutoffIso());
+}
+
+/** Newest first by publish (then created). */
+function sortNewsNewestFirst(items: NewsItem[]): NewsItem[] {
+  return [...items].sort((a, b) => {
+    const ta = newsItemInstant(a) ?? 0;
+    const tb = newsItemInstant(b) ?? 0;
+    return tb - ta;
+  });
+}
 
 type NewsRow = {
   id: string;
@@ -100,6 +136,11 @@ export async function ingestNewsFeeds(): Promise<{
       let inserted = 0;
       for (const item of kept) {
         if (!isHttpUrl(item.url)) continue;
+        // Skip stale RSS items outside the rolling window.
+        if (item.publishedAt) {
+          const t = Date.parse(item.publishedAt);
+          if (!Number.isNaN(t) && t < Date.parse(newsCutoffIso())) continue;
+        }
 
         let imageUrl = item.imageUrl;
         if (!imageUrl && ogFetches < MAX_OG_IMAGE_FETCHES) {
@@ -182,9 +223,11 @@ export async function listNewsItems(options: {
     if (error.message.toLowerCase().includes("news_items")) return [];
     throw new Error(error.message);
   }
-  return ((data ?? []) as NewsRow[])
-    .map(mapRow)
-    .filter((item) => isHttpUrl(item.url));
+  return sortNewsNewestFirst(
+    ((data ?? []) as NewsRow[])
+      .map(mapRow)
+      .filter((item) => isHttpUrl(item.url) && isWithinNewsWindow(item))
+  );
 }
 
 export async function listApprovedNewsForBrief(
@@ -195,16 +238,18 @@ export async function listApprovedNewsForBrief(
     .from("news_items")
     .select(NEWS_SELECT)
     .eq("status", "approved")
-    .order("approved_at", { ascending: false, nullsFirst: false })
-    .limit(Math.min(12, Math.max(1, limit)));
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(Math.min(40, Math.max(1, limit * 3)));
 
   if (error) {
     if (error.message.toLowerCase().includes("news_items")) return [];
     throw new Error(error.message);
   }
-  return ((data ?? []) as NewsRow[])
-    .map(mapRow)
-    .filter((item) => isHttpUrl(item.url));
+  return sortNewsNewestFirst(
+    ((data ?? []) as NewsRow[])
+      .map(mapRow)
+      .filter((item) => isHttpUrl(item.url) && isWithinNewsWindow(item))
+  ).slice(0, Math.min(12, Math.max(1, limit)));
 }
 
 export async function setNewsItemStatus(

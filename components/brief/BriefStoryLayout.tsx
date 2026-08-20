@@ -20,23 +20,12 @@ type Ranked = {
   image: StoryImageMatch | null;
 };
 
-type Pack = {
-  /** Also stories in the center column under the lead (beside both panels). */
-  center: number;
-  /** Also stories in the wide band beside the taller panel only. */
-  wide: number;
-  /** True when the left (news) panel is the shorter one. */
-  leftIsShorter: boolean;
-};
-
 /** Shared vertical rhythm between Also stories / sections. */
 const STORY_SECTION_GAP = "mt-5";
-const SIDE_STRIP = "w-3 shrink-0"; // small gap on the freed panel side
 
 /**
- * Lead between panels. Also fills the center until the shorter panel ends,
- * then a small side strip + 2-col band beside the taller panel, then
- * full-width 2-col after both panels. Article vertical spacing stays even.
+ * Lead between left/right panels. Also stories stay single-file in the center
+ * until both panels end, then full-width 2-col. Even vertical spacing.
  */
 export default function BriefStoryLayout({
   lead,
@@ -65,89 +54,51 @@ export default function BriefStoryLayout({
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sideSigRef = useRef("");
   /** null = measure pass (all Also temporarily in center). */
-  const [pack, setPack] = useState<Pack | null>(null);
+  const [besideCount, setBesideCount] = useState<number | null>(null);
   const measureKey = `${lead?.item.pmid ?? ""}:${rest.map((r) => r.item.pmid).join(",")}`;
 
   useLayoutEffect(() => {
-    setPack(null);
+    setBesideCount(null);
   }, [measureKey]);
 
   useLayoutEffect(() => {
-    function computePack(): Pack {
+    function pack() {
       if (typeof window !== "undefined" && window.innerWidth < 1024) {
-        return {
-          center: rest.length,
-          wide: 0,
-          leftIsShorter: true,
-        };
+        setBesideCount(rest.length);
+        return;
       }
 
       const newsH = newsRef.current?.offsetHeight ?? 0;
       const toolsH = toolsRef.current?.offsetHeight ?? 0;
-      const leadH = leadRef.current?.offsetHeight ?? 0;
-      const shortH = Math.min(newsH, toolsH);
-      const tallH = Math.max(newsH, toolsH);
-      const leftIsShorter = newsH <= toolsH;
+      // Wait until *both* panels have ended.
+      const bothH = Math.max(newsH, toolsH);
       sideSigRef.current = `${newsH}x${toolsH}`;
-
-      const heights = rest.map((_, i) => itemRefs.current[i]?.offsetHeight ?? 0);
-      const headingH = headingRef.current?.offsetHeight ?? 36;
+      const leadH = leadRef.current?.offsetHeight ?? 0;
+      if (bothH <= 0) {
+        setBesideCount(rest.length);
+        return;
+      }
 
       let used = leadH;
-      let i = 0;
-      let center = 0;
-      let headingPlaced = false;
-
-      const placeHeading = () => {
-        if (!headingPlaced && rest.length > 0) {
-          used += headingH + 20; // heading + STORY_SECTION_GAP
-          headingPlaced = true;
-        }
-      };
-
-      // Phase 1: center column until the shorter panel ends.
-      while (i < rest.length && shortH > 0) {
-        placeHeading();
-        const h = heights[i];
-        if (h <= 0) break;
-        if (used + h > shortH + 4) break;
-        used += h;
-        center += 1;
-        i += 1;
-      }
-
-      // Phase 2: wide band beside the taller panel (rendered as 2-col, so
-      // vertical room fits roughly two stories per row).
-      let wide = 0;
-      const asymmetric = tallH - shortH > 48;
-      if (asymmetric) {
-        const bandStart = Math.max(used, shortH);
-        let bandUsed = bandStart;
-        while (i < rest.length) {
-          placeHeading();
-          const h = heights[i];
-          if (h <= 0) break;
-          // 2-col: pair stories share vertical space ≈ one story height.
-          const step =
-            i + 1 < rest.length
-              ? Math.max(h, heights[i + 1] ?? h)
-              : h;
-          if (bandUsed + step > tallH + 4) break;
-          bandUsed += step;
-          const take = i + 1 < rest.length ? 2 : 1;
-          wide += take;
-          i += take;
+      let count = 0;
+      if (rest.length > 0 && bothH - used > 24) {
+        const headingH = headingRef.current?.offsetHeight ?? 36;
+        used += headingH + 20;
+        for (let i = 0; i < rest.length; i++) {
+          const h = itemRefs.current[i]?.offsetHeight ?? 0;
+          if (h <= 0 || used + h > bothH + 4) break;
+          used += h;
+          count += 1;
         }
       }
-
-      return { center, wide, leftIsShorter };
+      setBesideCount((prev) => (prev === count ? prev : count));
     }
 
-    if (pack === null) {
-      setPack(computePack());
+    if (besideCount === null) {
+      pack();
     }
 
-    const onResize = () => setPack(null);
+    const onResize = () => setBesideCount(null);
     window.addEventListener("resize", onResize);
 
     const ro = new ResizeObserver(() => {
@@ -156,7 +107,7 @@ export default function BriefStoryLayout({
       const sig = `${newsH}x${toolsH}`;
       if (sig === sideSigRef.current) return;
       sideSigRef.current = sig;
-      setPack(null);
+      setBesideCount(null);
     });
     if (newsRef.current) ro.observe(newsRef.current);
     if (toolsRef.current) ro.observe(toolsRef.current);
@@ -165,29 +116,12 @@ export default function BriefStoryLayout({
       window.removeEventListener("resize", onResize);
       ro.disconnect();
     };
-  }, [pack, rest.length]);
+  }, [besideCount, rest.length]);
 
-  const measuring = pack === null;
-  const centerN = measuring ? rest.length : pack.center;
-  const wideN = measuring ? 0 : pack.wide;
-  const leftIsShorter = pack?.leftIsShorter ?? true;
-
-  const centerStories = rest.slice(0, centerN);
-  const wideStories = rest.slice(centerN, centerN + wideN);
-  const belowStories = measuring ? [] : rest.slice(centerN + wideN);
-
-  const showHeadingInCenter = centerStories.length > 0;
-  const showHeadingInWide =
-    !showHeadingInCenter && wideStories.length > 0;
-  const showHeadingBelow =
-    !showHeadingInCenter &&
-    !showHeadingInWide &&
-    belowStories.length > 0;
-
-  const newsSpansTall =
-    !measuring && !leftIsShorter && wideStories.length > 0;
-  const toolsSpansTall =
-    !measuring && leftIsShorter && wideStories.length > 0;
+  const measuring = besideCount === null;
+  const shownBeside = measuring ? rest.length : besideCount;
+  const beside = rest.slice(0, shownBeside);
+  const below = measuring ? [] : rest.slice(shownBeside);
 
   function renderStory(s: Ranked) {
     const hasImage = Boolean(s.image);
@@ -219,58 +153,18 @@ export default function BriefStoryLayout({
     );
   }
 
-  function StoryList({
-    stories,
-    twoCol,
-    measure = false,
-  }: {
-    stories: Ranked[];
-    twoCol?: boolean;
-    measure?: boolean;
-  }) {
-    return (
-      <div
-        className={
-          twoCol
-            ? "columns-1 gap-x-10 md:columns-2 [column-fill:_balance]"
-            : undefined
-        }
-      >
-        {stories.map((s, i) => (
-          <div
-            key={s.item.pmid}
-            ref={
-              measure
-                ? (el) => {
-                    itemRefs.current[i] = el;
-                  }
-                : undefined
-            }
-            className={`border-b border-[#D8D4C8] ${
-              twoCol ? "break-inside-avoid" : ""
-            }`}
-          >
-            {renderStory(s)}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className="mt-6">
       <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(180px,200px)_minmax(0,1fr)_minmax(180px,200px)] lg:items-start lg:gap-x-6">
         <aside
           ref={newsRef}
-          className={`order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1 lg:col-start-1 lg:row-start-1 ${
-            newsSpansTall ? "lg:row-span-2" : ""
-          }`}
+          className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1"
           aria-label="In the news"
         >
           {left}
         </aside>
 
-        <div className="order-1 min-w-0 lg:order-2 lg:col-start-2 lg:row-start-1">
+        <div className="order-1 min-w-0 lg:order-2">
           {lead && (
             <div ref={leadRef}>
               <LeadStory
@@ -283,14 +177,21 @@ export default function BriefStoryLayout({
             </div>
           )}
 
-          {(showHeadingInCenter || measuring) && rest.length > 0 && (
+          {(beside.length > 0 || measuring) && rest.length > 0 && (
             <section aria-label="More stories" className={STORY_SECTION_GAP}>
               <AlsoHeading headingRefProp={headingRef} />
               <div className="mt-0">
-                <StoryList
-                  stories={measuring ? rest : centerStories}
-                  measure={measuring || showHeadingInCenter}
-                />
+                {(measuring ? rest : beside).map((s, i) => (
+                  <div
+                    key={s.item.pmid}
+                    ref={(el) => {
+                      itemRefs.current[i] = el;
+                    }}
+                    className="border-b border-[#D8D4C8]"
+                  >
+                    {renderStory(s)}
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -298,51 +199,31 @@ export default function BriefStoryLayout({
 
         <aside
           ref={toolsRef}
-          className={`order-3 flex flex-col gap-8 lg:col-start-3 lg:row-start-1 ${
-            toolsSpansTall ? "lg:row-span-2" : ""
-          }`}
+          className="order-3 flex flex-col gap-8"
           aria-label="Brief tools"
         >
           {right}
         </aside>
-
-        {!measuring && wideStories.length > 0 && (
-          <section
-            aria-label="More stories"
-            className={`order-4 min-w-0 lg:row-start-2 ${
-              leftIsShorter
-                ? "lg:col-start-1 lg:col-span-2"
-                : "lg:col-start-2 lg:col-span-2"
-            } ${showHeadingInWide ? STORY_SECTION_GAP : "lg:mt-0"}`}
-          >
-            {showHeadingInWide && <AlsoHeading />}
-            {/* Small strip on the freed side, then 2-col in the remaining width. */}
-            <div className="flex items-start gap-0">
-              {leftIsShorter && (
-                <div className={SIDE_STRIP} aria-hidden />
-              )}
-              <div className="min-w-0 flex-1">
-                <StoryList stories={wideStories} twoCol />
-              </div>
-              {!leftIsShorter && (
-                <div className={SIDE_STRIP} aria-hidden />
-              )}
-            </div>
-          </section>
-        )}
       </div>
 
-      {belowStories.length > 0 && (
+      {below.length > 0 && (
         <section
           aria-label={
-            centerStories.length + wideStories.length > 0
-              ? "More stories continued"
-              : "More stories"
+            beside.length > 0 ? "More stories continued" : "More stories"
           }
           className={STORY_SECTION_GAP}
         >
-          {showHeadingBelow && <AlsoHeading />}
-          <StoryList stories={belowStories} twoCol />
+          {beside.length === 0 && <AlsoHeading />}
+          <div className="columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
+            {below.map((s) => (
+              <div
+                key={s.item.pmid}
+                className="break-inside-avoid border-b border-[#D8D4C8]"
+              >
+                {renderStory(s)}
+              </div>
+            ))}
+          </div>
         </section>
       )}
     </div>
