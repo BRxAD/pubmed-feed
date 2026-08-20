@@ -35,6 +35,7 @@ const STEPS = [
 ] as const;
 
 const REVIEWERS = [
+  "Allison McArthur, MISt",
   "Amy Y. Kang, PharmD, BCIDP",
   "Michelle K. Wong, MPH",
 ] as const;
@@ -168,7 +169,7 @@ export default function AboutPage() {
             <p
               className={`${brief.serif} text-2xl font-semibold tracking-[-0.015em] sm:text-3xl`}
             >
-              Bradley Langford, PharmD, MPH
+              Bradley J. Langford, PharmD, MPH
             </p>
           </div>
 

@@ -65,7 +65,7 @@ export default function SiteFooter() {
             © {new Date().getFullYear()} The Stewardship Brief
           </p>
           <p className={`${brief.sans} text-xs ${brief.muted}`}>
-            Developed by Bradley Langford, PharmD, MPH
+            Developed by Bradley J. Langford, PharmD, MPH
           </p>
         </div>
       </div>
