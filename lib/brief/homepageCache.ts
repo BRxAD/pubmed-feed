@@ -36,7 +36,7 @@ async function loadHomepageReady(): Promise<HomepageReadyPayload> {
 
 const loadCachedHomepageReady = unstable_cache(
   loadHomepageReady,
-  ["brief-homepage-ready-v4"],
+  ["brief-homepage-ready-v5"],
   {
     revalidate: HOMEPAGE_READY_CACHE_SECONDS,
     tags: [BRIEF_HOMEPAGE_CACHE_TAG],

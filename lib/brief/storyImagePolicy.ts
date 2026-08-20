@@ -4,22 +4,22 @@
  * Flip flags here to tune without a full revert.
  */
 export const STORY_IMAGE_POLICY = {
-  /** Lead: strict → thematic → generic stewardship photos. */
+  /** Lead: strict → thematic; no generic filler when nothing topic-matches. */
   leadAllowThematic: true,
-  leadAllowGenericFallback: true,
+  leadAllowGenericFallback: false,
 
   /**
-   * Share of the ranked list (from the top, including lead) that may get a
-   * photo. Lower-ranked / older stories stay text-only.
+   * Most recent ~N ranked stories (lead included) may get a photo when a
+   * topic-aligned catalog match exists. Others stay text-only.
    */
-  photoTopFraction: 0.5,
+  photoTopCount: 15,
 
   /**
-   * Within the photo-eligible band (excluding lead), allow thematic + generic
-   * fallbacks the same way as before the sparse experiment.
+   * Within the photo-eligible band (excluding lead), allow thematic matches.
+   * Generics off — blank is better than an off-topic stock photo.
    */
   secondaryStrictOnly: false,
-  secondaryAllowGeneric: true,
+  secondaryAllowGeneric: false,
 
   /**
    * On photo stories, show a short abstract-derived quote under the image

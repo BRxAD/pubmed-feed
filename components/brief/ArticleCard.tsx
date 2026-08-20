@@ -199,40 +199,57 @@ function StoryActions({
   );
 }
 
-/** Lead photo slot — fixed 3:2 frame; cover-crop or designed placeholder. */
-function LeadImageSlot({
+/** Side thumb — full photo visible (no crop); only rendered when a match exists. */
+function StoryThumb({
+  image,
+  sizes,
+  priority,
+  onError,
+  className,
+}: {
+  image: StoryImageMatch;
+  sizes: string;
+  priority?: boolean;
+  onError?: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`relative w-[8.5rem] shrink-0 bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
+    >
+      <Image
+        src={image.url}
+        alt={image.label}
+        width={420}
+        height={420}
+        sizes={sizes}
+        priority={priority}
+        className="h-auto w-full object-contain object-center"
+        onError={() => onError?.()}
+      />
+    </div>
+  );
+}
+
+/** Lead photo — fixed 3:2 cover; omitted entirely when no match (no placeholder). */
+function LeadImage({
   image,
   onError,
 }: {
-  image: StoryImageMatch | null;
+  image: StoryImageMatch;
   onError?: () => void;
 }) {
   return (
     <div className="relative aspect-[3/2] w-full overflow-hidden bg-[#EFECE4]">
-      {image ? (
-        <Image
-          src={image.url}
-          alt={image.label}
-          fill
-          sizes="(max-width: 1024px) 100vw, 42vw"
-          priority
-          className="object-cover object-center"
-          onError={() => onError?.()}
-        />
-      ) : (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-[#2A79A7]/15"
-          aria-hidden
-        >
-          <Image
-            src="/stewardship-brief-logo.png"
-            alt=""
-            width={160}
-            height={72}
-            className="h-auto w-[42%] max-w-[11rem] object-contain opacity-30"
-          />
-        </div>
-      )}
+      <Image
+        src={image.url}
+        alt={image.label}
+        fill
+        sizes="(max-width: 1024px) 100vw, 42vw"
+        priority
+        className="object-cover object-center"
+        onError={() => onError?.()}
+      />
     </div>
   );
 }
@@ -244,6 +261,8 @@ export function LeadStory({
   image,
   onImageError,
 }: StoryProps) {
+  const hasImage = Boolean(image);
+
   return (
     <article className="brief-lead-fade pb-2">
       <p className={`${brief.kicker} mb-5`}>
@@ -252,7 +271,13 @@ export function LeadStory({
         </span>
       </p>
 
-      <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8">
+      <div
+        className={
+          hasImage
+            ? "grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8"
+            : undefined
+        }
+      >
         <div className="min-w-0">
           <MetaLine item={item} />
           <h2
@@ -301,24 +326,26 @@ export function LeadStory({
           />
         </div>
 
-        <div className="min-w-0 lg:pt-1">
-          <LeadImageSlot image={image ?? null} onError={onImageError} />
-        </div>
+        {image && (
+          <div className="min-w-0 lg:pt-1">
+            <LeadImage image={image} onError={onImageError} />
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
 /**
- * Also / list cards — text-only.
- * Homepage audit: more cards lack a usable photo than have one (~half by
- * policy), so a shared image slot would be mostly placeholders.
+ * Also / list cards — side thumb only when a topic-matched photo exists.
+ * No empty image slot or logo placeholder.
  */
 export function FeaturedStory({
   item,
   saved,
   onToggleSave,
   image,
+  onImageError,
   bare = false,
   headlineTier = "secondary",
 }: StoryProps & {
@@ -337,6 +364,14 @@ export function FeaturedStory({
     <article
       className={`py-5 ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
+      {image && (
+        <StoryThumb
+          image={image}
+          sizes="(max-width: 640px) 136px, 168px"
+          className="float-left mb-2 mr-3.5 w-[8.5rem] sm:w-[10.5rem]"
+          onError={onImageError}
+        />
+      )}
       <MetaLine item={item} />
       <h2
         className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}`}
@@ -355,6 +390,7 @@ export function FeaturedStory({
           {item.bottomLine}
         </p>
       )}
+      <div className="clear-both" aria-hidden />
       <StoryActions
         item={item}
         saved={saved}

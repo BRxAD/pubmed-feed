@@ -365,8 +365,9 @@ export async function matchStoryImage(
  * Two-tier assignment with hard uniqueness on catalog id AND url.
  * Prefer null over a weak / irrelevant match.
  *
- * Top ~photoTopFraction of the ranked list may get photos (lead included).
- * Remaining lower-ranked stories stay text-only.
+ * Top ~photoTopCount of the ranked list may get photos (lead included).
+ * Remaining lower-ranked stories stay text-only. Tie-break is pmid-seeded
+ * (no date) so the same article keeps the same image across time and tabs.
  */
 export async function assignStoryImages(
   items: BriefItem[]
@@ -376,7 +377,7 @@ export async function assignStoryImages(
   const policy = STORY_IMAGE_POLICY;
   const photoSlots = Math.max(
     1,
-    Math.ceil(items.length * policy.photoTopFraction)
+    Math.min(items.length, policy.photoTopCount)
   );
 
   for (let i = 0; i < items.length; i++) {

@@ -160,7 +160,7 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v4`): All → sticky lead → images; filter setting tabs in memory.
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v5`): All → sticky lead → images; filter setting tabs in memory.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
@@ -233,11 +233,13 @@ Main topic animal exclusion must be:
 
 ## Story images (hard)
 
-- Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab.
-- Prefer null over a weak / wrong photo. Keep uniqueness (catalog id + URL) on the All assignment.
+- Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab, over time (pmid-seeded tie-break, no date), and in graphic takeaway (same assigned URL).
+- Top ~**15** ranked stories may get a photo (`photoTopCount` in `storyImagePolicy.ts`). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely).
+- Keep uniqueness (catalog id + URL) on the All assignment.
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
 - Do not re-assign images per setting tab.
 - Skip server-side URL health probes for curated catalog hosts (Unsplash/Pexels/Wikimedia/local); client `onError` demotes broken images.
+- **Graphic takeaway:** dark navy left shade (`#1C0B19`) over the story photo, white type, inverted logo — use the article’s assigned image when present.
 
 ## Ingest & cron
 
@@ -259,7 +261,7 @@ Main topic animal exclusion must be:
 
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
-- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”.
+- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”. Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo.
 - Digest email: headline links to PubMed (no separate PubMed line); article date sits tightly above the headline. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 - Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
@@ -276,7 +278,7 @@ Main topic animal exclusion must be:
 - [ ] Topic query uses animals NOT humans (not bare animals); AMS core AND quality block (no tactic lock-in)
 - [ ] Admin setting exclusive (no soft-match into other capsules)
 - [ ] Prefer stored `auto_settings` (ingest write; no live classify when present)
-- [ ] Story images assigned on All pool; stable across setting tabs; curated hosts skip URL probe
+- [ ] Story images: All-pool assign; top ~15; sticky across tabs/time/takeaway; no placeholder when null; curated hosts skip URL probe
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
 - [ ] PubMed-only preserved
