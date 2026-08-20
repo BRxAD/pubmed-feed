@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
-import { briefSettingsLabel } from "@/lib/brief/settingFilter";
+import { briefSettingLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
@@ -33,18 +33,38 @@ type StoryProps = {
 };
 
 function MetaLine({ item }: { item: BriefItem }) {
-  const settingLabel = briefSettingsLabel(item.settings, item.setting);
+  const settings =
+    item.settings && item.settings.length > 0
+      ? item.settings
+      : item.setting
+        ? [item.setting]
+        : [];
+  const labels = settings
+    .map((s) => briefSettingLabel(s))
+    .filter((s): s is string => Boolean(s));
+  const primary = labels[0] ?? null;
+  const rest = labels.slice(1);
   const dateLabel = formatDate(item.date);
-  const parts: string[] = [];
-  if (settingLabel) parts.push(settingLabel);
-  if (dateLabel) parts.push(dateLabel);
+  const mutedParts = [...rest, dateLabel].filter(Boolean);
+
+  if (!primary && mutedParts.length === 0 && !item.isNew) return null;
 
   return (
-    <p className={`${brief.meta}`}>
-      {parts.length > 0 && <span>{parts.join(" · ")}</span>}
+    <p
+      className={`${brief.sans} text-[0.75rem] font-medium uppercase tracking-[0.12em] sm:text-[0.8125rem]`}
+    >
+      {primary && (
+        <span className="font-bold text-[#2A79A7]">{primary}</span>
+      )}
+      {mutedParts.length > 0 && (
+        <span className={brief.muted}>
+          {primary ? " · " : ""}
+          {mutedParts.join(" · ")}
+        </span>
+      )}
       {item.isNew && (
-        <span>
-          {parts.length > 0 ? " · " : ""}
+        <span className={brief.muted}>
+          {primary || mutedParts.length > 0 ? " · " : ""}
           <span className="text-[#FFA69E]">New</span>
         </span>
       )}
@@ -131,8 +151,8 @@ function StoryActions({
   const showDetail = hasDetailContent(item, { skipMethodsResults });
 
   return (
-    <div className="mt-4">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         {showDetail && (
           <button
             type="button"
@@ -179,34 +199,40 @@ function StoryActions({
   );
 }
 
-/** Side thumb — full photo visible (no crop); larger decode for sharpness. */
-function StoryThumb({
+/** Lead photo slot — fixed 3:2 frame; cover-crop or designed placeholder. */
+function LeadImageSlot({
   image,
-  sizes,
-  priority,
   onError,
-  className,
 }: {
-  image: StoryImageMatch;
-  sizes: string;
-  priority?: boolean;
+  image: StoryImageMatch | null;
   onError?: () => void;
-  className?: string;
 }) {
   return (
-    <div
-      className={`relative w-[8.5rem] shrink-0 bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
-    >
-      <Image
-        src={image.url}
-        alt={image.label}
-        width={420}
-        height={420}
-        sizes={sizes}
-        priority={priority}
-        className="h-auto w-full object-contain object-center"
-        onError={() => onError?.()}
-      />
+    <div className="relative aspect-[3/2] w-full overflow-hidden bg-[#EFECE4]">
+      {image ? (
+        <Image
+          src={image.url}
+          alt={image.label}
+          fill
+          sizes="(max-width: 1024px) 100vw, 42vw"
+          priority
+          className="object-cover object-center"
+          onError={() => onError?.()}
+        />
+      ) : (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-[#2A79A7]/15"
+          aria-hidden
+        >
+          <Image
+            src="/stewardship-brief-logo.png"
+            alt=""
+            width={160}
+            height={72}
+            className="h-auto w-[42%] max-w-[11rem] object-contain opacity-30"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -220,24 +246,17 @@ export function LeadStory({
 }: StoryProps) {
   return (
     <article className="brief-lead-fade pb-2">
-      <p className={`${brief.kicker} mb-3`}>
-        <span className="inline-block border-b-2 border-[#FFA69E] pb-0.5">
+      <p className={`${brief.kicker} mb-5`}>
+        <span className="inline-block border-b border-[#FFA69E] pb-0.5">
           Lead story
         </span>
       </p>
-      <div className={image ? "flex items-start gap-4" : undefined}>
-        {image && (
-          <StoryThumb
-            image={image}
-            priority
-            sizes="(max-width: 640px) 136px, 168px"
-            onError={onImageError}
-          />
-        )}
-        <div className="min-w-0 flex-1">
+
+      <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8">
+        <div className="min-w-0">
           <MetaLine item={item} />
           <h2
-            className={`${brief.serif} mt-1 text-[1.35rem] sm:text-[1.75rem] font-bold leading-[1.15] tracking-[-0.015em]`}
+            className={`${brief.serif} mt-1.5 text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
           >
             <a
               href={item.pubmedUrl}
@@ -250,73 +269,77 @@ export function LeadStory({
           </h2>
           {item.bottomLine && (
             <p
-              className={`mt-3 ${brief.deck} text-[0.9375rem] sm:text-base leading-relaxed`}
+              className={`mt-3 ${brief.deck} text-[0.9375rem] leading-[1.55] sm:text-[1.0125rem] sm:leading-[1.55]`}
             >
               {item.bottomLine}
             </p>
           )}
+          {(item.methods || item.results) && (
+            <div
+              className={`mt-4 space-y-3 ${brief.sans} text-[0.875rem] leading-[1.55] sm:text-[0.9375rem]`}
+            >
+              {item.methods && (
+                <div>
+                  <p className={brief.meta}>Methods</p>
+                  <p className="mt-1">{item.methods}</p>
+                </div>
+              )}
+              {item.results && (
+                <div>
+                  <p className={brief.meta}>Results</p>
+                  <p className="mt-1">{item.results}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <StoryActions
+            item={item}
+            saved={saved}
+            onToggleSave={onToggleSave}
+            image={image}
+            skipMethodsResults
+          />
+        </div>
+
+        <div className="min-w-0 lg:pt-1">
+          <LeadImageSlot image={image ?? null} onError={onImageError} />
         </div>
       </div>
-      {(item.methods || item.results) && (
-        <div
-          className={`mt-5 space-y-4 ${brief.sans} text-[0.9375rem] leading-relaxed`}
-        >
-          {item.methods && (
-            <div>
-              <p className={brief.meta}>Methods</p>
-              <p className="mt-1.5">{item.methods}</p>
-            </div>
-          )}
-          {item.results && (
-            <div>
-              <p className={brief.meta}>Results</p>
-              <p className="mt-1.5">{item.results}</p>
-            </div>
-          )}
-        </div>
-      )}
-      <StoryActions
-        item={item}
-        saved={saved}
-        onToggleSave={onToggleSave}
-        image={image}
-        skipMethodsResults
-      />
     </article>
   );
 }
 
-/** Shared card used for all non-lead stories — side thumb + text so floats can wrap. */
+/**
+ * Also / list cards — text-only.
+ * Homepage audit: more cards lack a usable photo than have one (~half by
+ * policy), so a shared image slot would be mostly placeholders.
+ */
 export function FeaturedStory({
   item,
   saved,
   onToggleSave,
   image,
-  onImageError,
   bare = false,
-  compact = false,
+  headlineTier = "secondary",
 }: StoryProps & {
   bare?: boolean;
-  /** Tighter spacing for lower-ranked text-only stories. */
+  /** @deprecated Uniform text cards; kept for call-site compatibility. */
   compact?: boolean;
+  /** secondary = Also band (~20–22px); list = chronological band (~17–18px). */
+  headlineTier?: "secondary" | "list";
 }) {
+  const headlineSize =
+    headlineTier === "list"
+      ? "text-[1.0625rem] leading-snug sm:text-[1.125rem]"
+      : "text-[1.25rem] leading-snug sm:text-[1.375rem]";
+
   return (
     <article
       className={`py-5 ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
-      {image && (
-        <StoryThumb
-          image={image}
-          sizes="(max-width: 640px) 136px, 168px"
-          className="float-left mb-2 mr-3.5 w-[8.5rem] sm:w-[10.5rem]"
-          onError={onImageError}
-        />
-      )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-1 ${
-          compact ? "text-lg" : "text-xl"
-        } font-bold leading-snug tracking-[-0.01em]`}
+        className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}`}
       >
         <a
           href={item.pubmedUrl}
@@ -328,11 +351,10 @@ export function FeaturedStory({
         </a>
       </h2>
       {item.bottomLine && (
-        <p className={`mt-2 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
+        <p className={`mt-1.5 ${brief.deck} text-[0.875rem] leading-[1.5] sm:text-[0.9375rem]`}>
           {item.bottomLine}
         </p>
       )}
-      <div className="clear-both" aria-hidden />
       <StoryActions
         item={item}
         saved={saved}

@@ -19,8 +19,11 @@ export const brief = {
   accentHover: "hover:text-[#1C0B19]",
   rule: "border-[#1C0B19]",
   hairline: "border-[#D8D4C8]",
-  /** Full viewport width with side breathing room — nav, masthead, brief, footer. */
-  shell: "mx-auto w-full px-8 sm:px-12 lg:px-16 xl:px-24",
+  /**
+   * Broadsheet shell — ~5vw side gutters (NYT-like), capped so ultra-wide
+   * screens grow empty margin instead of stretching the grid forever.
+   */
+  shell: "mx-auto w-full max-w-[1570px] px-[max(1rem,5vw)]",
   kicker:
     "brief-sans text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-[#2A79A7]",
   meta:

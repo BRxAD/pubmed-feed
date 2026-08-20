@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
+import { SidebarHeading } from "@/components/brief/SidebarCard";
 
 export default function DigestSignup() {
   const [email, setEmail] = useState("");
@@ -44,12 +45,7 @@ export default function DigestSignup() {
 
   return (
     <section aria-labelledby="signup-heading">
-      <h2
-        id="signup-heading"
-        className={`${brief.kicker} mb-2 pb-2 border-b ${brief.hairline}`}
-      >
-        Daily email
-      </h2>
+      <SidebarHeading id="signup-heading">Daily email</SidebarHeading>
       <p className={`${brief.sans} text-sm leading-[1.55] ${brief.ink} mb-4`}>
         Get the daily email — top headlines, one bottom line each.
       </p>

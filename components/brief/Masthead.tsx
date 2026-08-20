@@ -5,38 +5,41 @@ type Props = {
   dateLabel: string;
 };
 
+/** Centered brand mark with date on the left — broadsheet masthead rhythm. */
 export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
-      <div className={`${brief.shell} pt-6 pb-6`}>
-        <div className="brief-masthead-settle flex flex-col items-center text-center">
+      <div
+        className={`${brief.shell} grid grid-cols-1 items-end gap-3 pt-3 pb-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-6 sm:pt-4 sm:pb-4`}
+      >
+        <p
+          className={`${brief.sans} order-2 text-center text-[0.6875rem] leading-snug text-[#72705B] sm:order-1 sm:justify-self-start sm:text-left sm:text-[0.75rem]`}
+        >
+          <span className="block font-medium tracking-[0.02em] text-[#1C0B19]">
+            {dateLabel}
+          </span>
+          <span className="mt-0.5 block tracking-[0.04em]">
+            Today&apos;s brief
+          </span>
+        </p>
+
+        <div className="brief-masthead-settle order-1 justify-self-center sm:order-2">
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
             width={1403}
             height={631}
             priority
-            className="h-auto w-full max-w-[646px] max-h-[136px] object-contain object-center"
+            className="h-auto w-full max-w-[520px] max-h-[112px] object-contain object-center sm:max-h-[120px]"
           />
-
-          {/* Edition line — quiet steel accent borrowed from About */}
-          <div className="mt-5 flex items-center justify-center gap-3">
-            <span className="h-px w-8 bg-[#7BC1D4] sm:w-12" aria-hidden />
-            <p
-              className={`${brief.sans} text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-[#2A79A7]`}
-            >
-              {dateLabel}
-            </p>
-            <span className="h-px w-8 bg-[#7BC1D4] sm:w-12" aria-hidden />
-          </div>
-
         </div>
+
+        <span className="order-3 hidden sm:block" aria-hidden />
       </div>
 
-      {/* Steel hairline over plum rule — ties home to About without a hero band */}
-      <div className={brief.shell}>
-        <div className="h-px bg-[#7BC1D4]/55" aria-hidden />
-        <div className={`border-b-2 ${brief.rule}`} />
+      <div className={brief.shell} aria-hidden>
+        <div className="border-t border-[#1C0B19]" />
+        <div className="mt-[3px] border-t border-[#1C0B19]" />
       </div>
     </header>
   );

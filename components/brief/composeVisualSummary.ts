@@ -7,7 +7,11 @@ const WIDTH = 1600;
 const HEIGHT = 900;
 const BRAND_URL = "StewardshipBrief.com";
 const LOGO_SRC = "/stewardship-brief-logo.png";
-const SHADE = "#1C0B19";
+/** Site palette — matches briefTheme / homepage. */
+const PAPER = "#F6F4EF";
+const INK = "#1C0B19";
+const STEEL = "#2A79A7";
+const MUTED = "#72705B";
 
 const LOCAL_GENERICS = [
   "/brief-images/generic-01.png",
@@ -134,13 +138,13 @@ function drawCoverImage(
 }
 
 function drawLeftShade(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Cover ~2/3 of the card so full headlines/bottom lines stay readable.
+  // Cream veil over ~2/3 so ink copy stays readable while the photo shows through.
   const grad = ctx.createLinearGradient(0, 0, w * 0.78, 0);
-  grad.addColorStop(0, hexAlpha(SHADE, 0.98));
-  grad.addColorStop(0.42, hexAlpha(SHADE, 0.94));
-  grad.addColorStop(0.62, hexAlpha(SHADE, 0.78));
-  grad.addColorStop(0.82, hexAlpha(SHADE, 0.32));
-  grad.addColorStop(1, hexAlpha(SHADE, 0));
+  grad.addColorStop(0, hexAlpha(PAPER, 0.98));
+  grad.addColorStop(0.42, hexAlpha(PAPER, 0.96));
+  grad.addColorStop(0.62, hexAlpha(PAPER, 0.82));
+  grad.addColorStop(0.82, hexAlpha(PAPER, 0.35));
+  grad.addColorStop(1, hexAlpha(PAPER, 0));
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 }
@@ -189,7 +193,7 @@ async function renderToBlob(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported");
 
-  ctx.fillStyle = "#E8E4DC";
+  ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   try {
@@ -252,7 +256,7 @@ async function renderToBlob(
   }
 
   let y = 88;
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = INK;
   ctx.textBaseline = "top";
   ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
   for (const line of headLines) {
@@ -262,7 +266,7 @@ async function renderToBlob(
 
   if (bottom) {
     y += 28;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillStyle = hexAlpha(INK, 0.88);
     ctx.font = `400 ${bodySize}px Newsreader, Georgia, 'Times New Roman', serif`;
     for (const line of bodyLines) {
       ctx.fillText(line, padX, y);
@@ -273,7 +277,7 @@ async function renderToBlob(
   const citeBlockH = citeLines.length * citeLh + brandGap + brandLogoH;
   let citeY = Math.max(y + 24, HEIGHT - bottomPad - citeBlockH);
 
-  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.fillStyle = MUTED;
   ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
   ctx.textBaseline = "top";
   for (const line of citeLines) {
@@ -281,10 +285,10 @@ async function renderToBlob(
     citeY += citeLh;
   }
 
-  // Logo + site below citation, inverted (white) for the dark shade.
+  // Logo + site below citation (natural mark on cream — no invert).
   citeY += brandGap;
   ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = STEEL;
   const brandGapX = 12;
   let brandX = padX;
 
@@ -292,17 +296,13 @@ async function renderToBlob(
     const logo = await loadImage(LOGO_SRC);
     const logoH = brandLogoH;
     const logoW = (logo.naturalWidth / Math.max(1, logo.naturalHeight)) * logoH;
-    ctx.save();
-    // Force light mark on dark background.
-    ctx.filter = "brightness(0) invert(1)";
     ctx.drawImage(logo, brandX, citeY, logoW, logoH);
-    ctx.restore();
     brandX += logoW + brandGapX;
   } catch {
     // Text-only fallback.
   }
 
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = STEEL;
   ctx.textBaseline = "middle";
   ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
   ctx.fillText(BRAND_URL, brandX, citeY + brandLogoH / 2);

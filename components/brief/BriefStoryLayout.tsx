@@ -20,13 +20,15 @@ type Ranked = {
   image: StoryImageMatch | null;
 };
 
-/** Shared vertical rhythm between Also stories / sections. */
-const STORY_SECTION_GAP = "mt-5";
+/** Between items inside one tier (~32–40px via card py). */
+const ITEM_RULE = "border-b border-[#D8D4C8]";
+/** Between editorial tiers (~64–80px). */
+const TIER_GAP = "mt-16 sm:mt-20";
 
 /**
  * Desktop: news/tools float beside stories. Single-file while both panels
  * remain; then 2-col continues immediately (may hang beside the taller panel —
- * no empty vertical gap). Photos stay uncropped via ArticleCard.
+ * no empty vertical gap).
  */
 export default function BriefStoryLayout({
   lead,
@@ -83,9 +85,10 @@ export default function BriefStoryLayout({
 
       let used = leadH;
       let count = 0;
+      // Tier gap (~72px) + section eyebrow before Also items.
       if (rest.length > 0 && shortH - used > 24) {
-        const headingH = headingRef.current?.offsetHeight ?? 36;
-        used += headingH + 20;
+        const headingH = headingRef.current?.offsetHeight ?? 40;
+        used += headingH + 72;
         for (let i = 0; i < rest.length; i++) {
           const h = itemRefs.current[i]?.offsetHeight ?? 0;
           if (h <= 0 || used + h > shortH + 4) break;
@@ -125,14 +128,16 @@ export default function BriefStoryLayout({
   const beside = rest.slice(0, shownBeside);
   const below = measuring ? [] : rest.slice(shownBeside);
 
-  function renderStory(s: Ranked) {
-    const hasImage = Boolean(s.image);
+  function renderStory(
+    s: Ranked,
+    headlineTier: "secondary" | "list" = "secondary"
+  ) {
     return (
       <FeaturedStory
         item={s.item}
         image={s.image}
         bare
-        compact={!hasImage}
+        headlineTier={headlineTier}
         saved={saved.has(s.item.pmid)}
         onToggleSave={onToggleSave}
         onImageError={() => onImageError(s.item.pmid)}
@@ -140,17 +145,22 @@ export default function BriefStoryLayout({
     );
   }
 
-  function AlsoHeading({
+  /** Matches the Lead story eyebrow: accent kicker + thin salmon rule. */
+  function SectionEyebrow({
+    children,
     headingRefProp,
   }: {
+    children: ReactNode;
     headingRefProp?: Ref<HTMLHeadingElement>;
   }) {
     return (
       <h2
         ref={headingRefProp}
-        className={`flow-root ${brief.kicker} mb-0 pb-3 border-b ${brief.hairline}`}
+        className={`flow-root ${brief.kicker} mb-5`}
       >
-        Also in today&apos;s brief
+        <span className="inline-block border-b border-[#FFA69E] pb-0.5">
+          {children}
+        </span>
       </h2>
     );
   }
@@ -159,7 +169,7 @@ export default function BriefStoryLayout({
     <div className="mt-6 grid grid-cols-1 gap-8 lg:block">
       <aside
         ref={newsRef}
-        className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-5 lg:mr-6 lg:w-[200px]"
+        className="order-2 lg:float-left lg:mb-4 lg:mr-7 lg:w-[200px]"
         aria-label="In the news"
       >
         {left}
@@ -167,16 +177,12 @@ export default function BriefStoryLayout({
 
       <aside
         ref={toolsRef}
-        className="order-3 flex flex-col gap-8 lg:float-right lg:mb-5 lg:ml-6 lg:w-[200px]"
+        className="order-3 flex flex-col gap-6 lg:float-right lg:mb-4 lg:ml-7 lg:w-[200px]"
         aria-label="Brief tools"
       >
         {right}
       </aside>
 
-      {/*
-        Each story is its own flow-root so width can grow when a float ends.
-        No clear-both before 2-col — keeps vertical rhythm; taller panel may hang.
-      */}
       <div className="order-1 min-w-0">
         {lead && (
           <div ref={leadRef} className="flow-root">
@@ -191,8 +197,10 @@ export default function BriefStoryLayout({
         )}
 
         {(beside.length > 0 || measuring) && rest.length > 0 && (
-          <section aria-label="More stories" className={STORY_SECTION_GAP}>
-            <AlsoHeading headingRefProp={headingRef} />
+          <section aria-label="Also in today's brief" className={TIER_GAP}>
+            <SectionEyebrow headingRefProp={headingRef}>
+              Also in today&apos;s brief
+            </SectionEyebrow>
             <div className="mt-0">
               {(measuring ? rest : beside).map((s, i) => (
                 <div
@@ -200,9 +208,9 @@ export default function BriefStoryLayout({
                   ref={(el) => {
                     itemRefs.current[i] = el;
                   }}
-                  className="flow-root border-b border-[#D8D4C8]"
+                  className={`flow-root ${ITEM_RULE}`}
                 >
-                  {renderStory(s)}
+                  {renderStory(s, "secondary")}
                 </div>
               ))}
             </div>
@@ -212,20 +220,19 @@ export default function BriefStoryLayout({
         {below.length > 0 && (
           <section
             aria-label={
-              beside.length > 0 ? "More stories continued" : "More stories"
+              beside.length > 0
+                ? "More stories continued"
+                : "Also in today's brief"
             }
-            className={beside.length > 0 || measuring ? "mt-0" : STORY_SECTION_GAP}
+            className={TIER_GAP}
           >
-            {beside.length === 0 && !measuring && (
-              <AlsoHeading />
-            )}
-            <div className="flow-root columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
+            <SectionEyebrow>
+              {beside.length > 0 ? "More stories" : "Also in today's brief"}
+            </SectionEyebrow>
+            <div className="flow-root grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-2 md:gap-y-10">
               {below.map((s) => (
-                <div
-                  key={s.item.pmid}
-                  className="break-inside-avoid border-b border-[#D8D4C8]"
-                >
-                  {renderStory(s)}
+                <div key={s.item.pmid} className={ITEM_RULE}>
+                  {renderStory(s, "list")}
                 </div>
               ))}
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
+import { SidebarHeading } from "@/components/brief/SidebarCard";
 
 const STREAK_KEY = "stewardship-brief-streak";
 const SAVED_KEY = "stewardship-brief-saved";
@@ -140,12 +141,7 @@ export default function SaveStreak({
 
   return (
     <section aria-labelledby="streak-heading">
-      <h2
-        id="streak-heading"
-        className={`${brief.kicker} mb-4 pb-2 border-b ${brief.hairline}`}
-      >
-        Your brief
-      </h2>
+      <SidebarHeading id="streak-heading">Your brief</SidebarHeading>
       <p className={`${brief.sans} text-sm leading-[1.55] ${brief.ink}`}>
         <span className="tabular-nums font-medium">{streak}</span>
         -day reading streak

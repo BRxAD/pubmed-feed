@@ -17,10 +17,10 @@ type Props = {
 
 export default function SiteNav({ active, showLogo = true }: Props) {
   return (
-    <div className="sticky top-0 z-40 border-b border-[#D8D4C8] bg-[#F6F4EF]/90 backdrop-blur-md">
+    <div className="sticky top-0 z-40 border-b border-[#D8D4C8]/80 bg-[#F6F4EF]/95 backdrop-blur-sm">
       <nav
         aria-label="Site"
-        className={`${brief.shell} flex items-center gap-3 py-2.5 sm:gap-6`}
+        className={`${brief.shell} flex items-center gap-3 py-1.5 sm:gap-6 sm:py-2`}
       >
         {showLogo ? (
           <Link
@@ -48,10 +48,10 @@ export default function SiteNav({ active, showLogo = true }: Props) {
                 <Link
                   href={link.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`${brief.sans} inline-block border-b-2 px-2.5 py-2 text-[0.625rem] font-medium uppercase tracking-[0.1em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:px-3 sm:text-[0.6875rem] sm:tracking-[0.12em] ${
+                  className={`${brief.sans} inline-block border-b border-transparent px-2 py-1.5 text-[0.6875rem] font-medium tracking-[0.02em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:px-2.5 sm:text-[0.8125rem] ${
                     isActive
                       ? "border-[#1C0B19] text-[#1C0B19]"
-                      : "border-transparent text-[#72705B] hover:border-[#7BC1D4] hover:text-[#1C0B19]"
+                      : "text-[#72705B] hover:border-[#1C0B19]/40 hover:text-[#1C0B19]"
                   }`}
                 >
                   <span className="sm:hidden">{link.shortLabel}</span>

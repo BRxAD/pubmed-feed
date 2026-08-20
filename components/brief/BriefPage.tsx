@@ -14,6 +14,7 @@ import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
 import BriefStoryLayout from "@/components/brief/BriefStoryLayout";
+import { SidebarCard } from "@/components/brief/SidebarCard";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
 
@@ -66,7 +67,7 @@ export default function BriefPage({
       <SiteNav active="/" showLogo={false} />
       <Masthead dateLabel={formatToday()} />
 
-      <div className={`${brief.shell} py-8`}>
+      <div className={`${brief.shell} py-4 sm:py-5`}>
         <SettingBar active={setting} />
 
         {items.length === 0 ? (
@@ -83,22 +84,26 @@ export default function BriefPage({
             saved={saved}
             onToggleSave={toggleSave}
             onImageError={markBroken}
-            left={<InTheNewsPanel items={newsItems} variant="onSteel" />}
+            left={
+              <SidebarCard accent="steel">
+                <InTheNewsPanel items={newsItems} />
+              </SidebarCard>
+            }
             right={
               <>
-                <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
+                <SidebarCard accent="salmon">
                   <SaveStreak
                     savedCount={saved.size}
                     savedItems={savedItems}
                     onRemove={(pmid) => toggleSave(pmid)}
                   />
-                </div>
-                <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
+                </SidebarCard>
+                <SidebarCard accent="sky">
                   <TopPriorityPanel items={topPriority} />
-                </div>
-                <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
+                </SidebarCard>
+                <SidebarCard accent="olive">
                   <DigestSignup />
-                </div>
+                </SidebarCard>
               </>
             }
           />

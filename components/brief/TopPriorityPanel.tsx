@@ -2,6 +2,7 @@
 
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
 import { brief } from "@/components/brief/briefTheme";
+import { SidebarHeading } from "@/components/brief/SidebarCard";
 
 export default function TopPriorityPanel({
   items,
@@ -10,12 +11,9 @@ export default function TopPriorityPanel({
 }) {
   return (
     <section aria-labelledby="top10-heading">
-      <h2
-        id="top10-heading"
-        className={`${brief.kicker} mb-4 pb-2 border-b ${brief.hairline}`}
-      >
+      <SidebarHeading id="top10-heading">
         Top 10 · past 12 months
-      </h2>
+      </SidebarHeading>
       {items.length === 0 ? (
         <p className={`${brief.sans} text-sm ${brief.muted}`}>
           No high-priority studies in the past 12 months yet.
