@@ -29,11 +29,6 @@ function formatToday(): string {
   });
 }
 
-type RankedStory = {
-  item: BriefItem;
-  image: StoryImageMatch | null;
-};
-
 export default function BriefPage({
   items,
   topPriority,
@@ -44,9 +39,7 @@ export default function BriefPage({
   items: BriefItem[];
   topPriority: TopPriorityItem[];
   setting: BriefSettingFilter;
-  /** Server-assigned images (null = text-only). */
   images: Record<string, StoryImageMatch | null>;
-  /** Approved external news for sidebar. */
   newsItems?: NewsItem[];
 }) {
   const { saved, savedItems, toggleSave } = useBriefSaved();
@@ -71,54 +64,37 @@ export default function BriefPage({
     });
   }
 
-  const sidebar = (
-    <aside
-      className={`mt-12 lg:mt-0 space-y-10 pt-2 border-t lg:border-t-0 ${brief.hairline}`}
-    >
-      <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
-        <SaveStreak
-          savedCount={saved.size}
-          savedItems={savedItems}
-          onRemove={(pmid) => toggleSave(pmid)}
-        />
-      </div>
-      <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
-        <TopPriorityPanel items={topPriority} />
-      </div>
-      <div className="rounded-sm bg-[#2A79A7]/08 border border-[#2A79A7]/20 px-4 py-5">
-        <InTheNewsPanel items={newsItems} />
-      </div>
-      <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
-        <DigestSignup />
-      </div>
-    </aside>
-  );
-
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
       <SiteNav active="/" showLogo={false} />
       <Masthead dateLabel={formatToday()} />
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {/*
-          Mobile DOM order: lead → more stories → sidebar.
-          Desktop: sidebar pinned to row 1 / col 2 beside the lead;
-          more stories span full width below.
-        */}
-        <div className="lg:grid lg:grid-cols-[1fr_280px] lg:gap-x-12 lg:gap-y-2">
-          <main className="order-1 lg:col-start-1 lg:row-start-1">
-            <SettingBar active={setting} />
+        <SettingBar active={setting} />
 
-            {items.length === 0 ? (
-              <p
-                className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
+        {items.length === 0 ? (
+          <p
+            className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
+          >
+            No studies matched this filter yet. Try another setting, or check
+            back after the next ingest.
+          </p>
+        ) : (
+          <>
+            {/*
+              News left of lead; Also + tools stay in the lead column so a tall
+              news panel cannot leave a gap under the lead.
+            */}
+            <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(200px,240px)_minmax(0,1fr)] lg:gap-x-10">
+              <aside
+                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1 lg:sticky lg:top-4"
+                aria-label="In the news"
               >
-                No studies matched this filter yet. Try another setting, or check
-                back after the next ingest.
-              </p>
-            ) : (
-              lead && (
-                <div className="mt-6">
+                <InTheNewsPanel items={newsItems} variant="onSteel" />
+              </aside>
+
+              <div className="order-1 min-w-0 lg:order-2">
+                {lead && (
                   <LeadStory
                     item={lead.item}
                     image={lead.image}
@@ -126,56 +102,61 @@ export default function BriefPage({
                     onToggleSave={toggleSave}
                     onImageError={() => markBroken(lead.item.pmid)}
                   />
-                </div>
-              )
-            )}
-          </main>
+                )}
 
-          {rest.length > 0 && (
-            <section
-              aria-label="More stories"
-              className="order-2 mt-4 lg:col-span-2 lg:order-3"
-            >
-              <h2
-                className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
-              >
-                Also in today&apos;s brief
-              </h2>
-
-              {/*
-                CSS columns pack stories top-to-bottom so a short card
-                never leaves a tall empty hole beside a taller neighbor
-                (the old paired-row grid did that on desktop).
-              */}
-              <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
-                {rest.map((s) => {
-                  const hasImage = Boolean(s.image);
-
-                  return (
-                    <div
-                      key={s.item.pmid}
-                      className="break-inside-avoid border-b border-[#D8D4C8]"
+                {rest.length > 0 && (
+                  <section aria-label="More stories" className="mt-5">
+                    <h2
+                      className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
                     >
-                      <FeaturedStory
-                        item={s.item}
-                        image={s.image}
-                        bare
-                        compact={!hasImage}
-                        saved={saved.has(s.item.pmid)}
-                        onToggleSave={toggleSave}
-                        onImageError={() => markBroken(s.item.pmid)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                      Also in today&apos;s brief
+                    </h2>
 
-          <div className="order-3 lg:order-2 lg:col-start-2 lg:row-start-1">
-            {sidebar}
-          </div>
-        </div>
+                    <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
+                      {rest.map((s) => {
+                        const hasImage = Boolean(s.image);
+                        return (
+                          <div
+                            key={s.item.pmid}
+                            className="break-inside-avoid border-b border-[#D8D4C8]"
+                          >
+                            <FeaturedStory
+                              item={s.item}
+                              image={s.image}
+                              bare
+                              compact={!hasImage}
+                              saved={saved.has(s.item.pmid)}
+                              onToggleSave={toggleSave}
+                              onImageError={() => markBroken(s.item.pmid)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                <aside
+                  className={`mt-10 grid gap-8 border-t ${brief.hairline} pt-8 sm:grid-cols-2 lg:grid-cols-3`}
+                >
+                  <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
+                    <SaveStreak
+                      savedCount={saved.size}
+                      savedItems={savedItems}
+                      onRemove={(pmid) => toggleSave(pmid)}
+                    />
+                  </div>
+                  <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
+                    <TopPriorityPanel items={topPriority} />
+                  </div>
+                  <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5 sm:col-span-2 lg:col-span-1">
+                    <DigestSignup />
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <SiteFooter />

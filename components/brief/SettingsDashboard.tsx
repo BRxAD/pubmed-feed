@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { BriefFeedSettings } from "@/lib/brief/feedSettings";
 import { brief } from "@/components/brief/briefTheme";
-import NewsApprovalQueue from "@/components/brief/NewsApprovalQueue";
 
 type Props = {
   initialSecret: string;
@@ -707,8 +706,6 @@ export default function SettingsDashboard({ initialSecret }: Props) {
         </h2>
         <Q1JournalList secret={initialSecret} />
       </section>
-
-      <NewsApprovalQueue secret={initialSecret} />
 
       <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-[#D8D4C8]">
         <button

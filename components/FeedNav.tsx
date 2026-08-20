@@ -25,7 +25,14 @@ const FEED_TABS: FeedTab[] = [
   },
 ];
 
-export default function FeedNav({ activeId }: { activeId: string }) {
+export default function FeedNav({
+  activeId,
+  feedHref = "/feed",
+}: {
+  activeId: string;
+  /** Preserve secret query when linking back to /feed. */
+  feedHref?: string;
+}) {
   return (
     <nav
       aria-label="Feed navigation"
@@ -33,10 +40,11 @@ export default function FeedNav({ activeId }: { activeId: string }) {
     >
       {FEED_TABS.map((tab) => {
         const isActive = tab.id === activeId;
+        const href = tab.id === "main" ? feedHref : tab.href;
         return (
           <a
             key={tab.id}
-            href={tab.href}
+            href={href}
             title={tab.description}
             aria-current={isActive ? "page" : undefined}
             className={`group relative -mb-px inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${

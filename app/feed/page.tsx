@@ -48,6 +48,9 @@ import {
   toPenaltyWeights,
   toRankingWeights,
 } from "@/lib/brief/feedSettings";
+import { verifyBriefAdminSecret } from "@/lib/brief/adminAuth";
+import FeedUnlock from "@/components/FeedUnlock";
+import NewsApprovalQueue from "@/components/brief/NewsApprovalQueue";
 
 const MAX_KEYWORD_CHIPS = 5;
 const KEYWORD_TRUNCATE_LEN = 26;
@@ -64,6 +67,7 @@ function buildFeedUrl(params: {
   source?: FeedSourceFilter;
   minPriority?: number;
   unratedOnly?: boolean;
+  secret?: string;
 }): string {
   const q = new URLSearchParams();
   q.set("topicId", params.topicId);
@@ -78,6 +82,7 @@ function buildFeedUrl(params: {
   if (params.setting) q.set("setting", params.setting);
   if (params.unratedOnly) q.set("unrated", "1");
   if (params.admin) q.set("admin", "1");
+  if (params.secret?.trim()) q.set("secret", params.secret.trim());
   return `${BASE_PATH}?${q.toString()}`;
 }
 
@@ -172,6 +177,7 @@ function ArticleCard({
   source,
   priorityModel,
   embedding,
+  secret,
 }: {
   item: FeedItem;
   query_string: string;
@@ -188,6 +194,7 @@ function ArticleCard({
   source: FeedSourceFilter;
   priorityModel: PriorityModel | null;
   embedding?: number[] | null;
+  secret: string;
 }) {
   const journal = item.articles?.journal != null ? String(item.articles.journal) : "";
   const pubDateStr = formatDate(
@@ -382,6 +389,7 @@ function ArticleCard({
                   unratedOnly,
                   admin: isAdmin || undefined,
                   source,
+                  secret,
                 })}
                 title={kw}
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition hover:opacity-90 ${keywordColorClasses(kw)}`}
@@ -603,6 +611,7 @@ export default async function FeedPage({
     admin?: string;
     source?: string;
     unrated?: string;
+    secret?: string;
   }>;
 }) {
   const {
@@ -616,13 +625,20 @@ export default async function FeedPage({
     setting: settingRaw,
     admin: adminRaw,
     unrated: unratedRaw,
+    secret: secretRaw,
   } = await searchParams;
+
+  const feedSecret = secretRaw?.trim() ?? "";
+  if (!verifyBriefAdminSecret(feedSecret)) {
+    return <FeedUnlock />;
+  }
 
   const source = parseFeedSource(sourceRaw);
   let topicId = topicIdRaw?.trim();
   const sort: FeedSort = parseFeedSort(sortRaw);
   const keyword = keywordRaw?.trim() ?? "";
   const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
+  // Secret unlocks the page; admin=1 still controls admin UI details.
   const isAdmin = adminRaw === "1";
   // Min relevance filter is only available in admin mode
   const minRelevance = isAdmin
@@ -715,7 +731,15 @@ export default async function FeedPage({
       {/* Header: logo + rating total + admin toggle */}
       <header className="mb-4 flex items-start justify-between gap-4">
         {/* Logo — plain <a> so clicking always triggers a full reload */}
-        <a href="/feed" className="inline-block shrink-0">
+        <a
+          href={buildFeedUrl({
+            topicId: topicId!,
+            admin: true,
+            source,
+            secret: feedSecret,
+          })}
+          className="inline-block shrink-0"
+        >
           <img
             src="/logo-steward-feed.png?v=2"
             alt="StewardFeed"
@@ -744,7 +768,15 @@ export default async function FeedPage({
       </header>
 
       {/* Tab navigation */}
-      <FeedNav activeId="main" />
+      <FeedNav
+        activeId="main"
+        feedHref={buildFeedUrl({
+          topicId: topicId!,
+          admin: true,
+          source,
+          secret: feedSecret,
+        })}
+      />
 
       <p
         className="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400"
@@ -763,6 +795,10 @@ export default async function FeedPage({
         <span className="tabular-nums">{ingestStats.mlPriorityGe5Count}</span> ML ≥ 5
       </p>
 
+      <div className="mt-6">
+        <NewsApprovalQueue secret={feedSecret} />
+      </div>
+
       {/* Filter toolbar */}
       <section
         className="mt-4 mb-5 rounded-xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/60"
@@ -771,6 +807,7 @@ export default async function FeedPage({
         <form method="GET" action={BASE_PATH}>
           <input type="hidden" name="topicId" value={topicId} />
           <input type="hidden" name="source" value="pubmed" />
+          <input type="hidden" name="secret" value={feedSecret} />
           {isAdmin && <input type="hidden" name="admin" value="1" />}
 
           <div className="flex flex-wrap items-end gap-5">
@@ -802,6 +839,7 @@ export default async function FeedPage({
                       unratedOnly,
                       admin: isAdmin || undefined,
                       source,
+                      secret: feedSecret,
                     })}
                     className={
                       sort === opt.value
@@ -900,7 +938,13 @@ export default async function FeedPage({
 
             {hasFilters && (
               <a
-                href={buildFeedUrl({ topicId, sort, admin: isAdmin || undefined, source })}
+                href={buildFeedUrl({
+                  topicId,
+                  sort,
+                  admin: isAdmin || undefined,
+                  source,
+                  secret: feedSecret,
+                })}
                 className="self-center text-xs text-zinc-400 underline underline-offset-2 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
               >
                 Clear filters
@@ -921,7 +965,13 @@ export default async function FeedPage({
                 <>
                   {" "}
                   <a
-                    href={buildFeedUrl({ topicId, sort, admin: isAdmin || undefined, source })}
+                    href={buildFeedUrl({
+                      topicId,
+                      sort,
+                      admin: isAdmin || undefined,
+                      source,
+                      secret: feedSecret,
+                    })}
                     className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
                   >
                     Clear filters
@@ -950,6 +1000,7 @@ export default async function FeedPage({
                       source={source}
                       priorityModel={priorityModel}
                       embedding={embeddingByPmid.get(item.pmid) ?? null}
+                      secret={feedSecret}
                     />
                   </li>
                 ))}
@@ -975,7 +1026,19 @@ export default async function FeedPage({
                   <div className="flex gap-2">
                     {currentPage > 1 ? (
                       <a
-                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage - 1, minRelevance, minPriority, setting: setting || undefined, unratedOnly, admin: isAdmin || undefined, source })}
+                        href={buildFeedUrl({
+                          topicId,
+                          sort,
+                          keyword,
+                          page: currentPage - 1,
+                          minRelevance,
+                          minPriority,
+                          setting: setting || undefined,
+                          unratedOnly,
+                          admin: isAdmin || undefined,
+                          source,
+                          secret: feedSecret,
+                        })}
                         className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
                       >
                         ← Previous
@@ -987,7 +1050,19 @@ export default async function FeedPage({
                     )}
                     {currentPage < totalPages ? (
                       <a
-                        href={buildFeedUrl({ topicId, sort, keyword, page: currentPage + 1, minRelevance, minPriority, setting: setting || undefined, unratedOnly, admin: isAdmin || undefined, source })}
+                        href={buildFeedUrl({
+                          topicId,
+                          sort,
+                          keyword,
+                          page: currentPage + 1,
+                          minRelevance,
+                          minPriority,
+                          setting: setting || undefined,
+                          unratedOnly,
+                          admin: isAdmin || undefined,
+                          source,
+                          secret: feedSecret,
+                        })}
                         className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
                       >
                         Next →
@@ -1032,6 +1107,7 @@ export default async function FeedPage({
                         unratedOnly,
                         admin: isAdmin || undefined,
                         source,
+                        secret: feedSecret,
                       })}
                       className={`rounded-full px-2.5 py-1 text-xs font-medium leading-none transition hover:opacity-90 ${keywordColorClasses(kw)}`}
                     >

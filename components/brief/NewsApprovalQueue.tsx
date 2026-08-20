@@ -79,13 +79,13 @@ export default function NewsApprovalQueue({ secret }: Props) {
   }
 
   return (
-    <section className={`mt-12 border-t ${brief.hairline} pt-10`}>
+    <section className={`rounded-xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/60`}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className={`${brief.kicker} mb-2`}>In the news</h2>
           <p className={`${brief.sans} text-sm ${brief.muted}`}>
-            WHO, CIDRAP, and Google News RSS. Approve before items appear on the
-            Brief sidebar.
+            WHO, CIDRAP, and Google News RSS. Approve items before they appear on
+            the Brief homepage.
           </p>
         </div>
         <button
@@ -135,27 +135,43 @@ export default function NewsApprovalQueue({ secret }: Props) {
               key={item.id}
               className={`rounded-sm border ${brief.hairline} bg-[#F6F4EF] px-4 py-3`}
             >
-              <p className={`${brief.meta} mb-1`}>
-                {newsSourceLabel(item.sourceId)}
-                {item.publishedAt
-                  ? ` · ${new Date(item.publishedAt).toLocaleDateString("en-US")}`
-                  : ""}
-              </p>
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${brief.serif} text-base font-semibold ${brief.accentHover}`}
-              >
-                {item.title}
-              </a>
-              {item.summary && (
-                <p
-                  className={`mt-1.5 ${brief.sans} text-sm leading-snug ${brief.muted} line-clamp-2`}
-                >
-                  {item.summary}
-                </p>
-              )}
+              <div className="flex gap-3">
+                {item.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- arbitrary publisher hosts
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="h-16 w-24 shrink-0 object-cover rounded-sm"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${brief.serif} text-base font-semibold ${brief.accentHover}`}
+                  >
+                    {item.title}
+                  </a>
+                  {item.summary && (
+                    <p
+                      className={`mt-1.5 ${brief.sans} text-sm leading-snug ${brief.muted} line-clamp-2`}
+                    >
+                      {item.summary}
+                    </p>
+                  )}
+                  <p
+                    className={`mt-1.5 ${brief.sans} text-[0.65rem] ${brief.muted}`}
+                  >
+                    {newsSourceLabel(item.sourceId)}
+                    {item.publishedAt
+                      ? ` · ${new Date(item.publishedAt).toLocaleDateString("en-US")}`
+                      : ""}
+                  </p>
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {status !== "approved" && (
                   <button

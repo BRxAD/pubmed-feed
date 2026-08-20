@@ -8,6 +8,8 @@ export type NewsItem = {
   url: string;
   publishedAt: string | null;
   summary: string | null;
+  /** Optional article thumbnail (from RSS media or og:image). */
+  imageUrl: string | null;
   status: NewsItemStatus;
   approvedAt: string | null;
   createdAt: string;

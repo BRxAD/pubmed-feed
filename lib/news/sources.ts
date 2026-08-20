@@ -28,7 +28,7 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: "google-news",
     label: "Google News",
     feedUrl:
-      "https://news.google.com/rss/search?q=%22antimicrobial+stewardship%22+OR+%22antibiotic+stewardship%22+OR+%22antimicrobial+resistance%22&hl=en-US&gl=US&ceid=US:en",
+      "https://news.google.com/rss/search?q=%22antimicrobial+stewardship%22+OR+%22antibiotic+stewardship%22+OR+%22antimicrobial+resistance%22+OR+%22antibiotic+resistance%22&hl=en-US&gl=US&ceid=US:en",
     requireTopicMatch: false,
   },
 ];

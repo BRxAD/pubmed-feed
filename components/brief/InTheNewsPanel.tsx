@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
 import { brief } from "@/components/brief/briefTheme";
@@ -14,48 +15,107 @@ function formatDate(iso: string | null): string {
   });
 }
 
-/** Homepage sidebar: approved external news only. */
-export default function InTheNewsPanel({ items }: { items: NewsItem[] }) {
+function NewsThumb({
+  src,
+  onSteel,
+}: {
+  src: string;
+  onSteel: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- arbitrary publisher hosts
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className={`mb-2 aspect-[16/10] w-full object-cover ${
+        onSteel ? "rounded-sm opacity-95" : "rounded-sm"
+      }`}
+    />
+  );
+}
+
+/** Approved external news — use variant=onSteel on the solid steel panel. */
+export default function InTheNewsPanel({
+  items,
+  variant = "default",
+}: {
+  items: NewsItem[];
+  variant?: "default" | "onSteel";
+}) {
+  const onSteel = variant === "onSteel";
+
   return (
     <section aria-labelledby="in-the-news-heading">
       <h2
         id="in-the-news-heading"
-        className={`${brief.kicker} mb-4 pb-2 border-b border-[#2A79A7]/25`}
+        className={`${brief.sans} mb-4 border-b pb-2 text-[0.6875rem] font-medium uppercase tracking-[0.14em] ${
+          onSteel
+            ? "border-[#F6F4EF]/35 text-[#F6F4EF]"
+            : `border-[#2A79A7]/25 ${brief.kicker}`
+        }`}
       >
         In the news
       </h2>
       {items.length === 0 ? (
-        <p className={`${brief.sans} text-sm ${brief.muted}`}>
+        <p
+          className={`${brief.sans} text-sm ${
+            onSteel ? "text-[#F6F4EF]/75" : brief.muted
+          }`}
+        >
           No approved news items yet.
         </p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="space-y-5">
           {items.map((item) => {
             const dateLabel = formatDate(item.publishedAt ?? item.approvedAt);
+            const sourceLine = [
+              newsSourceLabel(item.sourceId),
+              dateLabel || null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             return (
               <li key={item.id} className={`${brief.sans} text-sm`}>
-                <p
-                  className={`${brief.meta} mb-1 text-[0.65rem] tracking-[0.08em] text-[#2A79A7]`}
-                >
-                  {newsSourceLabel(item.sourceId)}
-                  {dateLabel ? ` · ${dateLabel}` : ""}
-                </p>
                 <a
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`${brief.serif} text-[0.9375rem] font-semibold leading-snug ${brief.ink} no-underline hover:text-[#2A79A7] line-clamp-3`}
+                  className="group block no-underline"
                 >
-                  {item.title}
+                  {item.imageUrl ? (
+                    <NewsThumb src={item.imageUrl} onSteel={onSteel} />
+                  ) : null}
+                  <span
+                    className={`${brief.serif} block text-[0.9375rem] font-semibold leading-snug line-clamp-3 ${
+                      onSteel
+                        ? "text-[#F6F4EF] group-hover:text-[#FFA69E]"
+                        : `${brief.ink} group-hover:text-[#2A79A7]`
+                    }`}
+                  >
+                    {item.title}
+                  </span>
+                  {sourceLine ? (
+                    <span
+                      className={`mt-1.5 block text-[0.6rem] font-normal normal-case tracking-normal ${
+                        onSteel
+                          ? "text-[#F6F4EF]/45"
+                          : "text-[#1C0B19]/40"
+                      }`}
+                    >
+                      {sourceLine}
+                    </span>
+                  ) : null}
                 </a>
               </li>
             );
           })}
         </ul>
       )}
-      <p className={`mt-4 ${brief.sans} text-[0.7rem] leading-snug ${brief.muted}`}>
-        External coverage · not peer-reviewed literature
-      </p>
     </section>
   );
 }

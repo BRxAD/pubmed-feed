@@ -7,6 +7,7 @@ export type ParsedRssItem = {
   url: string;
   publishedAt: string | null;
   summary: string | null;
+  imageUrl: string | null;
 };
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
@@ -22,6 +23,7 @@ function textOf(v: unknown): string {
     const o = v as Record<string, unknown>;
     if (typeof o["#text"] === "string") return o["#text"].trim();
     if (typeof o["@_href"] === "string") return o["@_href"].trim();
+    if (typeof o["@_url"] === "string") return o["@_url"].trim();
     if (typeof o.url === "string") return o.url.trim();
   }
   return "";
@@ -51,8 +53,116 @@ function parseDate(raw: string): string | null {
   return new Date(t).toISOString();
 }
 
+function normalizeImageUrl(raw: string): string | null {
+  const u = raw.trim();
+  if (!/^https?:\/\//i.test(u)) return null;
+  // Skip tracking pixels / tiny icons.
+  if (/\b(1x1|pixel|spacer|blank)\b/i.test(u)) return null;
+  return u.slice(0, 2000);
+}
+
+function imageFromHtml(html: string): string | null {
+  if (!html) return null;
+  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (!match?.[1]) return null;
+  return normalizeImageUrl(match[1]);
+}
+
+function mediaUrl(node: unknown): string | null {
+  if (node == null) return null;
+  for (const entry of asArray(node)) {
+    if (typeof entry === "string") {
+      const u = normalizeImageUrl(entry);
+      if (u) return u;
+      continue;
+    }
+    const o = entry as Record<string, unknown>;
+    const type = textOf(o["@_type"]) || textOf(o.type);
+    const medium = textOf(o["@_medium"]) || textOf(o.medium);
+    const url =
+      textOf(o["@_url"]) ||
+      textOf(o.url) ||
+      textOf(o["@_href"]) ||
+      textOf(o["#text"]);
+    const looksImage =
+      !type ||
+      type.startsWith("image/") ||
+      medium === "image" ||
+      /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url);
+    if (url && looksImage) {
+      const u = normalizeImageUrl(url);
+      if (u) return u;
+    }
+  }
+  return null;
+}
+
+/** Prefer RSS media tags, enclosure, then first <img> in description HTML. */
+export function extractRssImage(item: Record<string, unknown>): string | null {
+  const fromMedia =
+    mediaUrl(item["media:thumbnail"]) ||
+    mediaUrl(item["media:content"]) ||
+    mediaUrl(item.thumbnail) ||
+    mediaUrl(item.enclosure);
+  if (fromMedia) return fromMedia;
+
+  const descRaw =
+    (typeof item.description === "string" ? item.description : "") ||
+    (typeof item["content:encoded"] === "string"
+      ? item["content:encoded"]
+      : "") ||
+    textOf(item.description) ||
+    textOf(item["content:encoded"]);
+  return imageFromHtml(descRaw);
+}
+
 /**
- * Parse RSS 2.0 or Atom XML into slim items (title, link, date, short summary).
+ * Best-effort og:image / twitter:image from the article page.
+ * Used only at ingest when RSS has no image. Short timeout; failures are fine.
+ */
+export async function fetchArticleImageUrl(
+  articleUrl: string
+): Promise<string | null> {
+  try {
+    const res = await fetch(articleUrl, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        "User-Agent":
+          "StewardshipBrief/1.0 (+https://www.stewardshipbrief.com)",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(5_000),
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("html") && !ct.includes("xml") && ct !== "") {
+      // Some CDNs omit content-type; still try a small body sniff.
+      if (!ct.includes("text") && ct.length > 0) return null;
+    }
+    const html = (await res.text()).slice(0, 120_000);
+    const patterns = [
+      /property=["']og:image:secure_url["'][^>]*content=["']([^"']+)["']/i,
+      /property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
+      /name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i,
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m?.[1]) {
+        const u = normalizeImageUrl(m[1]);
+        if (u) return u;
+      }
+    }
+    return imageFromHtml(html);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Parse RSS 2.0 or Atom XML into slim items (title, link, date, short summary, image).
  */
 export function parseRssXml(xml: string): ParsedRssItem[] {
   const parser = new XMLParser({
@@ -80,7 +190,9 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
         const guid =
           textOf(item.guid) || url || `${title}|${textOf(item.pubDate)}`;
         const summary = truncate(
-          stripHtml(textOf(item.description) || textOf(item["content:encoded"])),
+          stripHtml(
+            textOf(item.description) || textOf(item["content:encoded"])
+          ),
           280
         );
         if (!title || !url) return null;
@@ -90,6 +202,7 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
           url,
           publishedAt: parseDate(textOf(item.pubDate) || textOf(item.published)),
           summary: summary || null,
+          imageUrl: extractRssImage(item),
         } satisfies ParsedRssItem;
       })
       .filter((x): x is ParsedRssItem => x != null);
@@ -126,6 +239,10 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
           textOf(entry.published) || textOf(entry.updated)
         ),
         summary: summary || null,
+        imageUrl:
+          extractRssImage(entry) ||
+          mediaUrl(entry["media:thumbnail"]) ||
+          mediaUrl(entry["media:content"]),
       } satisfies ParsedRssItem;
     })
     .filter((x): x is ParsedRssItem => x != null);

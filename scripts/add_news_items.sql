@@ -9,6 +9,7 @@ create table if not exists public.news_items (
   url text not null,
   published_at timestamptz,
   summary text,
+  image_url text,
   status text not null default 'pending'
     check (status in ('pending', 'approved', 'rejected')),
   approved_at timestamptz,
