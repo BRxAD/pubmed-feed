@@ -24,8 +24,9 @@ type Ranked = {
 const STORY_SECTION_GAP = "mt-5";
 
 /**
- * Lead between left/right panels. Also stories stay single-file in the center
- * until both panels end, then full-width 2-col. Even vertical spacing.
+ * Desktop: news/tools float beside the story column so Also stories expand
+ * into a freed side as soon as that panel ends (no empty gutter). Single-file
+ * until both panels clear, then full-width 2-col. Even vertical spacing.
  */
 export default function BriefStoryLayout({
   lead,
@@ -53,7 +54,7 @@ export default function BriefStoryLayout({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sideSigRef = useRef("");
-  /** null = measure pass (all Also temporarily in center). */
+  /** null = measure pass (all Also temporarily beside panels). */
   const [besideCount, setBesideCount] = useState<number | null>(null);
   const measureKey = `${lead?.item.pmid ?? ""}:${rest.map((r) => r.item.pmid).join(",")}`;
 
@@ -70,7 +71,7 @@ export default function BriefStoryLayout({
 
       const newsH = newsRef.current?.offsetHeight ?? 0;
       const toolsH = toolsRef.current?.offsetHeight ?? 0;
-      // Wait until *both* panels have ended.
+      // Stay single-file (wrapping beside remaining float) until both end.
       const bothH = Math.max(newsH, toolsH);
       sideSigRef.current = `${newsH}x${toolsH}`;
       const leadH = leadRef.current?.offsetHeight ?? 0;
@@ -146,7 +147,7 @@ export default function BriefStoryLayout({
     return (
       <h2
         ref={headingRefProp}
-        className={`${brief.kicker} mb-0 pb-3 border-b ${brief.hairline}`}
+        className={`flow-root ${brief.kicker} mb-0 pb-3 border-b ${brief.hairline}`}
       >
         Also in today&apos;s brief
       </h2>
@@ -154,56 +155,63 @@ export default function BriefStoryLayout({
   }
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(180px,200px)_minmax(0,1fr)_minmax(180px,200px)] lg:items-start lg:gap-x-6">
-        <aside
-          ref={newsRef}
-          className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1"
-          aria-label="In the news"
-        >
-          {left}
-        </aside>
+    <div className="mt-6 grid grid-cols-1 gap-8 lg:block">
+      {/*
+        Desktop: floats so stories shrink beside panels and expand into a
+        freed column as soon as that panel ends (fills the left/right gutter).
+        Mobile: stacked via grid order (stories, news, tools).
+      */}
+      <aside
+        ref={newsRef}
+        className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-5 lg:mr-6 lg:w-[200px]"
+        aria-label="In the news"
+      >
+        {left}
+      </aside>
 
-        <div className="order-1 min-w-0 lg:order-2">
-          {lead && (
-            <div ref={leadRef}>
-              <LeadStory
-                item={lead.item}
-                image={lead.image}
-                saved={saved.has(lead.item.pmid)}
-                onToggleSave={onToggleSave}
-                onImageError={() => onImageError(lead.item.pmid)}
-              />
+      <aside
+        ref={toolsRef}
+        className="order-3 flex flex-col gap-8 lg:float-right lg:mb-5 lg:ml-6 lg:w-[200px]"
+        aria-label="Brief tools"
+      >
+        {right}
+      </aside>
+
+      {/*
+        Each story is its own flow-root so width can grow when a float ends
+        mid-column (fills the freed gutter). Do not wrap all stories in one BFC.
+      */}
+      <div className="order-1 min-w-0">
+        {lead && (
+          <div ref={leadRef} className="flow-root">
+            <LeadStory
+              item={lead.item}
+              image={lead.image}
+              saved={saved.has(lead.item.pmid)}
+              onToggleSave={onToggleSave}
+              onImageError={() => onImageError(lead.item.pmid)}
+            />
+          </div>
+        )}
+
+        {(beside.length > 0 || measuring) && rest.length > 0 && (
+          <section aria-label="More stories" className={STORY_SECTION_GAP}>
+            <AlsoHeading headingRefProp={headingRef} />
+            <div className="mt-0">
+              {(measuring ? rest : beside).map((s, i) => (
+                <div
+                  key={s.item.pmid}
+                  ref={(el) => {
+                    itemRefs.current[i] = el;
+                  }}
+                  className="flow-root border-b border-[#D8D4C8]"
+                >
+                  {renderStory(s)}
+                </div>
+              ))}
             </div>
-          )}
-
-          {(beside.length > 0 || measuring) && rest.length > 0 && (
-            <section aria-label="More stories" className={STORY_SECTION_GAP}>
-              <AlsoHeading headingRefProp={headingRef} />
-              <div className="mt-0">
-                {(measuring ? rest : beside).map((s, i) => (
-                  <div
-                    key={s.item.pmid}
-                    ref={(el) => {
-                      itemRefs.current[i] = el;
-                    }}
-                    className="border-b border-[#D8D4C8]"
-                  >
-                    {renderStory(s)}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-
-        <aside
-          ref={toolsRef}
-          className="order-3 flex flex-col gap-8"
-          aria-label="Brief tools"
-        >
-          {right}
-        </aside>
+          </section>
+        )}
       </div>
 
       {below.length > 0 && (
@@ -211,7 +219,7 @@ export default function BriefStoryLayout({
           aria-label={
             beside.length > 0 ? "More stories continued" : "More stories"
           }
-          className={STORY_SECTION_GAP}
+          className={`order-4 clear-both ${STORY_SECTION_GAP}`}
         >
           {beside.length === 0 && <AlsoHeading />}
           <div className="columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
