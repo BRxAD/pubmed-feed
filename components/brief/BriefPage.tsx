@@ -82,19 +82,38 @@ export default function BriefPage({
         ) : (
           <>
             {/*
-              Three columns on large screens: news | lead+also | tools.
-              Lead and Also share a column so tools stay up top and Also
-              sits tight under the lead (news height cannot open a gap).
+              Desktop: float news left + tools right so lead/Also wrap between
+              them, then expand under the news (no empty left gutter).
+              Mobile: stack lead → news → tools via flex order.
             */}
-            <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(180px,220px)] lg:gap-x-8">
+            <div className="mt-6 flex flex-col gap-8 lg:block">
               <aside
-                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1"
+                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-4 lg:mr-8 lg:w-[220px]"
                 aria-label="In the news"
               >
                 <InTheNewsPanel items={newsItems} variant="onSteel" />
               </aside>
 
-              <div className="order-1 min-w-0 lg:order-2">
+              <aside
+                className="order-3 flex flex-col gap-8 lg:float-right lg:mb-4 lg:ml-8 lg:w-[220px]"
+                aria-label="Brief tools"
+              >
+                <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
+                  <SaveStreak
+                    savedCount={saved.size}
+                    savedItems={savedItems}
+                    onRemove={(pmid) => toggleSave(pmid)}
+                  />
+                </div>
+                <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
+                  <TopPriorityPanel items={topPriority} />
+                </div>
+                <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
+                  <DigestSignup />
+                </div>
+              </aside>
+
+              <div className="order-1 min-w-0">
                 {lead && (
                   <LeadStory
                     item={lead.item}
@@ -138,24 +157,7 @@ export default function BriefPage({
                 )}
               </div>
 
-              <aside
-                className="order-3 flex flex-col gap-8"
-                aria-label="Brief tools"
-              >
-                <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
-                  <SaveStreak
-                    savedCount={saved.size}
-                    savedItems={savedItems}
-                    onRemove={(pmid) => toggleSave(pmid)}
-                  />
-                </div>
-                <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
-                  <TopPriorityPanel items={topPriority} />
-                </div>
-                <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
-                  <DigestSignup />
-                </div>
-              </aside>
+              <div className="hidden lg:block lg:clear-both" aria-hidden />
             </div>
           </>
         )}

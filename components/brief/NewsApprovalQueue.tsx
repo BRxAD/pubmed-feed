@@ -3,10 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
-import { brief } from "@/components/brief/briefTheme";
 
 type Props = { secret: string };
 
+const tabIdle =
+  "rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs capitalize text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700";
+const tabActive =
+  "rounded-lg border border-zinc-800 bg-zinc-800 px-3 py-1.5 text-xs capitalize font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900";
+const actionBtn =
+  "rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700";
+const primaryBtn =
+  "rounded-lg bg-zinc-800 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-600 dark:hover:bg-zinc-500";
+
+/** Approve queue for In the news — styled for the dark-friendly /feed chrome. */
 export default function NewsApprovalQueue({ secret }: Props) {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">(
     "pending"
@@ -79,11 +88,16 @@ export default function NewsApprovalQueue({ secret }: Props) {
   }
 
   return (
-    <section className={`rounded-xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/60`}>
+    <section
+      className="rounded-xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/60"
+      aria-label="In the news approvals"
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className={`${brief.kicker} mb-2`}>In the news</h2>
-          <p className={`${brief.sans} text-sm ${brief.muted}`}>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+            In the news
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             WHO, CIDRAP, and Google News RSS. Approve items before they appear on
             the Brief homepage.
           </p>
@@ -92,7 +106,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
           type="button"
           onClick={() => void load({ poll: true })}
           disabled={polling}
-          className={`${brief.action} disabled:opacity-60`}
+          className={primaryBtn}
         >
           {polling ? "Fetching feeds…" : "Fetch feeds now"}
         </button>
@@ -104,11 +118,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
             key={s}
             type="button"
             onClick={() => setStatus(s)}
-            className={`${brief.sans} rounded-sm border px-3 py-1.5 text-xs capitalize ${
-              status === s
-                ? "border-[#1C0B19] bg-[#1C0B19] text-[#F6F4EF]"
-                : `border-[#D8D4C8] ${brief.ink} hover:bg-[#EFECE4]`
-            }`}
+            className={status === s ? tabActive : tabIdle}
           >
             {s}
           </button>
@@ -116,24 +126,26 @@ export default function NewsApprovalQueue({ secret }: Props) {
       </div>
 
       {error && (
-        <p className={`mt-4 ${brief.sans} text-sm text-[#9B3A3A]`}>{error}</p>
+        <p className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p>
       )}
 
       {loading ? (
-        <p className={`mt-6 ${brief.sans} text-sm ${brief.muted}`}>Loading…</p>
+        <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">
+          Loading…
+        </p>
       ) : items.length === 0 ? (
-        <p className={`mt-6 ${brief.sans} text-sm ${brief.muted}`}>
+        <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">
           No {status} items.{" "}
           {status === "pending"
             ? "Fetch feeds, or run the news-rss cron after creating the table."
             : null}
         </p>
       ) : (
-        <ul className="mt-6 space-y-4">
+        <ul className="mt-6 space-y-3">
           {items.map((item) => (
             <li
               key={item.id}
-              className={`rounded-sm border ${brief.hairline} bg-[#F6F4EF] px-4 py-3`}
+              className="rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-4 py-3 dark:border-zinc-700/60 dark:bg-zinc-950/50"
             >
               <div className="flex gap-3">
                 {item.imageUrl ? (
@@ -143,7 +155,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
                     alt=""
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    className="h-16 w-24 shrink-0 object-cover rounded-sm"
+                    className="h-16 w-24 shrink-0 rounded-md object-cover"
                   />
                 ) : null}
                 <div className="min-w-0 flex-1">
@@ -151,20 +163,16 @@ export default function NewsApprovalQueue({ secret }: Props) {
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`${brief.serif} text-base font-semibold ${brief.accentHover}`}
+                    className="text-base font-semibold text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
                   >
                     {item.title}
                   </a>
                   {item.summary && (
-                    <p
-                      className={`mt-1.5 ${brief.sans} text-sm leading-snug ${brief.muted} line-clamp-2`}
-                    >
+                    <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
                       {item.summary}
                     </p>
                   )}
-                  <p
-                    className={`mt-1.5 ${brief.sans} text-[0.65rem] ${brief.muted}`}
-                  >
+                  <p className="mt-1.5 text-[0.65rem] text-zinc-400 dark:text-zinc-500">
                     {newsSourceLabel(item.sourceId)}
                     {item.publishedAt
                       ? ` · ${new Date(item.publishedAt).toLocaleDateString("en-US")}`
@@ -178,7 +186,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void setItemStatus(item.id, "approved")}
-                    className={`${brief.action} disabled:opacity-60`}
+                    className={actionBtn}
                   >
                     Approve
                   </button>
@@ -188,7 +196,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void setItemStatus(item.id, "rejected")}
-                    className={`${brief.action} disabled:opacity-60`}
+                    className={actionBtn}
                   >
                     Reject
                   </button>
@@ -198,7 +206,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void setItemStatus(item.id, "pending")}
-                    className={`${brief.action} disabled:opacity-60`}
+                    className={actionBtn}
                   >
                     Back to pending
                   </button>
