@@ -29,10 +29,14 @@ type Pack = {
   leftIsShorter: boolean;
 };
 
+/** Shared vertical rhythm between Also stories / sections. */
+const STORY_SECTION_GAP = "mt-5";
+const SIDE_STRIP = "w-3 shrink-0"; // small gap on the freed panel side
+
 /**
  * Lead between panels. Also fills the center until the shorter panel ends,
- * then fills the freed side (single file) beside the taller panel, then
- * full-width 2-col after both panels.
+ * then a small side strip + 2-col band beside the taller panel, then
+ * full-width 2-col after both panels. Article vertical spacing stays even.
  */
 export default function BriefStoryLayout({
   lead,
@@ -96,7 +100,7 @@ export default function BriefStoryLayout({
 
       const placeHeading = () => {
         if (!headingPlaced && rest.length > 0) {
-          used += headingH + 12;
+          used += headingH + 20; // heading + STORY_SECTION_GAP
           headingPlaced = true;
         }
       };
@@ -112,23 +116,27 @@ export default function BriefStoryLayout({
         i += 1;
       }
 
-      // Phase 2: wide band beside the taller panel until it ends.
+      // Phase 2: wide band beside the taller panel (rendered as 2-col, so
+      // vertical room fits roughly two stories per row).
       let wide = 0;
       const asymmetric = tallH - shortH > 48;
       if (asymmetric) {
-        // Continue height from what we already stacked in the center column.
-        // The wide band starts at shortH visually; remaining room is tall - used
-        // (or tall - short if center ended early below shortH).
         const bandStart = Math.max(used, shortH);
         let bandUsed = bandStart;
         while (i < rest.length) {
           placeHeading();
           const h = heights[i];
           if (h <= 0) break;
-          if (bandUsed + h > tallH + 4) break;
-          bandUsed += h;
-          wide += 1;
-          i += 1;
+          // 2-col: pair stories share vertical space ≈ one story height.
+          const step =
+            i + 1 < rest.length
+              ? Math.max(h, heights[i + 1] ?? h)
+              : h;
+          if (bandUsed + step > tallH + 4) break;
+          bandUsed += step;
+          const take = i + 1 < rest.length ? 2 : 1;
+          wide += take;
+          i += take;
         }
       }
 
@@ -136,8 +144,7 @@ export default function BriefStoryLayout({
     }
 
     if (pack === null) {
-      const next = computePack();
-      setPack(next);
+      setPack(computePack());
     }
 
     const onResize = () => setPack(null);
@@ -167,9 +174,7 @@ export default function BriefStoryLayout({
 
   const centerStories = rest.slice(0, centerN);
   const wideStories = rest.slice(centerN, centerN + wideN);
-  const belowStories = measuring
-    ? []
-    : rest.slice(centerN + wideN);
+  const belowStories = measuring ? [] : rest.slice(centerN + wideN);
 
   const showHeadingInCenter = centerStories.length > 0;
   const showHeadingInWide =
@@ -207,10 +212,48 @@ export default function BriefStoryLayout({
     return (
       <h2
         ref={headingRefProp}
-        className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
+        className={`${brief.kicker} mb-0 pb-3 border-b ${brief.hairline}`}
       >
         Also in today&apos;s brief
       </h2>
+    );
+  }
+
+  function StoryList({
+    stories,
+    twoCol,
+    measure = false,
+  }: {
+    stories: Ranked[];
+    twoCol?: boolean;
+    measure?: boolean;
+  }) {
+    return (
+      <div
+        className={
+          twoCol
+            ? "columns-1 gap-x-10 md:columns-2 [column-fill:_balance]"
+            : undefined
+        }
+      >
+        {stories.map((s, i) => (
+          <div
+            key={s.item.pmid}
+            ref={
+              measure
+                ? (el) => {
+                    itemRefs.current[i] = el;
+                  }
+                : undefined
+            }
+            className={`border-b border-[#D8D4C8] ${
+              twoCol ? "break-inside-avoid" : ""
+            }`}
+          >
+            {renderStory(s)}
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -241,20 +284,13 @@ export default function BriefStoryLayout({
           )}
 
           {(showHeadingInCenter || measuring) && rest.length > 0 && (
-            <section aria-label="More stories" className="mt-5">
+            <section aria-label="More stories" className={STORY_SECTION_GAP}>
               <AlsoHeading headingRefProp={headingRef} />
-              <div className="mt-1">
-                {(measuring ? rest : centerStories).map((s, i) => (
-                  <div
-                    key={s.item.pmid}
-                    ref={(el) => {
-                      itemRefs.current[i] = el;
-                    }}
-                    className="border-b border-[#D8D4C8]"
-                  >
-                    {renderStory(s)}
-                  </div>
-                ))}
+              <div className="mt-0">
+                <StoryList
+                  stories={measuring ? rest : centerStories}
+                  measure={measuring || showHeadingInCenter}
+                />
               </div>
             </section>
           )}
@@ -277,22 +313,20 @@ export default function BriefStoryLayout({
               leftIsShorter
                 ? "lg:col-start-1 lg:col-span-2"
                 : "lg:col-start-2 lg:col-span-2"
-            }`}
+            } ${showHeadingInWide ? STORY_SECTION_GAP : "lg:mt-0"}`}
           >
-            {showHeadingInWide && (
-              <div className="mb-1">
-                <AlsoHeading />
+            {showHeadingInWide && <AlsoHeading />}
+            {/* Small strip on the freed side, then 2-col in the remaining width. */}
+            <div className="flex items-start gap-0">
+              {leftIsShorter && (
+                <div className={SIDE_STRIP} aria-hidden />
+              )}
+              <div className="min-w-0 flex-1">
+                <StoryList stories={wideStories} twoCol />
               </div>
-            )}
-            <div className={showHeadingInWide ? "mt-1" : "mt-5 lg:mt-0"}>
-              {wideStories.map((s) => (
-                <div
-                  key={s.item.pmid}
-                  className="border-b border-[#D8D4C8]"
-                >
-                  {renderStory(s)}
-                </div>
-              ))}
+              {!leftIsShorter && (
+                <div className={SIDE_STRIP} aria-hidden />
+              )}
             </div>
           </section>
         )}
@@ -305,19 +339,10 @@ export default function BriefStoryLayout({
               ? "More stories continued"
               : "More stories"
           }
-          className="mt-6"
+          className={STORY_SECTION_GAP}
         >
           {showHeadingBelow && <AlsoHeading />}
-          <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
-            {belowStories.map((s) => (
-              <div
-                key={s.item.pmid}
-                className="break-inside-avoid border-b border-[#D8D4C8]"
-              >
-                {renderStory(s)}
-              </div>
-            ))}
-          </div>
+          <StoryList stories={belowStories} twoCol />
         </section>
       )}
     </div>

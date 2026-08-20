@@ -301,7 +301,7 @@ export function FeaturedStory({
 }) {
   return (
     <article
-      className={`${compact ? "py-4" : "py-5"} ${bare ? "" : `border-b ${brief.hairline}`}`}
+      className={`py-5 ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
       {image && (
         <StoryThumb
