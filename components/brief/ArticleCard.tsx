@@ -224,37 +224,38 @@ export function LeadStory({
           Lead story
         </span>
       </p>
-      {/* Float thumb so this block can sit between page-level news/tools floats. */}
-      {image && (
-        <StoryThumb
-          image={image}
-          priority
-          sizes="120px"
-          className="float-left mr-4 mb-2"
-          onError={onImageError}
-        />
-      )}
-      <MetaLine item={item} />
-      <h2
-        className={`${brief.serif} mt-1 text-[1.35rem] sm:text-[1.75rem] font-bold leading-[1.15] tracking-[-0.015em]`}
-      >
-        <a
-          href={item.pubmedUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
-        >
-          {item.headline}
-        </a>
-      </h2>
-      {item.bottomLine && (
-        <p
-          className={`mt-3 ${brief.deck} text-[0.9375rem] sm:text-base leading-relaxed`}
-        >
-          {item.bottomLine}
-        </p>
-      )}
-      <div className="clear-both" aria-hidden />
+      <div className={image ? "flex items-start gap-4" : undefined}>
+        {image && (
+          <StoryThumb
+            image={image}
+            priority
+            sizes="120px"
+            onError={onImageError}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <MetaLine item={item} />
+          <h2
+            className={`${brief.serif} mt-1 text-[1.35rem] sm:text-[1.75rem] font-bold leading-[1.15] tracking-[-0.015em]`}
+          >
+            <a
+              href={item.pubmedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
+            >
+              {item.headline}
+            </a>
+          </h2>
+          {item.bottomLine && (
+            <p
+              className={`mt-3 ${brief.deck} text-[0.9375rem] sm:text-base leading-relaxed`}
+            >
+              {item.bottomLine}
+            </p>
+          )}
+        </div>
+      </div>
       {(item.methods || item.results) && (
         <div
           className={`mt-5 space-y-4 ${brief.sans} text-[0.9375rem] leading-relaxed`}
