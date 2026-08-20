@@ -14,9 +14,11 @@ import {
   FeaturedStory,
 } from "@/components/brief/ArticleCard";
 import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
+import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
 import { brief } from "@/components/brief/briefTheme";
+import type { NewsItem } from "@/lib/news/types";
 
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
@@ -37,12 +39,15 @@ export default function BriefPage({
   topPriority,
   setting,
   images,
+  newsItems = [],
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
   setting: BriefSettingFilter;
   /** Server-assigned images (null = text-only). */
   images: Record<string, StoryImageMatch | null>;
+  /** Approved external news for sidebar. */
+  newsItems?: NewsItem[];
 }) {
   const { saved, savedItems, toggleSave } = useBriefSaved();
   const [brokenPmids, setBrokenPmids] = useState<Set<string>>(() => new Set());
@@ -79,6 +84,9 @@ export default function BriefPage({
       </div>
       <div className="rounded-sm border-l-4 border-[#7BC1D4] pl-4">
         <TopPriorityPanel items={topPriority} />
+      </div>
+      <div className="rounded-sm bg-[#2A79A7]/08 border border-[#2A79A7]/20 px-4 py-5">
+        <InTheNewsPanel items={newsItems} />
       </div>
       <div className="rounded-sm bg-[#EFECE4] border border-[#D8D4C8] px-4 py-5">
         <DigestSignup />

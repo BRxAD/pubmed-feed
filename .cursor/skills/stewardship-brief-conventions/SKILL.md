@@ -76,6 +76,7 @@ Think of the product like a newspaper desk:
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
 | `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (user-edited journal list: JAMA only; trimmed Nature set + priority ID journals) |
+| `scripts/add_news_items.sql` | **Run in Supabase** (In the news RSS approve queue) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -163,6 +164,7 @@ Main topic animal exclusion must be:
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
 - **Brief digest email** — headline links to **PubMed**; no separate PubMed line under the story. Article date sits tightly **above** the headline. “Open today’s brief” / footer still point at the site.
+- **In the news (sidebar)** — WHO / CIDRAP / Google News RSS polled daily (`/api/cron/news-rss`). Items land as **pending**; editors approve in Brief settings before they appear. Steel-tinted sidebar panel; labeled external / not peer-reviewed. Slim rows only (title, url, source, date, short summary). Script: `scripts/add_news_items.sql`.
 - **`/feed`** — PubMed browser; SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
@@ -239,6 +241,7 @@ Main topic animal exclusion must be:
 ## Ingest & cron
 
 - `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
+- `/api/cron/news-rss` daily 12:00 UTC — poll WHO/CIDRAP/Google News into `news_items` as pending (approve before homepage).
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
 - Show times in **Eastern**.
