@@ -24,9 +24,9 @@ type Ranked = {
 const STORY_SECTION_GAP = "mt-5";
 
 /**
- * Desktop: news/tools float beside the story column so Also stories expand
- * into a freed side as soon as that panel ends (no empty gutter). Single-file
- * until both panels clear, then full-width 2-col. Even vertical spacing.
+ * Desktop: news/tools float beside stories. Single-file while both panels
+ * remain; then 2-col continues immediately (may hang beside the taller panel —
+ * no empty vertical gap). Photos stay uncropped via ArticleCard.
  */
 export default function BriefStoryLayout({
   lead,
@@ -54,7 +54,7 @@ export default function BriefStoryLayout({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sideSigRef = useRef("");
-  /** null = measure pass (all Also temporarily beside panels). */
+  /** null = measure pass (all Also temporarily single-file). */
   const [besideCount, setBesideCount] = useState<number | null>(null);
   const measureKey = `${lead?.item.pmid ?? ""}:${rest.map((r) => r.item.pmid).join(",")}`;
 
@@ -71,23 +71,24 @@ export default function BriefStoryLayout({
 
       const newsH = newsRef.current?.offsetHeight ?? 0;
       const toolsH = toolsRef.current?.offsetHeight ?? 0;
-      // Stay single-file (wrapping beside remaining float) until both end.
-      const bothH = Math.max(newsH, toolsH);
+      // Single-file only while *both* panels are still beside the column.
+      // After the shorter ends, 2-col continues immediately (taller may hang).
+      const shortH = Math.min(newsH, toolsH);
       sideSigRef.current = `${newsH}x${toolsH}`;
       const leadH = leadRef.current?.offsetHeight ?? 0;
-      if (bothH <= 0) {
+      if (shortH <= 0) {
         setBesideCount(rest.length);
         return;
       }
 
       let used = leadH;
       let count = 0;
-      if (rest.length > 0 && bothH - used > 24) {
+      if (rest.length > 0 && shortH - used > 24) {
         const headingH = headingRef.current?.offsetHeight ?? 36;
         used += headingH + 20;
         for (let i = 0; i < rest.length; i++) {
           const h = itemRefs.current[i]?.offsetHeight ?? 0;
-          if (h <= 0 || used + h > bothH + 4) break;
+          if (h <= 0 || used + h > shortH + 4) break;
           used += h;
           count += 1;
         }
@@ -156,11 +157,6 @@ export default function BriefStoryLayout({
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-8 lg:block">
-      {/*
-        Desktop: floats so stories shrink beside panels and expand into a
-        freed column as soon as that panel ends (fills the left/right gutter).
-        Mobile: stacked via grid order (stories, news, tools).
-      */}
       <aside
         ref={newsRef}
         className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-5 lg:mr-6 lg:w-[200px]"
@@ -178,8 +174,8 @@ export default function BriefStoryLayout({
       </aside>
 
       {/*
-        Each story is its own flow-root so width can grow when a float ends
-        mid-column (fills the freed gutter). Do not wrap all stories in one BFC.
+        Each story is its own flow-root so width can grow when a float ends.
+        No clear-both before 2-col — keeps vertical rhythm; taller panel may hang.
       */}
       <div className="order-1 min-w-0">
         {lead && (
@@ -212,28 +208,30 @@ export default function BriefStoryLayout({
             </div>
           </section>
         )}
-      </div>
 
-      {below.length > 0 && (
-        <section
-          aria-label={
-            beside.length > 0 ? "More stories continued" : "More stories"
-          }
-          className={`order-4 clear-both ${STORY_SECTION_GAP}`}
-        >
-          {beside.length === 0 && <AlsoHeading />}
-          <div className="columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
-            {below.map((s) => (
-              <div
-                key={s.item.pmid}
-                className="break-inside-avoid border-b border-[#D8D4C8]"
-              >
-                {renderStory(s)}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+        {below.length > 0 && (
+          <section
+            aria-label={
+              beside.length > 0 ? "More stories continued" : "More stories"
+            }
+            className={beside.length > 0 || measuring ? "mt-0" : STORY_SECTION_GAP}
+          >
+            {beside.length === 0 && !measuring && (
+              <AlsoHeading />
+            )}
+            <div className="flow-root columns-1 gap-x-10 md:columns-2 [column-fill:_balance]">
+              {below.map((s) => (
+                <div
+                  key={s.item.pmid}
+                  className="break-inside-avoid border-b border-[#D8D4C8]"
+                >
+                  {renderStory(s)}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

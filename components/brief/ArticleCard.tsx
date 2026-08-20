@@ -179,7 +179,7 @@ function StoryActions({
   );
 }
 
-/** Compact portrait thumb — sits left of headline so stories fit beside floats. */
+/** Side thumb — full photo visible (no crop); larger decode for sharpness. */
 function StoryThumb({
   image,
   sizes,
@@ -195,15 +195,16 @@ function StoryThumb({
 }) {
   return (
     <div
-      className={`relative aspect-[4/5] w-[6.5rem] shrink-0 overflow-hidden bg-[#EFECE4] sm:w-[7.5rem] ${className ?? ""}`}
+      className={`relative w-[8.5rem] shrink-0 bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
     >
       <Image
         src={image.url}
         alt={image.label}
-        fill
+        width={420}
+        height={420}
         sizes={sizes}
         priority={priority}
-        className="object-cover object-center"
+        className="h-auto w-full object-contain object-center"
         onError={() => onError?.()}
       />
     </div>
@@ -229,7 +230,7 @@ export function LeadStory({
           <StoryThumb
             image={image}
             priority
-            sizes="120px"
+            sizes="(max-width: 640px) 136px, 168px"
             onError={onImageError}
           />
         )}
@@ -306,8 +307,8 @@ export function FeaturedStory({
       {image && (
         <StoryThumb
           image={image}
-          sizes="120px"
-          className="float-left mb-2 mr-3.5 w-[5.5rem] sm:w-[6.5rem]"
+          sizes="(max-width: 640px) 136px, 168px"
+          className="float-left mb-2 mr-3.5 w-[8.5rem] sm:w-[10.5rem]"
           onError={onImageError}
         />
       )}
