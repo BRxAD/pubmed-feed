@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
-/* Single theme — cream paper / plum ink. No dark-mode OS override. */
+/*
+ * Class-based dark only. Brief stays cream; /feed opts in with `.dark`.
+ * Without this, OS dark mode mixed light cards with dark text on cream.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Brief default — cream paper / plum ink. */
 :root {
   --background: #f6f4ef;
   --foreground: #1c0b19;

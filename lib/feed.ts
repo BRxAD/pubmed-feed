@@ -403,9 +403,13 @@ function dedupeByPmid(items: SummaryRow[]): SummaryRow[] {
 
 /**
  * Feed ranking (canonical):
- * - Ingested: most recently fetched first, then effective priority (admin → ML).
- * - Published: newest article/release date first, then effective priority.
- * - Relevance: highest rank_score first (unchanged).
+ * - Ingested (default): newest `fetched_at` first, then stored ML grade, then PMID.
+ * - Published: newest article/release date first, then ML grade, then PMID.
+ * - Relevance: highest rank_score first, then ML grade, then PMID.
+ *
+ * Do **not** use admin_priority in the order for ingested/published — rating
+ * would reshuffle the list mid-session. Unrated-only filter still drops a
+ * card after a human rating (filter change, not sort change).
  */
 function feedReleaseOrPubDate(item: FeedItem): string {
   const today = new Date().toISOString().slice(0, 10);
@@ -422,12 +426,11 @@ function feedIngestTime(item: FeedItem): string {
   return fetched || created || "";
 }
 
-function feedEffectivePriority(item: FeedItem): number {
-  const ml =
-    item.ml_priority != null && Number.isFinite(item.ml_priority)
-      ? item.ml_priority
-      : 0;
-  return effectivePriority(item.admin_priority, ml);
+/** Stable tie-break: ingest ML only — ignores human admin_priority. */
+function feedMlPriority(item: FeedItem): number {
+  return item.ml_priority != null && Number.isFinite(item.ml_priority)
+    ? item.ml_priority
+    : 0;
 }
 
 function sortFeedItemsByRecencyThenPriority(
@@ -438,7 +441,7 @@ function sortFeedItemsByRecencyThenPriority(
     return [...items].sort((a, b) => {
       const scoreDiff = (b.rank_score ?? 0) - (a.rank_score ?? 0);
       if (scoreDiff !== 0) return scoreDiff;
-      const pDiff = feedEffectivePriority(b) - feedEffectivePriority(a);
+      const pDiff = feedMlPriority(b) - feedMlPriority(a);
       if (pDiff !== 0) return pDiff;
       return a.pmid.localeCompare(b.pmid);
     });
@@ -462,7 +465,7 @@ function sortFeedItemsByRecencyThenPriority(
         return ib.localeCompare(ia);
       }
     }
-    const pDiff = feedEffectivePriority(b) - feedEffectivePriority(a);
+    const pDiff = feedMlPriority(b) - feedMlPriority(a);
     if (pDiff !== 0) return pDiff;
     return a.pmid.localeCompare(b.pmid);
   });
@@ -803,7 +806,12 @@ export async function getFeedItems(
       itemsWithJif = itemsWithJif.map((item) => ({
         ...item,
         rank_score:
-          (item.rank_score ?? 0) + priorityScoreBoost(item.admin_priority),
+          (item.rank_score ?? 0) +
+          priorityScoreBoost(
+            item.ml_priority != null && Number.isFinite(item.ml_priority)
+              ? item.ml_priority
+              : null
+          ),
       }));
     } else {
       const recFromItem = (item: FeedItem): PubMedRecord => ({
@@ -818,11 +826,15 @@ export async function getFeedItems(
         authors: [],
       });
       itemsWithJif = itemsWithJif.map((item) => {
+        const mlBoost = priorityScoreBoost(
+          item.ml_priority != null && Number.isFinite(item.ml_priority)
+            ? item.ml_priority
+            : null
+        );
         if (item.rank_score != null && Number.isFinite(item.rank_score)) {
           return {
             ...item,
-            rank_score:
-              item.rank_score + priorityScoreBoost(item.admin_priority),
+            rank_score: item.rank_score + mlBoost,
           };
         }
         const rec = recFromItem(item);
@@ -836,8 +848,7 @@ export async function getFeedItems(
           jifIsHigh,
           scoringOptions
         );
-        const rank_score =
-          breakdown.finalScore + priorityScoreBoost(item.admin_priority);
+        const rank_score = breakdown.finalScore + mlBoost;
         return { ...item, rank_score };
       });
     }

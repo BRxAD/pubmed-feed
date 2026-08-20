@@ -8,6 +8,11 @@ type Props = {
   pmid: string;
   initialPriority: number | null;
   featureSnapshot: Record<string, number | boolean>;
+  /**
+   * When true, refresh after save so the card drops from the Unrated-only list.
+   * Otherwise keep the page order stable (local select state is enough).
+   */
+  refreshAfterSave?: boolean;
 };
 
 const OPTIONS = [
@@ -23,6 +28,7 @@ export default function AdminPrioritySelector({
   pmid,
   initialPriority,
   featureSnapshot,
+  refreshAfterSave = false,
 }: Props) {
   const router = useRouter();
   const [priority, setPriority] = useState(
@@ -55,13 +61,13 @@ export default function AdminPrioritySelector({
         }
 
         setStatus("saved");
-        router.refresh();
+        if (refreshAfterSave) router.refresh();
         setTimeout(() => setStatus("idle"), 2000);
       } catch {
         setStatus("error");
       }
     },
-    [topicId, pmid, featureSnapshot, router]
+    [topicId, pmid, featureSnapshot, router, refreshAfterSave]
   );
 
   return (

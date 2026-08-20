@@ -6,10 +6,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** Admin feed is always dark zinc — independent of the cream Brief theme. */
 export default function FeedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <div className="dark min-h-screen bg-zinc-950 text-zinc-100">
+      {children}
+    </div>
+  );
 }

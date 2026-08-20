@@ -72,6 +72,7 @@ function buildFeedUrl(params: {
   q.set("topicId", params.topicId);
   if (params.source && params.source !== "all") q.set("source", params.source);
   if (params.sort) q.set("sort", params.sort);
+  else q.set("sort", "ingested");
   if (params.keyword?.trim()) q.set("keyword", params.keyword.trim());
   if (params.page != null && params.page > 1) q.set("page", String(params.page));
   if (params.minRelevance && params.minRelevance > 0)
@@ -575,12 +576,14 @@ function ArticleCard({
             pmid={item.pmid}
             initialPriority={item.admin_priority}
             featureSnapshot={snapshotFromBreakdown(breakdown)}
+            refreshAfterSave={unratedOnly}
           />
           <AdminSettingSelector
             topicId={topicId}
             pmid={item.pmid}
             autoSettings={getAutoItemSettings(item)}
             initialSetting={item.admin_setting}
+            refreshAfterSave={Boolean(setting)}
           />
         </div>
       )}

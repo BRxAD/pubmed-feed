@@ -17,6 +17,8 @@ type Props = {
   autoSetting?: ArticleSetting | null;
   /** Saved override, if any. */
   initialSetting: ArticleSetting | null;
+  /** Refresh when a setting filter is active so the card can leave the filtered list. */
+  refreshAfterSave?: boolean;
 };
 
 const OPTIONS: { value: string; label: string }[] = [
@@ -33,6 +35,7 @@ export default function AdminSettingSelector({
   autoSettings,
   autoSetting,
   initialSetting,
+  refreshAfterSave = false,
 }: Props) {
   const router = useRouter();
   const [setting, setSetting] = useState(initialSetting ?? "");
@@ -64,13 +67,13 @@ export default function AdminSettingSelector({
         }
 
         setStatus("saved");
-        router.refresh();
+        if (refreshAfterSave) router.refresh();
         setTimeout(() => setStatus("idle"), 2000);
       } catch {
         setStatus("error");
       }
     },
-    [topicId, pmid, router]
+    [topicId, pmid, router, refreshAfterSave]
   );
 
   const autoList =

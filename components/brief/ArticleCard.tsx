@@ -199,7 +199,11 @@ function StoryActions({
   );
 }
 
-/** Side thumb — full photo visible (no crop); only rendered when a match exists. */
+/**
+ * Also / secondary thumb — fixed 4:3 slot, cover-crop, layout-owned size.
+ * Width comes from the column (not intrinsic image size); aspect-ratio
+ * reserves height before load to avoid text-column jostle.
+ */
 function StoryThumb({
   image,
   sizes,
@@ -215,16 +219,15 @@ function StoryThumb({
 }) {
   return (
     <div
-      className={`relative w-[8.5rem] shrink-0 bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
+      className={`relative aspect-[4/3] w-[8.5rem] shrink-0 overflow-hidden rounded-sm bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
     >
       <Image
         src={image.url}
         alt={image.label}
-        width={420}
-        height={420}
+        fill
         sizes={sizes}
         priority={priority}
-        className="h-auto w-full object-contain object-center"
+        className="object-cover object-center"
         onError={() => onError?.()}
       />
     </div>
@@ -240,7 +243,7 @@ function LeadImage({
   onError?: () => void;
 }) {
   return (
-    <div className="relative aspect-[3/2] w-full overflow-hidden bg-[#EFECE4]">
+    <div className="relative aspect-[3/2] w-full overflow-hidden rounded-sm bg-[#EFECE4]">
       <Image
         src={image.url}
         alt={image.label}
@@ -281,7 +284,7 @@ export function LeadStory({
         <div className="min-w-0">
           <MetaLine item={item} />
           <h2
-            className={`${brief.serif} mt-1.5 text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
+            className={`${brief.serif} mt-1.5 text-balance text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
           >
             <a
               href={item.pubmedUrl}
@@ -359,6 +362,8 @@ export function FeaturedStory({
     headlineTier === "list"
       ? "text-[1.0625rem] leading-snug sm:text-[1.125rem]"
       : "text-[1.25rem] leading-snug sm:text-[1.375rem]";
+  /** Balance wrap for lead-adjacent / photo-band headlines (Also + any thumb). */
+  const balanceHeadline = headlineTier === "secondary" || Boolean(image);
 
   return (
     <article
@@ -368,13 +373,15 @@ export function FeaturedStory({
         <StoryThumb
           image={image}
           sizes="(max-width: 640px) 136px, 168px"
-          className="float-left mb-2 mr-3.5 w-[8.5rem] sm:w-[10.5rem]"
+          className="float-left mb-2 mr-3.5"
           onError={onImageError}
         />
       )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}`}
+        className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}${
+          balanceHeadline ? " text-balance" : ""
+        }`}
       >
         <a
           href={item.pubmedUrl}

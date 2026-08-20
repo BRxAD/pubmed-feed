@@ -111,7 +111,7 @@ Also: **do not commit or push** unless the user asks.
 | Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v4` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
-| Feed default sort | **Ingested**: newest `fetched_at` first, then effective priority | `lib/feed.ts` |
+| Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
 | Trending keywords | ~**6 h**; bust with feed slim tag (ingest) | `lib/feed.ts` |
 
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
@@ -167,7 +167,7 @@ Main topic animal exclusion must be:
 - **Brief digest email** — headline links to **PubMed**; no separate PubMed line under the story. Article date sits tightly **above** the headline. “Open today’s brief” / footer still point at the site.
 - **In the news** — WHO / CIDRAP / Google News RSS polled daily (`/api/cron/news-rss`). Items need a real **http(s)** link to be stored, approved, or shown. **Rolling 7-day window** (`NEWS_MAX_AGE_DAYS` in `lib/news/store.ts`): ingest skips older RSS items; Brief + approval lists filter to last 7 days and sort **newest → oldest** by `published_at` (fallback `created_at`). Editors approve on **`/feed`** (collapsible accordion, collapsed by default). Homepage shell matches broadsheet gutters (`brief.shell`: ~5vw sides, `max-w-[1570px]`). Masthead uses date-left / logo-center + double rule. Lead between news + tools (floats). Sidebars use a shared cream `SidebarCard` (hairline + accent top rule: steel / salmon / sky / olive) with Lead-style eyebrows — not solid steel fills. Scripts: `scripts/add_news_items.sql`, `scripts/add_news_items_image_url.sql`.
 - **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
-  - **Feed sort (hard):** **Ingested** = most recent `fetched_at` first, then effective priority (admin → ML). **Published** = newest article/release date first, then effective priority. **Relevance** = `rank_score` first.
+  - **Feed sort (hard):** Default **Ingested** = newest `fetched_at`, then stored `ml_priority`, then PMID. **Published** = newest article/release date, then ML, then PMID. **Relevance** = `rank_score` (+ ML boost only — not admin). Human rating must **not** reshuffle order; **Unrated only** may drop a card after save. `/feed` is always **dark** (`.dark` shell); Brief stays cream.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
 - Tab titles start with **Feed**; distinct route icons.
@@ -210,7 +210,7 @@ Main topic animal exclusion must be:
 - Fluid CPU cuts: summarize cap **40**; ingest **2×/day** (06:00 + 17:00 ET); priority retrain **weekly**; homepage ready cache ~1 h.
 - Ingest hardening (Aug 2026): article upsert **always** sends `fetched_at` (preserve first-seen; never omit → PostgREST null); `runDailyDigest` **throws** on ingest failure (HTTP 500, no false-green cron); wrap `revalidateTag` in try/catch so cache bust never fails the run.
 - Production schedule: **Vercel Cron only**; GitHub Actions ingest is **manual `workflow_dispatch`** (no schedule).
-- Feed sort: newest first, then effective priority (ingested / published).
+- Feed sort: ingested default; ML tie-break (not admin); unrated-only may drop after rate; `/feed` dark shell.
 - Brief sort: prefer published, else recent ingest (`max(publish, fetched_at)`); sticky lead equal-or-higher replaces.
 - Digest email: headline → PubMed; date above headline; no separate PubMed link under each story.
 - Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses.
@@ -235,6 +235,7 @@ Main topic animal exclusion must be:
 
 - Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab, over time (pmid-seeded tie-break, no date), and in graphic takeaway (same assigned URL).
 - Top ~**15** ranked stories may get a photo (`photoTopCount` in `storyImagePolicy.ts`). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely).
+- **Crop lock:** lead = `aspect-[3/2]`; Also / secondary thumbs = `aspect-[4/3]`. Both `object-cover object-center`, layout-owned width, `rounded-sm`. Lead + photo-band headlines use `text-balance`.
 - Keep uniqueness (catalog id + URL) on the All assignment.
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
 - Do not re-assign images per setting tab.
@@ -265,7 +266,7 @@ Main topic animal exclusion must be:
 - Digest email: headline links to PubMed (no separate PubMed line); article date sits tightly above the headline. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 - Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
-- Feed sort: newest first (ingested=`fetched_at`, published=article date), then effective priority within the same time.
+- Feed sort: newest first (ingested=`fetched_at`, published=article date), then ML grade — not admin priority (so rating does not reshuffle). Unrated-only may remove after rate.
 - Feed header: cached **human rated** total (~24h head count) — not a live corpus walk.
 
 ## Implementation checklist
@@ -284,7 +285,7 @@ Main topic animal exclusion must be:
 - [ ] PubMed-only preserved
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
-- [ ] Feed sort: newest first, then effective priority (ingested / published)
+- [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
 - [ ] Digest email: headline → PubMed; date above headline; no under-story PubMed link
 - [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise
