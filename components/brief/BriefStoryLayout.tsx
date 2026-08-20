@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type Ref,
 } from "react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
@@ -19,9 +20,19 @@ type Ranked = {
   image: StoryImageMatch | null;
 };
 
+type Pack = {
+  /** Also stories in the center column under the lead (beside both panels). */
+  center: number;
+  /** Also stories in the wide band beside the taller panel only. */
+  wide: number;
+  /** True when the left (news) panel is the shorter one. */
+  leftIsShorter: boolean;
+};
+
 /**
- * Lead sits between left/right panels. Extra stories fill the center column
- * (single file) until past both panels, then continue full-width 2-column.
+ * Lead between panels. Also fills the center until the shorter panel ends,
+ * then fills the freed side (single file) beside the taller panel, then
+ * full-width 2-col after both panels.
  */
 export default function BriefStoryLayout({
   lead,
@@ -48,64 +59,97 @@ export default function BriefStoryLayout({
   const leadRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const sideHRef = useRef(0);
-  /** null = measure pass (all Also in center). */
-  const [besideCount, setBesideCount] = useState<number | null>(null);
+  const sideSigRef = useRef("");
+  /** null = measure pass (all Also temporarily in center). */
+  const [pack, setPack] = useState<Pack | null>(null);
   const measureKey = `${lead?.item.pmid ?? ""}:${rest.map((r) => r.item.pmid).join(",")}`;
 
-  // Remeasure when the story set changes.
   useLayoutEffect(() => {
-    setBesideCount(null);
+    setPack(null);
   }, [measureKey]);
 
   useLayoutEffect(() => {
-    function pack() {
+    function computePack(): Pack {
       if (typeof window !== "undefined" && window.innerWidth < 1024) {
-        setBesideCount(rest.length);
-        return;
+        return {
+          center: rest.length,
+          wide: 0,
+          leftIsShorter: true,
+        };
       }
 
-      const sideH = Math.max(
-        newsRef.current?.offsetHeight ?? 0,
-        toolsRef.current?.offsetHeight ?? 0
-      );
-      sideHRef.current = sideH;
+      const newsH = newsRef.current?.offsetHeight ?? 0;
+      const toolsH = toolsRef.current?.offsetHeight ?? 0;
       const leadH = leadRef.current?.offsetHeight ?? 0;
-      if (sideH <= 0) {
-        setBesideCount(rest.length);
-        return;
+      const shortH = Math.min(newsH, toolsH);
+      const tallH = Math.max(newsH, toolsH);
+      const leftIsShorter = newsH <= toolsH;
+      sideSigRef.current = `${newsH}x${toolsH}`;
+
+      const heights = rest.map((_, i) => itemRefs.current[i]?.offsetHeight ?? 0);
+      const headingH = headingRef.current?.offsetHeight ?? 36;
+
+      let used = leadH;
+      let i = 0;
+      let center = 0;
+      let headingPlaced = false;
+
+      const placeHeading = () => {
+        if (!headingPlaced && rest.length > 0) {
+          used += headingH + 12;
+          headingPlaced = true;
+        }
+      };
+
+      // Phase 1: center column until the shorter panel ends.
+      while (i < rest.length && shortH > 0) {
+        placeHeading();
+        const h = heights[i];
+        if (h <= 0) break;
+        if (used + h > shortH + 4) break;
+        used += h;
+        center += 1;
+        i += 1;
       }
 
-      let room = sideH - leadH;
-      let count = 0;
-      if (rest.length > 0 && room > 24) {
-        const headingH = headingRef.current?.offsetHeight ?? 36;
-        room -= headingH + 12;
-        for (let i = 0; i < rest.length; i++) {
-          const h = itemRefs.current[i]?.offsetHeight ?? 0;
-          if (h <= 0 || h > room + 4) break;
-          room -= h;
-          count += 1;
+      // Phase 2: wide band beside the taller panel until it ends.
+      let wide = 0;
+      const asymmetric = tallH - shortH > 48;
+      if (asymmetric) {
+        // Continue height from what we already stacked in the center column.
+        // The wide band starts at shortH visually; remaining room is tall - used
+        // (or tall - short if center ended early below shortH).
+        const bandStart = Math.max(used, shortH);
+        let bandUsed = bandStart;
+        while (i < rest.length) {
+          placeHeading();
+          const h = heights[i];
+          if (h <= 0) break;
+          if (bandUsed + h > tallH + 4) break;
+          bandUsed += h;
+          wide += 1;
+          i += 1;
         }
       }
-      setBesideCount((prev) => (prev === count ? prev : count));
+
+      return { center, wide, leftIsShorter };
     }
 
-    if (besideCount === null) {
-      pack();
+    if (pack === null) {
+      const next = computePack();
+      setPack(next);
     }
 
-    const onResize = () => setBesideCount(null);
+    const onResize = () => setPack(null);
     window.addEventListener("resize", onResize);
 
     const ro = new ResizeObserver(() => {
-      const h = Math.max(
-        newsRef.current?.offsetHeight ?? 0,
-        toolsRef.current?.offsetHeight ?? 0
-      );
-      if (Math.abs(h - sideHRef.current) < 2) return;
-      sideHRef.current = h;
-      setBesideCount(null);
+      const newsH = newsRef.current?.offsetHeight ?? 0;
+      const toolsH = toolsRef.current?.offsetHeight ?? 0;
+      const sig = `${newsH}x${toolsH}`;
+      if (sig === sideSigRef.current) return;
+      sideSigRef.current = sig;
+      setPack(null);
     });
     if (newsRef.current) ro.observe(newsRef.current);
     if (toolsRef.current) ro.observe(toolsRef.current);
@@ -114,12 +158,31 @@ export default function BriefStoryLayout({
       window.removeEventListener("resize", onResize);
       ro.disconnect();
     };
-  }, [besideCount, rest.length]);
+  }, [pack, rest.length]);
 
-  const measuring = besideCount === null;
-  const shownBeside = measuring ? rest.length : besideCount;
-  const beside = rest.slice(0, shownBeside);
-  const below = measuring ? [] : rest.slice(shownBeside);
+  const measuring = pack === null;
+  const centerN = measuring ? rest.length : pack.center;
+  const wideN = measuring ? 0 : pack.wide;
+  const leftIsShorter = pack?.leftIsShorter ?? true;
+
+  const centerStories = rest.slice(0, centerN);
+  const wideStories = rest.slice(centerN, centerN + wideN);
+  const belowStories = measuring
+    ? []
+    : rest.slice(centerN + wideN);
+
+  const showHeadingInCenter = centerStories.length > 0;
+  const showHeadingInWide =
+    !showHeadingInCenter && wideStories.length > 0;
+  const showHeadingBelow =
+    !showHeadingInCenter &&
+    !showHeadingInWide &&
+    belowStories.length > 0;
+
+  const newsSpansTall =
+    !measuring && !leftIsShorter && wideStories.length > 0;
+  const toolsSpansTall =
+    !measuring && leftIsShorter && wideStories.length > 0;
 
   function renderStory(s: Ranked) {
     const hasImage = Boolean(s.image);
@@ -136,18 +199,35 @@ export default function BriefStoryLayout({
     );
   }
 
+  function AlsoHeading({
+    headingRefProp,
+  }: {
+    headingRefProp?: Ref<HTMLHeadingElement>;
+  }) {
+    return (
+      <h2
+        ref={headingRefProp}
+        className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
+      >
+        Also in today&apos;s brief
+      </h2>
+    );
+  }
+
   return (
     <div className="mt-6">
       <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(180px,200px)_minmax(0,1fr)_minmax(180px,200px)] lg:items-start lg:gap-x-6">
         <aside
           ref={newsRef}
-          className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1"
+          className={`order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:order-1 lg:col-start-1 lg:row-start-1 ${
+            newsSpansTall ? "lg:row-span-2" : ""
+          }`}
           aria-label="In the news"
         >
           {left}
         </aside>
 
-        <div className="order-1 min-w-0 lg:order-2">
+        <div className="order-1 min-w-0 lg:order-2 lg:col-start-2 lg:row-start-1">
           {lead && (
             <div ref={leadRef}>
               <LeadStory
@@ -160,16 +240,11 @@ export default function BriefStoryLayout({
             </div>
           )}
 
-          {beside.length > 0 && (
+          {(showHeadingInCenter || measuring) && rest.length > 0 && (
             <section aria-label="More stories" className="mt-5">
-              <h2
-                ref={headingRef}
-                className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
-              >
-                Also in today&apos;s brief
-              </h2>
+              <AlsoHeading headingRefProp={headingRef} />
               <div className="mt-1">
-                {beside.map((s, i) => (
+                {(measuring ? rest : centerStories).map((s, i) => (
                   <div
                     key={s.item.pmid}
                     ref={(el) => {
@@ -187,29 +262,54 @@ export default function BriefStoryLayout({
 
         <aside
           ref={toolsRef}
-          className="order-3 flex flex-col gap-8"
+          className={`order-3 flex flex-col gap-8 lg:col-start-3 lg:row-start-1 ${
+            toolsSpansTall ? "lg:row-span-2" : ""
+          }`}
           aria-label="Brief tools"
         >
           {right}
         </aside>
+
+        {!measuring && wideStories.length > 0 && (
+          <section
+            aria-label="More stories"
+            className={`order-4 min-w-0 lg:row-start-2 ${
+              leftIsShorter
+                ? "lg:col-start-1 lg:col-span-2"
+                : "lg:col-start-2 lg:col-span-2"
+            }`}
+          >
+            {showHeadingInWide && (
+              <div className="mb-1">
+                <AlsoHeading />
+              </div>
+            )}
+            <div className={showHeadingInWide ? "mt-1" : "mt-5 lg:mt-0"}>
+              {wideStories.map((s) => (
+                <div
+                  key={s.item.pmid}
+                  className="border-b border-[#D8D4C8]"
+                >
+                  {renderStory(s)}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
-      {below.length > 0 && (
+      {belowStories.length > 0 && (
         <section
           aria-label={
-            beside.length > 0 ? "More stories continued" : "More stories"
+            centerStories.length + wideStories.length > 0
+              ? "More stories continued"
+              : "More stories"
           }
           className="mt-6"
         >
-          {beside.length === 0 && (
-            <h2
-              className={`${brief.kicker} mb-2 pb-3 border-b ${brief.hairline}`}
-            >
-              Also in today&apos;s brief
-            </h2>
-          )}
+          {showHeadingBelow && <AlsoHeading />}
           <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
-            {below.map((s) => (
+            {belowStories.map((s) => (
               <div
                 key={s.item.pmid}
                 className="break-inside-avoid border-b border-[#D8D4C8]"
