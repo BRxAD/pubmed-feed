@@ -82,20 +82,20 @@ export default function BriefPage({
         ) : (
           <>
             {/*
-              Desktop: float news left + tools right so lead/Also wrap between
-              them, then expand under the news (no empty left gutter).
-              Mobile: stack lead → news → tools via flex order.
+              Desktop: float news left + tools right. Lead uses a compact side
+              thumb so it fits in the middle. Also is normal flow (not multicol
+              BFC) so stories wrap under the news to the left edge.
             */}
             <div className="mt-6 flex flex-col gap-8 lg:block">
               <aside
-                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-4 lg:mr-8 lg:w-[220px]"
+                className="order-2 rounded-sm bg-[#2A79A7] px-4 py-5 text-[#F6F4EF] lg:float-left lg:mb-3 lg:mr-6 lg:w-[200px]"
                 aria-label="In the news"
               >
                 <InTheNewsPanel items={newsItems} variant="onSteel" />
               </aside>
 
               <aside
-                className="order-3 flex flex-col gap-8 lg:float-right lg:mb-4 lg:ml-8 lg:w-[220px]"
+                className="order-3 flex flex-col gap-8 lg:float-right lg:mb-3 lg:ml-6 lg:w-[200px]"
                 aria-label="Brief tools"
               >
                 <div className="rounded-sm bg-[#FFA69E]/12 border border-[#FFA69E]/25 px-4 py-5">
@@ -132,13 +132,13 @@ export default function BriefPage({
                       Also in today&apos;s brief
                     </h2>
 
-                    <div className="mt-1 columns-1 gap-x-14 md:columns-2 [column-fill:_balance]">
+                    <div className="mt-1">
                       {rest.map((s) => {
                         const hasImage = Boolean(s.image);
                         return (
                           <div
                             key={s.item.pmid}
-                            className="break-inside-avoid border-b border-[#D8D4C8]"
+                            className="border-b border-[#D8D4C8]"
                           >
                             <FeaturedStory
                               item={s.item}

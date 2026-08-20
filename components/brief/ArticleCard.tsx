@@ -5,8 +5,6 @@ import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingsLabel } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
-import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
-import { pickPhotoQuote } from "@/lib/brief/photoQuote";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
 import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
@@ -181,50 +179,34 @@ function StoryActions({
   );
 }
 
-/** 16:9 cover crop — keeps card rhythm consistent across the brief. */
-function StoryImage({
+/** Compact portrait thumb — sits left of headline so stories fit beside floats. */
+function StoryThumb({
   image,
   sizes,
   priority,
   onError,
   className,
-  caption,
 }: {
   image: StoryImageMatch;
   sizes: string;
   priority?: boolean;
   onError?: () => void;
   className?: string;
-  /** Quoted abstract excerpt under the photo (caption), when provided. */
-  caption?: string | null;
 }) {
   return (
-    <figure className={className ?? ""}>
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#EFECE4]">
-        <Image
-          src={image.url}
-          alt={image.label}
-          fill
-          sizes={sizes}
-          priority={priority}
-          className="object-cover object-center"
-          onError={() => onError?.()}
-        />
-      </div>
-      {caption && (
-        <figcaption
-          className={`mt-2 ${brief.sans} text-[0.75rem] leading-[1.45] ${brief.muted} sm:text-[0.8125rem]`}
-        >
-          <span className="text-[#2A79A7]" aria-hidden>
-            “
-          </span>
-          {caption}
-          <span className="text-[#2A79A7]" aria-hidden>
-            ”
-          </span>
-        </figcaption>
-      )}
-    </figure>
+    <div
+      className={`relative aspect-[4/5] w-[6.5rem] shrink-0 overflow-hidden bg-[#EFECE4] sm:w-[7.5rem] ${className ?? ""}`}
+    >
+      <Image
+        src={image.url}
+        alt={image.label}
+        fill
+        sizes={sizes}
+        priority={priority}
+        className="object-cover object-center"
+        onError={() => onError?.()}
+      />
+    </div>
   );
 }
 
@@ -235,31 +217,26 @@ export function LeadStory({
   image,
   onImageError,
 }: StoryProps) {
-  const photoCaption =
-    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image
-      ? pickPhotoQuote(item)
-      : null;
-
   return (
     <article className="brief-lead-fade pb-2">
-      <p className={`${brief.kicker} mb-4`}>
+      <p className={`${brief.kicker} mb-3`}>
         <span className="inline-block border-b-2 border-[#FFA69E] pb-0.5">
           Lead story
         </span>
       </p>
+      {/* Float thumb so this block can sit between page-level news/tools floats. */}
       {image && (
-        <StoryImage
+        <StoryThumb
           image={image}
           priority
-          sizes="(max-width: 1024px) 100vw, 720px"
-          className="mb-5"
+          sizes="120px"
+          className="float-left mr-4 mb-2"
           onError={onImageError}
-          caption={photoCaption}
         />
       )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-1 text-[1.75rem] sm:text-[2.35rem] font-bold leading-[1.12] tracking-[-0.015em]`}
+        className={`${brief.serif} mt-1 text-[1.35rem] sm:text-[1.75rem] font-bold leading-[1.15] tracking-[-0.015em]`}
       >
         <a
           href={item.pubmedUrl}
@@ -272,14 +249,15 @@ export function LeadStory({
       </h2>
       {item.bottomLine && (
         <p
-          className={`mt-4 ${brief.deck} text-base sm:text-[1.0625rem] leading-relaxed`}
+          className={`mt-3 ${brief.deck} text-[0.9375rem] sm:text-base leading-relaxed`}
         >
           {item.bottomLine}
         </p>
       )}
+      <div className="clear-both" aria-hidden />
       {(item.methods || item.results) && (
         <div
-          className={`mt-6 space-y-4 ${brief.sans} text-[0.9375rem] leading-relaxed`}
+          className={`mt-5 space-y-4 ${brief.sans} text-[0.9375rem] leading-relaxed`}
         >
           {item.methods && (
             <div>
@@ -306,7 +284,7 @@ export function LeadStory({
   );
 }
 
-/** Shared card used for all non-lead stories — stacked 16:9 + text. */
+/** Shared card used for all non-lead stories — side thumb + text so floats can wrap. */
 export function FeaturedStory({
   item,
   saved,
@@ -320,22 +298,16 @@ export function FeaturedStory({
   /** Tighter spacing for lower-ranked text-only stories. */
   compact?: boolean;
 }) {
-  const photoCaption =
-    STORY_IMAGE_POLICY.quoteCaptionUnderPhoto && image
-      ? pickPhotoQuote(item)
-      : null;
-
   return (
     <article
-      className={`${compact ? "py-4" : "py-6"} ${bare ? "" : `border-b ${brief.hairline}`}`}
+      className={`${compact ? "py-4" : "py-5"} ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
       {image && (
-        <StoryImage
+        <StoryThumb
           image={image}
-          sizes="(max-width: 768px) 100vw, 420px"
-          className="mb-4"
+          sizes="120px"
+          className="float-left mb-2 mr-3.5 w-[5.5rem] sm:w-[6.5rem]"
           onError={onImageError}
-          caption={photoCaption}
         />
       )}
       <MetaLine item={item} />
@@ -354,10 +326,11 @@ export function FeaturedStory({
         </a>
       </h2>
       {item.bottomLine && (
-        <p className={`mt-2.5 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
+        <p className={`mt-2 ${brief.deck} text-[0.9375rem] leading-relaxed`}>
           {item.bottomLine}
         </p>
       )}
+      <div className="clear-both" aria-hidden />
       <StoryActions
         item={item}
         saved={saved}

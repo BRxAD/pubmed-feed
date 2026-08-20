@@ -21,7 +21,7 @@ export const NEWS_SOURCES: NewsSource[] = [
   {
     id: "cidrap",
     label: "CIDRAP",
-    feedUrl: "https://www.cidrap.umn.edu/news/rss.xml",
+    feedUrl: "https://www.cidrap.umn.edu/rss.xml",
     requireTopicMatch: true,
   },
   {

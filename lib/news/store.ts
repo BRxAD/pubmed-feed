@@ -6,6 +6,7 @@ import {
 } from "@/lib/news/parseRss";
 import { NEWS_SOURCES, matchesNewsTopic } from "@/lib/news/sources";
 import type { NewsItem, NewsItemStatus } from "@/lib/news/types";
+import { isHttpUrl } from "@/lib/news/url";
 
 export type { NewsItem, NewsItemStatus };
 
@@ -98,6 +99,8 @@ export async function ingestNewsFeeds(): Promise<{
 
       let inserted = 0;
       for (const item of kept) {
+        if (!isHttpUrl(item.url)) continue;
+
         let imageUrl = item.imageUrl;
         if (!imageUrl && ogFetches < MAX_OG_IMAGE_FETCHES) {
           ogFetches += 1;
@@ -179,7 +182,9 @@ export async function listNewsItems(options: {
     if (error.message.toLowerCase().includes("news_items")) return [];
     throw new Error(error.message);
   }
-  return ((data ?? []) as NewsRow[]).map(mapRow);
+  return ((data ?? []) as NewsRow[])
+    .map(mapRow)
+    .filter((item) => isHttpUrl(item.url));
 }
 
 export async function listApprovedNewsForBrief(
@@ -197,7 +202,9 @@ export async function listApprovedNewsForBrief(
     if (error.message.toLowerCase().includes("news_items")) return [];
     throw new Error(error.message);
   }
-  return ((data ?? []) as NewsRow[]).map(mapRow);
+  return ((data ?? []) as NewsRow[])
+    .map(mapRow)
+    .filter((item) => isHttpUrl(item.url));
 }
 
 export async function setNewsItemStatus(

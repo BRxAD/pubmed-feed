@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
+import { isHttpUrl } from "@/lib/news/url";
 import { brief } from "@/components/brief/briefTheme";
 
 function formatDate(iso: string | null): string {
@@ -48,6 +49,7 @@ export default function InTheNewsPanel({
   variant?: "default" | "onSteel";
 }) {
   const onSteel = variant === "onSteel";
+  const linked = items.filter((item) => isHttpUrl(item.url));
 
   return (
     <section aria-labelledby="in-the-news-heading">
@@ -61,7 +63,7 @@ export default function InTheNewsPanel({
       >
         In the news
       </h2>
-      {items.length === 0 ? (
+      {linked.length === 0 ? (
         <p
           className={`${brief.sans} text-sm ${
             onSteel ? "text-[#F6F4EF]/75" : brief.muted
@@ -71,7 +73,7 @@ export default function InTheNewsPanel({
         </p>
       ) : (
         <ul className="space-y-5">
-          {items.map((item) => {
+          {linked.map((item) => {
             const dateLabel = formatDate(item.publishedAt ?? item.approvedAt);
             const sourceLine = [
               newsSourceLabel(item.sourceId),
@@ -91,7 +93,7 @@ export default function InTheNewsPanel({
                     <NewsThumb src={item.imageUrl} onSteel={onSteel} />
                   ) : null}
                   <span
-                    className={`${brief.serif} block text-[0.9375rem] font-semibold leading-snug line-clamp-3 ${
+                    className={`${brief.serif} block text-[0.9375rem] font-semibold leading-snug line-clamp-3 underline-offset-2 group-hover:underline ${
                       onSteel
                         ? "text-[#F6F4EF] group-hover:text-[#FFA69E]"
                         : `${brief.ink} group-hover:text-[#2A79A7]`
@@ -108,8 +110,19 @@ export default function InTheNewsPanel({
                       }`}
                     >
                       {sourceLine}
+                      <span className="ml-1 opacity-80" aria-hidden>
+                        ↗
+                      </span>
                     </span>
-                  ) : null}
+                  ) : (
+                    <span
+                      className={`mt-1.5 block text-[0.6rem] ${
+                        onSteel ? "text-[#F6F4EF]/45" : "text-[#1C0B19]/40"
+                      }`}
+                    >
+                      Open article ↗
+                    </span>
+                  )}
                 </a>
               </li>
             );

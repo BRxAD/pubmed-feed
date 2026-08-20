@@ -1,5 +1,10 @@
 import "server-only";
 import { XMLParser } from "fast-xml-parser";
+import {
+  firstHttpHrefFromHtml,
+  isHttpUrl,
+  pickHttpUrl,
+} from "@/lib/news/url";
 
 export type ParsedRssItem = {
   guid: string;
@@ -161,6 +166,42 @@ export async function fetchArticleImageUrl(
   }
 }
 
+function linkCandidates(item: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const link of asArray(item.link as unknown)) {
+    if (typeof link === "string") {
+      out.push(link);
+      continue;
+    }
+    const o = link as Record<string, unknown>;
+    const href =
+      textOf(o["@_href"]) || textOf(o["#text"]) || textOf(o.url);
+    if (href) out.push(href);
+  }
+  const atom = item["atom:link"] ?? item["a10:link"];
+  for (const link of asArray(atom as unknown)) {
+    if (typeof link === "string") {
+      out.push(link);
+      continue;
+    }
+    const o = link as Record<string, unknown>;
+    const href = textOf(o["@_href"]);
+    if (href) out.push(href);
+  }
+  const guid = textOf(item.guid);
+  if (guid) out.push(guid);
+  const descRaw =
+    (typeof item.description === "string" ? item.description : "") ||
+    (typeof item["content:encoded"] === "string"
+      ? item["content:encoded"]
+      : "") ||
+    textOf(item.description) ||
+    textOf(item["content:encoded"]);
+  const fromHtml = firstHttpHrefFromHtml(descRaw);
+  if (fromHtml) out.push(fromHtml);
+  return out;
+}
+
 /**
  * Parse RSS 2.0 or Atom XML into slim items (title, link, date, short summary, image).
  */
@@ -183,10 +224,7 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
       .map((raw) => {
         const item = raw as Record<string, unknown>;
         const title = stripHtml(textOf(item.title));
-        const url =
-          textOf(item.link) ||
-          textOf(item.guid) ||
-          textOf((item["atom:link"] as { "@_href"?: string })?.["@_href"]);
+        const url = pickHttpUrl(...linkCandidates(item));
         const guid =
           textOf(item.guid) || url || `${title}|${textOf(item.pubDate)}`;
         const summary = truncate(
@@ -195,7 +233,7 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
           ),
           280
         );
-        if (!title || !url) return null;
+        if (!title || !url || !isHttpUrl(url)) return null;
         return {
           guid,
           title,
@@ -214,23 +252,27 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
       const entry = raw as Record<string, unknown>;
       const title = stripHtml(textOf(entry.title));
       const links = asArray(entry.link as unknown);
-      let url = "";
+      const hrefs: string[] = [];
       for (const link of links) {
         if (typeof link === "string") {
-          url = link;
-          break;
+          hrefs.push(link);
+          continue;
         }
         const o = link as Record<string, unknown>;
         const href = textOf(o["@_href"]);
         const rel = textOf(o["@_rel"]) || "alternate";
-        if (href && (rel === "alternate" || !url)) url = href;
+        if (href && (rel === "alternate" || rel === "")) hrefs.unshift(href);
+        else if (href) hrefs.push(href);
       }
-      const guid = textOf(entry.id) || url || title;
-      const summary = truncate(
-        stripHtml(textOf(entry.summary) || textOf(entry.content)),
-        280
+      const summaryRaw = textOf(entry.summary) || textOf(entry.content);
+      const url = pickHttpUrl(
+        ...hrefs,
+        firstHttpHrefFromHtml(summaryRaw),
+        textOf(entry.id)
       );
-      if (!title || !url) return null;
+      const guid = textOf(entry.id) || url || title;
+      const summary = truncate(stripHtml(summaryRaw), 280);
+      if (!title || !url || !isHttpUrl(url)) return null;
       return {
         guid,
         title,

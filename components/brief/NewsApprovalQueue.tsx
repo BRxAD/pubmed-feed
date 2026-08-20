@@ -98,8 +98,8 @@ export default function NewsApprovalQueue({ secret }: Props) {
             In the news
           </h2>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            WHO, CIDRAP, and Google News RSS. Approve items before they appear on
-            the Brief homepage.
+            WHO, CIDRAP, and Google News RSS. Only items with a working article
+            link are listed. Approve before they appear on the Brief homepage.
           </p>
         </div>
         <button
