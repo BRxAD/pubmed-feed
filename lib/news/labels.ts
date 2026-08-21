@@ -1,8 +1,9 @@
-export type NewsSourceId = "who" | "cidrap" | "google-news";
+export type NewsSourceId = "who" | "cidrap" | "cidrap-asp" | "google-news";
 
 const LABELS: Record<string, string> = {
   who: "WHO",
   cidrap: "CIDRAP",
+  "cidrap-asp": "CIDRAP ASP",
   "google-news": "Google News",
 };
 

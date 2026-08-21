@@ -25,6 +25,13 @@ export const NEWS_SOURCES: NewsSource[] = [
     requireTopicMatch: true,
   },
   {
+    id: "cidrap-asp",
+    label: "CIDRAP ASP",
+    // Dedicated antimicrobial stewardship topic feed (section 48).
+    feedUrl: "https://www.cidrap.umn.edu/news/48/rss",
+    requireTopicMatch: false,
+  },
+  {
     id: "google-news",
     label: "Google News",
     feedUrl:

@@ -5,8 +5,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Poll WHO / CIDRAP / Google News RSS into news_items as pending.
- * Schedule: once daily (UTC). Approve in Brief settings before homepage.
+ * Poll WHO / CIDRAP / CIDRAP ASP / Google News RSS into news_items as pending.
+ * Schedule: once daily (UTC). Approve on /feed before homepage.
  *
  * GET /api/cron/news-rss?secret=YOUR_CRON_SECRET
  * Authorization: Bearer YOUR_CRON_SECRET

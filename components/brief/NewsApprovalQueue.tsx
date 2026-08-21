@@ -123,9 +123,9 @@ export default function NewsApprovalQueue({ secret }: Props) {
         <div className="border-t border-zinc-200/80 px-4 pb-4 pt-3 dark:border-zinc-700/60">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <p className="max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-              WHO, CIDRAP, and Google News RSS — last 7 days only. Items need a
-              working article link. Approve before they appear on the Brief
-              homepage.
+              WHO, CIDRAP, CIDRAP ASP, and Google News RSS — last 7 days only.
+              Items need a working article link. Approve before they appear on
+              the Brief homepage.
             </p>
             <button
               type="button"
