@@ -15,6 +15,7 @@ import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
 import BriefStoryLayout from "@/components/brief/BriefStoryLayout";
 import { SidebarCard } from "@/components/brief/SidebarCard";
+import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
 
@@ -111,6 +112,7 @@ export default function BriefPage({
       </div>
 
       <SiteFooter />
+      <FeedbackSurvey />
     </div>
   );
 }

@@ -78,6 +78,7 @@ Think of the product like a newspaper desk:
 | `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (user-edited journal list: JAMA only; trimmed Nature set + priority ID journals) |
 | `scripts/add_news_items.sql` | **Run in Supabase** (In the news RSS approve queue) |
 | `scripts/add_news_items_image_url.sql` | **Run in Supabase** if table already exists (adds `image_url`) |
+| `scripts/add_survey_prompts.sql` | **Run in Supabase** (anonymous homepage survey · hashed IP · max 2 prompts) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -262,6 +263,7 @@ Main topic animal exclusion must be:
 
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
+- **Homepage survey:** after **15s** on Brief homepage only; anonymous; emailed to `BRIEF_SURVEY_EMAIL` or `brad.langford@gmail.com`. Max **two** prompts per hashed IP (+ localStorage): “Ask me later” allows one more visit, then never. SQL: `scripts/add_survey_prompts.sql`.
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”. Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo.
 - Digest email: headline links to PubMed (no separate PubMed line); article date sits tightly above the headline. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
