@@ -34,7 +34,7 @@ export default function TopPriorityPanel({
                   {i + 1}.
                 </span>
                 <span className="min-w-0">
-                  <span className={`${brief.serif} text-[0.9375rem] leading-snug font-semibold group-hover:text-[#2A79A7] transition-colors line-clamp-3`}>
+                  <span className={`${brief.serif} text-[0.9375rem] leading-snug font-semibold group-hover:text-[#2A79A7] transition-colors`}>
                     {item.headline}
                   </span>
                 </span>

@@ -177,7 +177,7 @@ export default function BriefStoryLayout({
 
       <aside
         ref={toolsRef}
-        className="order-3 flex flex-col gap-6 lg:float-right lg:mb-4 lg:ml-7 lg:w-[200px]"
+        className="order-3 flex flex-col gap-6 lg:float-right lg:mb-4 lg:ml-7 lg:w-[266px]"
         aria-label="Brief tools"
       >
         {right}
