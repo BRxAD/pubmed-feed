@@ -129,7 +129,7 @@ export type FeedItem = {
   ml_priority: number | null;
   /** Manual setting override; wins over auto-classification when set. */
   admin_setting: ArticleSetting | null;
-  /** Ingest-time auto multi-label settings; used when admin_setting is null. */
+  /** Ingest-time auto setting(s); used when admin_setting is null. Single primary. */
   auto_settings: ArticleSetting[] | null;
   /** SCImago 2025 Q1 flag. */
   is_q1: boolean;

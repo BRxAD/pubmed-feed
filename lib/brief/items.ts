@@ -62,11 +62,11 @@ export type BriefItem = {
   isNew: boolean;
   /** Primary (highest-scoring) setting. */
   setting: ArticleSetting | null;
-  /** All settings that cleared the classifier floor (multi-label). */
+  /** Effective settings (0–1 labels after single-primary classify). */
   settings: ArticleSetting[];
   /**
    * Human admin override (single label). When set, filters and display use
-   * only this — automated multi-label settings are ignored.
+   * only this — automated settings are ignored.
    */
   adminSetting: ArticleSetting | null;
   studyLabel: string | null;

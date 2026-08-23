@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ARTICLE_SETTING_LABELS,
   ARTICLE_SETTING_ORDER,
@@ -17,8 +17,6 @@ type Props = {
   autoSetting?: ArticleSetting | null;
   /** Saved override, if any. */
   initialSetting: ArticleSetting | null;
-  /** Refresh when a setting filter is active so the card can leave the filtered list. */
-  refreshAfterSave?: boolean;
 };
 
 const OPTIONS: { value: string; label: string }[] = [
@@ -35,13 +33,16 @@ export default function AdminSettingSelector({
   autoSettings,
   autoSetting,
   initialSetting,
-  refreshAfterSave = false,
 }: Props) {
   const router = useRouter();
   const [setting, setSetting] = useState(initialSetting ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
+
+  useEffect(() => {
+    setSetting(initialSetting ?? "");
+  }, [initialSetting]);
 
   const onChange = useCallback(
     async (next: string) => {
@@ -67,13 +68,13 @@ export default function AdminSettingSelector({
         }
 
         setStatus("saved");
-        if (refreshAfterSave) router.refresh();
+        router.refresh();
         setTimeout(() => setStatus("idle"), 2000);
       } catch {
         setStatus("error");
       }
     },
-    [topicId, pmid, router, refreshAfterSave]
+    [topicId, pmid, router]
   );
 
   const autoList =

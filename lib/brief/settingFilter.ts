@@ -22,7 +22,7 @@ export const BRIEF_SETTING_OPTIONS: {
 }[] = [
   { value: "", label: "All" },
   { value: "hospital", label: "Hospital" },
-  { value: "community", label: "Outpatient" },
+  { value: "community", label: "Community" },
   { value: "one-health", label: "One Health / Global" },
 ];
 

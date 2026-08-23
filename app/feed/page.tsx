@@ -576,14 +576,12 @@ function ArticleCard({
             pmid={item.pmid}
             initialPriority={item.admin_priority}
             featureSnapshot={snapshotFromBreakdown(breakdown)}
-            refreshAfterSave={unratedOnly}
           />
           <AdminSettingSelector
             topicId={topicId}
             pmid={item.pmid}
             autoSettings={getAutoItemSettings(item)}
             initialSetting={item.admin_setting}
-            refreshAfterSave={Boolean(setting)}
           />
         </div>
       )}

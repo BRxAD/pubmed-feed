@@ -1,9 +1,10 @@
 /**
- * Deterministic multi-label setting classification for stewardship articles.
+ * Deterministic single-label setting classification for stewardship articles.
  * Uses weighted term/phrase matching against title, abstract, and keywords/MeSH.
  *
- * An article may receive 2+ settings when evidence supports each (e.g. ED →
- * hospital + community). Returns [] when no label clears the score floor.
+ * Returns at most one setting: the highest score at/above the floor (ties break
+ * by ARTICLE_SETTING_ORDER). ED evidence still boosts hospital and community
+ * scores, but only the winner is kept. Returns [] when nothing clears the floor.
  *
  * NO OpenAI call — fast, free, and reproducible.
  */
@@ -31,8 +32,8 @@ export const ARTICLE_SETTING_ORDER: ArticleSetting[] = [
 ];
 
 export const ARTICLE_SETTING_LABELS: Record<ArticleSetting, string> = {
-  hospital: "Hospital / Inpatient",
-  community: "Outpatient / Community",
+  hospital: "Hospital",
+  community: "Community",
   "long-term care": "Long-term care",
   dentistry: "Dentistry",
   "one-health": "One Health",
@@ -382,10 +383,7 @@ function scoreSetting(
   );
 }
 
-/**
- * Minimum raw score for a setting to be included in the multi-label result.
- * Lower than the old single-label gate so ED + dual settings can surface.
- */
+/** Minimum raw score for a setting to be eligible as the primary label. */
 const MIN_SCORE = 2;
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -439,8 +437,8 @@ export function scoreAllSettings(params: {
 }
 
 /**
- * Multi-label classification: every setting at or above MIN_SCORE.
- * Ordered by score (desc), then ARTICLE_SETTING_ORDER.
+ * Single-label classification: highest score at/above MIN_SCORE.
+ * Returns a 0–1 length array (kept as array for auto_settings JSON shape).
  */
 export function classifyArticleSettings(params: {
   title?: string | null;
@@ -450,7 +448,7 @@ export function classifyArticleSettings(params: {
 }): ArticleSetting[] {
   const scores = scoreAllSettings(params);
 
-  return (Object.entries(scores) as [ArticleSetting, number][])
+  const ranked = (Object.entries(scores) as [ArticleSetting, number][])
     .filter(([, score]) => score >= MIN_SCORE)
     .sort((a, b) => {
       if (b[1] !== a[1]) return b[1] - a[1];
@@ -458,13 +456,13 @@ export function classifyArticleSettings(params: {
         ARTICLE_SETTING_ORDER.indexOf(a[0]) -
         ARTICLE_SETTING_ORDER.indexOf(b[0])
       );
-    })
-    .map(([setting]) => setting);
+    });
+
+  return ranked.length > 0 ? [ranked[0][0]] : [];
 }
 
 /**
  * Primary setting (highest score at/above floor), or null.
- * Prefer classifyArticleSettings when multi-label is needed.
  */
 export function classifyArticleSetting(params: {
   title?: string | null;

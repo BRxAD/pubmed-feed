@@ -1,18 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Props = {
   topicId: string;
   pmid: string;
   initialPriority: number | null;
   featureSnapshot: Record<string, number | boolean>;
-  /**
-   * When true, refresh after save so the card drops from the Unrated-only list.
-   * Otherwise keep the page order stable (local select state is enough).
-   */
-  refreshAfterSave?: boolean;
 };
 
 const OPTIONS = [
@@ -23,25 +18,66 @@ const OPTIONS = [
   })),
 ];
 
+function sessionKey(pmid: string) {
+  return `feed-admin-priority:${pmid}`;
+}
+
+function readSessionPriority(pmid: string): string | null {
+  try {
+    return sessionStorage.getItem(sessionKey(pmid));
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionPriority(pmid: string, value: string) {
+  try {
+    if (value === "") sessionStorage.removeItem(sessionKey(pmid));
+    else sessionStorage.setItem(sessionKey(pmid), value);
+  } catch {
+    // ignore
+  }
+}
+
+function initialSelectValue(pmid: string, initialPriority: number | null): string {
+  if (initialPriority != null) return String(initialPriority);
+  // Stale RSC/router cache can omit a rating just saved — keep this tab's value.
+  const cached = readSessionPriority(pmid);
+  return cached ?? "";
+}
+
 export default function AdminPrioritySelector({
   topicId,
   pmid,
   initialPriority,
   featureSnapshot,
-  refreshAfterSave = false,
 }: Props) {
   const router = useRouter();
-  const [priority, setPriority] = useState(
-    initialPriority != null ? String(initialPriority) : ""
+  const [priority, setPriority] = useState(() =>
+    initialSelectValue(pmid, initialPriority)
   );
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
 
+  // When the server payload catches up (or navigation remounts), prefer DB truth.
+  useEffect(() => {
+    if (initialPriority != null) {
+      const next = String(initialPriority);
+      setPriority(next);
+      writeSessionPriority(pmid, next);
+      return;
+    }
+    const cached = readSessionPriority(pmid);
+    if (cached != null) setPriority(cached);
+    else setPriority("");
+  }, [initialPriority, pmid]);
+
   const onChange = useCallback(
     async (next: string) => {
       setPriority(next);
       setStatus("saving");
+      writeSessionPriority(pmid, next);
 
       try {
         const res = await fetch("/api/admin/summary-priority", {
@@ -61,13 +97,15 @@ export default function AdminPrioritySelector({
         }
 
         setStatus("saved");
-        if (refreshAfterSave) router.refresh();
+        // Refresh RSC so page back/forward does not restore a pre-rating snapshot.
+        // Feed sort no longer uses admin_priority, so order stays put.
+        router.refresh();
         setTimeout(() => setStatus("idle"), 2000);
       } catch {
         setStatus("error");
       }
     },
-    [topicId, pmid, featureSnapshot, router, refreshAfterSave]
+    [topicId, pmid, featureSnapshot, router]
   );
 
   return (

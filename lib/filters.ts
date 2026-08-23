@@ -389,18 +389,18 @@ function parseStoredAutoSettings(
     "animal",
     "environment",
   ]);
-  const out: ArticleSetting[] = [];
+  // Legacy multi-label rows: keep only the first (highest-score at ingest).
   for (const v of raw) {
     const s = String(v ?? "").trim();
-    if (allowed.has(s)) out.push(s as ArticleSetting);
+    if (allowed.has(s)) return [s as ArticleSetting];
   }
-  return out;
+  return [];
 }
 
 /**
- * All effective settings for a feed item.
- * Manual admin override wins as a single label; else stored ingest
- * auto_settings; else live multi-label classify (legacy rows).
+ * Effective settings for a feed item (0–1 labels).
+ * Manual admin override wins; else stored ingest auto_settings (first only);
+ * else live classify (legacy rows).
  */
 export function getItemSettings(item: FeedItem): ArticleSetting[] {
   if (item.admin_setting) return [item.admin_setting];
@@ -415,13 +415,13 @@ export function getItemSettings(item: FeedItem): ArticleSetting[] {
 }
 
 /**
- * Primary setting (highest-scoring label), or null.
+ * Primary setting, or null.
  */
 export function getItemSetting(item: FeedItem): ArticleSetting | null {
   return getItemSettings(item)[0] ?? null;
 }
 
-/** Auto-classification only (ignores admin_setting) — multi-label. */
+/** Auto-classification only (ignores admin_setting) — single primary. */
 export function getAutoItemSettings(item: FeedItem): ArticleSetting[] {
   return classifyArticleSettings({
     title: item.articles?.title,

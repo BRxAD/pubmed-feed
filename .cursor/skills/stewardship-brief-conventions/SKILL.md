@@ -28,7 +28,7 @@ This file is the source of truth — overwrite older convention notes that confl
 Think of the product like a newspaper desk:
 
 1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
-2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto multi-label settings (exclusive — one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
+2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto setting (both are one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
 3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Default order: **prefer newest published, else newest ingest** (`max(publish, fetched_at)`), then priority. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
 5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. Manual force: `npm run retrain:priority` or cron `?force=1`.
@@ -142,7 +142,7 @@ Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not 
 
 **Explicit handcrafted backfill (when asked):** `npm run backfill:ml-priority` → `scripts/backfill-ml-priority-handcrafted.ts`. Fills null `ml_priority` only where `admin_priority` is also null, last N months (default 12). Uses model + handcrafted features with **embeddings off**; never reads/writes `emb:*` cache. Prefer `--dry-run` first. Warn: pulls abstracts for eligible rows.
 
-**Explicit auto_settings backfill (when asked):** `npm run backfill:auto-settings` → `scripts/backfill-auto-settings.ts`. Fills null `auto_settings` from title + keywords + MeSH (**no abstracts**). Requires `scripts/add_auto_settings.sql`. Prefer `--dry-run` first.
+**Explicit auto_settings backfill (when asked):** `npm run backfill:auto-settings` → `scripts/backfill-auto-settings.ts`. Fills null `auto_settings` from title + keywords + MeSH (**no abstracts**). Add `--rewrite-multi` to collapse legacy 2+ label arrays to the single primary. Requires `scripts/add_auto_settings.sql`. Prefer `--dry-run` first.
 
 **Canonical ML score = stored `ml_priority` only** (handcrafted + embeddings at ingest). Never treat a page-load recompute without embeddings as the ML grade — that number can disagree and mislead (e.g. Brief gated on stored 5 while Admin showed live 4).
 
@@ -226,7 +226,7 @@ Main topic animal exclusion must be:
 ## Ranking & settings
 
 - Prefer stored `rank_score` for relevance sort when present.
-- Settings multi-label (`lib/classifySetting.ts`); ED → hospital **and** community; admin override = one label.
+- Settings are **single-label** (`lib/classifySetting.ts`): highest score at/above floor (ties → `ARTICLE_SETTING_ORDER`). Labels: Hospital, Community, Long-term care, …. ED evidence still boosts hospital + community scores, but only the winner is saved/shown. Legacy multi-value `auto_settings` arrays: use **first** element only.
 - Prefer stored `auto_settings` on page load; do not re-classify from keywords/MeSH when `auto_settings` is present.
 - **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
