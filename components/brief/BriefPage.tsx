@@ -9,6 +9,7 @@ import Masthead from "@/components/brief/Masthead";
 import SiteNav from "@/components/brief/SiteNav";
 import SiteFooter from "@/components/brief/SiteFooter";
 import SettingBar from "@/components/brief/SettingBar";
+import TopicBar from "@/components/brief/TopicBar";
 import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
@@ -18,6 +19,7 @@ import { SidebarCard } from "@/components/brief/SidebarCard";
 import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
+import type { BriefTopicFilter } from "@/lib/brief/topicFilter";
 
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
@@ -32,12 +34,14 @@ export default function BriefPage({
   items,
   topPriority,
   setting,
+  topic = "",
   images,
   newsItems = [],
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
   setting: BriefSettingFilter;
+  topic?: BriefTopicFilter;
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
 }) {
@@ -69,14 +73,15 @@ export default function BriefPage({
       <Masthead dateLabel={formatToday()} />
 
       <div className={`${brief.shell} py-4 sm:py-5`}>
-        <SettingBar active={setting} />
+        <SettingBar active={setting} topic={topic} />
+        <TopicBar active={topic} setting={setting} />
 
         {items.length === 0 ? (
           <p
             className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
           >
-            No studies matched this filter yet. Try another setting, or check
-            back after the next ingest.
+            No studies matched this filter yet. Try another setting or topic, or
+            check back after the next ingest.
           </p>
         ) : (
           <BriefStoryLayout

@@ -37,6 +37,8 @@ import { toPenaltyWeights } from "@/lib/brief/feedSettings";
 import { computeStoredRankScore } from "@/lib/rankScore";
 import { scoreFirstMlPriorities } from "@/lib/brief/firstRating";
 import { classifyArticleSettings } from "@/lib/classifySetting";
+import { classifyArticleTopics } from "@/lib/classifyTopic";
+import { classifyArticleWhoRegions } from "@/lib/classifyWhoRegion";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
@@ -646,6 +648,19 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
                 keywords: r.keywords,
                 meshTerms: r.meshTerms,
               }),
+              auto_topics: classifyArticleTopics({
+                title: r.title,
+                abstract: r.abstract,
+                keywords: r.keywords,
+                meshTerms: r.meshTerms,
+              }),
+              auto_who_regions: classifyArticleWhoRegions({
+                title: r.title,
+                abstract: r.abstract,
+                keywords: r.keywords,
+                meshTerms: r.meshTerms,
+                affiliations: r.affiliations,
+              }),
             };
             if (headline) row.headline = headline;
             const ml = mlScores[batchIdx];
@@ -663,9 +678,13 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               // Column not migrated yet — retry without new columns.
               const missingMl = /ml_priority/i.test(sumErr.message);
               const missingAuto = /auto_settings/i.test(sumErr.message);
-              if (missingMl || missingAuto) {
+              const missingTopics = /auto_topics/i.test(sumErr.message);
+              const missingWho = /auto_who_regions/i.test(sumErr.message);
+              if (missingMl || missingAuto || missingTopics || missingWho) {
                 if (missingMl) delete row.ml_priority;
                 if (missingAuto) delete row.auto_settings;
+                if (missingTopics) delete row.auto_topics;
+                if (missingWho) delete row.auto_who_regions;
                 const retry = await supabase.from("summaries").upsert(row, {
                   onConflict: "topic_id,pmid",
                 });
@@ -680,6 +699,16 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
                 if (missingAuto) {
                   console.warn(
                     "[ingest] auto_settings column missing; run scripts/add_auto_settings.sql"
+                  );
+                }
+                if (missingTopics) {
+                  console.warn(
+                    "[ingest] auto_topics column missing; run scripts/add_auto_topics.sql"
+                  );
+                }
+                if (missingWho) {
+                  console.warn(
+                    "[ingest] auto_who_regions column missing; run scripts/add_auto_who_regions.sql"
                   );
                 }
                 return r.pmid;

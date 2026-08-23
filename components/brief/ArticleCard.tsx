@@ -4,6 +4,12 @@ import { useState } from "react";
 import Image from "next/image";
 import type { BriefItem } from "@/lib/brief/items";
 import { briefSettingLabel } from "@/lib/brief/settingFilter";
+import { briefTopicLabel } from "@/lib/brief/topicFilter";
+import { whoRegionLabel } from "@/lib/brief/whoRegionFilter";
+import {
+  ARTICLE_TOPIC_CHIP_CLASSES,
+  type ArticleTopic,
+} from "@/lib/classifyTopic";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
@@ -46,29 +52,46 @@ function MetaLine({ item }: { item: BriefItem }) {
   const rest = labels.slice(1);
   const dateLabel = formatDate(item.date);
   const mutedParts = [...rest, dateLabel].filter(Boolean);
+  const topics = (item.topics ?? []).slice(0, 3);
 
-  if (!primary && mutedParts.length === 0 && !item.isNew) return null;
+  if (!primary && mutedParts.length === 0 && !item.isNew && topics.length === 0) {
+    return null;
+  }
 
   return (
-    <p
-      className={`${brief.sans} text-[0.75rem] font-medium uppercase tracking-[0.12em] sm:text-[0.8125rem]`}
-    >
-      {primary && (
-        <span className="font-bold text-[#2A79A7]">{primary}</span>
+    <div className="space-y-1.5">
+      <p
+        className={`${brief.sans} text-[0.75rem] font-medium uppercase tracking-[0.12em] sm:text-[0.8125rem]`}
+      >
+        {primary && (
+          <span className="font-bold text-[#2A79A7]">{primary}</span>
+        )}
+        {mutedParts.length > 0 && (
+          <span className={brief.muted}>
+            {primary ? " · " : ""}
+            {mutedParts.join(" · ")}
+          </span>
+        )}
+        {item.isNew && (
+          <span className={brief.muted}>
+            {primary || mutedParts.length > 0 ? " · " : ""}
+            <span className="text-[#FFA69E]">New</span>
+          </span>
+        )}
+      </p>
+      {topics.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {topics.map((t) => (
+            <span
+              key={t}
+              className={`${brief.sans} rounded-sm px-1.5 py-0.5 text-[0.625rem] font-medium tracking-[0.02em] ${ARTICLE_TOPIC_CHIP_CLASSES[t as ArticleTopic].idle}`}
+            >
+              {briefTopicLabel(t)}
+            </span>
+          ))}
+        </div>
       )}
-      {mutedParts.length > 0 && (
-        <span className={brief.muted}>
-          {primary ? " · " : ""}
-          {mutedParts.join(" · ")}
-        </span>
-      )}
-      {item.isNew && (
-        <span className={brief.muted}>
-          {primary || mutedParts.length > 0 ? " · " : ""}
-          <span className="text-[#FFA69E]">New</span>
-        </span>
-      )}
-    </p>
+    </div>
   );
 }
 
@@ -76,8 +99,16 @@ function hasDetailContent(
   item: BriefItem,
   opts?: { skipMethodsResults?: boolean }
 ): boolean {
-  if (opts?.skipMethodsResults) return Boolean(item.title || item.journal);
-  return Boolean(item.methods || item.results || item.title || item.journal);
+  if (opts?.skipMethodsResults) {
+    return Boolean(item.title || item.journal || (item.whoRegions?.length ?? 0) > 0);
+  }
+  return Boolean(
+    item.methods ||
+      item.results ||
+      item.title ||
+      item.journal ||
+      (item.whoRegions?.length ?? 0) > 0
+  );
 }
 
 function DetailPanel({
@@ -89,6 +120,11 @@ function DetailPanel({
 }) {
   const showMethods = !skipMethodsResults && item.methods;
   const showResults = !skipMethodsResults && item.results;
+  const whoLabels = (item.whoRegions ?? [])
+    .map((r) => whoRegionLabel(r))
+    .filter((s): s is string => Boolean(s));
+  const showWho = whoLabels.length > 0;
+  const showOriginal = Boolean(item.title || item.journal || item.jif != null);
   return (
     <div
       className={`w-full mt-4 p-4 sm:p-5 space-y-4 ${brief.detailPanel} ${brief.sans} text-sm leading-[1.6] ${brief.ink}`}
@@ -105,9 +141,19 @@ function DetailPanel({
           <p className="mt-1.5">{item.results}</p>
         </div>
       )}
-      {(item.title || item.journal || item.jif != null) && (
+      {showWho && (
         <div
-          className={`${showMethods || showResults ? `pt-4 border-t ${brief.hairline}` : ""}`}
+          className={
+            showMethods || showResults ? `pt-4 border-t ${brief.hairline}` : ""
+          }
+        >
+          <p className={brief.meta}>WHO region</p>
+          <p className="mt-1.5">{whoLabels.join(" · ")}</p>
+        </div>
+      )}
+      {showOriginal && (
+        <div
+          className={`${showMethods || showResults || showWho ? `pt-4 border-t ${brief.hairline}` : ""}`}
         >
           <p className={brief.meta}>Original title</p>
           {item.title && (

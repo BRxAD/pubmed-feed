@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { parseBriefSetting } from "@/lib/brief/settingFilter";
+import { parseBriefTopic, briefHomeHref } from "@/lib/brief/topicFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -7,12 +8,15 @@ export const dynamic = "force-dynamic";
 export default async function StewardshipBriefRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ setting?: string }>;
+  searchParams: Promise<{ setting?: string; topic?: string }>;
 }) {
-  const { setting: settingRaw } = await searchParams;
+  const { setting: settingRaw, topic: topicRaw } = await searchParams;
   const setting = parseBriefSetting(settingRaw);
-  if (setting) {
-    redirect(`/?setting=${encodeURIComponent(setting)}`);
-  }
-  redirect("/");
+  const topic = parseBriefTopic(topicRaw);
+  redirect(
+    briefHomeHref({
+      setting: setting || undefined,
+      topic: topic || undefined,
+    })
+  );
 }

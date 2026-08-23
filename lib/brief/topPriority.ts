@@ -8,6 +8,10 @@ import {
   matchesBriefSettingFilter,
   type BriefSettingFilter,
 } from "@/lib/brief/settingFilter";
+import {
+  matchesBriefTopicFilter,
+  type BriefTopicFilter,
+} from "@/lib/brief/topicFilter";
 
 /** Top 10 sidebar uses a full year of article dates (main brief stays 28 days). */
 export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
@@ -42,7 +46,9 @@ export type TopPriorityItem = Pick<
   | "date"
   | "setting"
   | "settings"
+  | "topics"
   | "keywords"
+  | "meshTerms"
   | "jif"
   | "sjrScimago"
 >;
@@ -95,7 +101,9 @@ function toTopPriorityItem(item: BriefItem): TopPriorityItem {
     date: item.date,
     setting: item.setting,
     settings: item.settings,
+    topics: item.topics,
     keywords: item.keywords,
+    meshTerms: item.meshTerms,
     jif: item.jif,
     sjrScimago: item.sjrScimago,
   };
@@ -126,6 +134,10 @@ function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
     setting: item.setting,
     settings: item.settings,
     adminSetting: item.adminSetting,
+    topics: item.topics ?? [],
+    autoTopics: null,
+    whoRegions: [],
+    autoWhoRegions: null,
     studyLabel: null,
     methods: null,
     results: null,
@@ -138,7 +150,7 @@ function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
     pubmedUrl: item.pubmedUrl,
     authors: [],
     keywords: item.keywords ?? [],
-    meshTerms: [],
+    meshTerms: item.meshTerms ?? [],
     abstractSnippet: null,
   };
 }
@@ -225,13 +237,20 @@ const loadCachedTopPriorityYearPool = unstable_cache(
  * Loads the shared All pool from cache, then filters — never rebuilds per tab.
  */
 export async function getTopPriorityYearItems(
-  setting: BriefSettingFilter = ""
+  setting: BriefSettingFilter = "",
+  topic: BriefTopicFilter = ""
 ): Promise<TopPriorityItem[]> {
   const pool = await loadCachedTopPriorityYearPool();
-  if (!setting) return pool.slice(0, 10);
-  return pool
-    .filter((item) =>
+  let out = pool;
+  if (setting) {
+    out = out.filter((item) =>
       matchesBriefSettingFilter(asBriefForSettingFilter(item), setting, true)
-    )
-    .slice(0, 10);
+    );
+  }
+  if (topic) {
+    out = out.filter((item) =>
+      matchesBriefTopicFilter(asBriefForSettingFilter(item), topic)
+    );
+  }
+  return out.slice(0, 10);
 }

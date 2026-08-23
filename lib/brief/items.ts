@@ -11,6 +11,8 @@ import {
   formatStudyLabel,
 } from "@/lib/filters";
 import type { ArticleSetting } from "@/lib/classifySetting";
+import type { ArticleTopic } from "@/lib/classifyTopic";
+import type { WhoRegion } from "@/lib/classifyWhoRegion";
 import { isHighImpactJournal, lookupJif } from "@/lib/jif";
 import { isQ1Journal, lookupScimago } from "@/lib/scimago";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
@@ -32,6 +34,8 @@ import {
   matchesBriefSettingFilter,
   type BriefSettingFilter,
 } from "@/lib/brief/settingFilter";
+import { getItemTopics } from "@/lib/brief/topicFilter";
+import { getItemWhoRegions } from "@/lib/brief/whoRegionFilter";
 import {
   ensureBriefHeadlines,
   resolveStoredHeadline,
@@ -69,6 +73,14 @@ export type BriefItem = {
    * only this — automated settings are ignored.
    */
   adminSetting: ArticleSetting | null;
+  /** Multi-label syndrome/topic capsules (Urinary, Respiratory, …). */
+  topics: ArticleTopic[];
+  /** Ingest-time stored topics; null when column missing / legacy. */
+  autoTopics: ArticleTopic[] | null;
+  /** WHO regions from affiliations / country mentions. */
+  whoRegions: WhoRegion[];
+  /** Ingest-time stored WHO regions; null when column missing / legacy. */
+  autoWhoRegions: WhoRegion[] | null;
   studyLabel: string | null;
   methods: string | null;
   results: string | null;
@@ -185,10 +197,10 @@ function parseAdminSettingValue(
 
 /** Slim Brief index: no abstract / summary_text / keywords / mesh bodies. */
 const BRIEF_SELECT_SLIM =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
 
 const BRIEF_SELECT_SLIM_NO_HEADLINE =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
 
 const HYDRATE_CHUNK = 80;
 
@@ -473,6 +485,8 @@ export async function getBriefItems(options?: {
     errMsg.includes("keywords") ||
     errMsg.includes("admin_setting") ||
     errMsg.includes("auto_settings") ||
+    errMsg.includes("auto_topics") ||
+    errMsg.includes("auto_who_regions") ||
     errMsg.includes("authors") ||
     errMsg.includes("ml_priority") ||
     errMsg.includes("rank_score")
@@ -489,6 +503,12 @@ export async function getBriefItems(options?: {
     }
     if (errMsg.includes("auto_settings")) {
       slimSelect = slimSelect.replace(", auto_settings", "");
+    }
+    if (errMsg.includes("auto_topics")) {
+      slimSelect = slimSelect.replace(", auto_topics", "");
+    }
+    if (errMsg.includes("auto_who_regions")) {
+      slimSelect = slimSelect.replace(", auto_who_regions", "");
     }
     if (errMsg.includes("authors")) {
       slimSelect = slimSelect.replace(", authors", "");
@@ -515,6 +535,8 @@ export async function getBriefItems(options?: {
     rank_score?: number | null;
     admin_setting?: string | null;
     auto_settings?: string[] | null;
+    auto_topics?: string[] | null;
+    auto_who_regions?: string[] | null;
     articles?: {
       title?: string | null;
       journal?: string | null;
@@ -657,6 +679,16 @@ export async function getBriefItems(options?: {
           .map((s) => String(s ?? "").trim())
           .filter(Boolean) as ArticleSetting[])
       : null;
+    const autoTopics = Array.isArray(row.auto_topics)
+      ? (row.auto_topics
+          .map((s) => String(s ?? "").trim())
+          .filter(Boolean) as ArticleTopic[])
+      : null;
+    const autoWhoRegions = Array.isArray(row.auto_who_regions)
+      ? (row.auto_who_regions
+          .map((s) => String(s ?? "").trim())
+          .filter(Boolean) as WhoRegion[])
+      : null;
 
     const feedLike: FeedItem = {
       pmid: row.pmid,
@@ -704,6 +736,22 @@ export async function getBriefItems(options?: {
       setting: getItemSetting(feedLike),
       settings: getItemSettings(feedLike),
       adminSetting,
+      autoTopics,
+      topics: getItemTopics({
+        autoTopics,
+        title,
+        keywords,
+        meshTerms,
+        abstractSnippet: abstract ? abstract.slice(0, 1200) : null,
+      }),
+      autoWhoRegions,
+      whoRegions: getItemWhoRegions({
+        autoWhoRegions,
+        title,
+        keywords,
+        meshTerms,
+        abstractSnippet: abstract ? abstract.slice(0, 1200) : null,
+      }),
       studyLabel: studyLabel || null,
       methods: null,
       results: null,
@@ -779,6 +827,20 @@ export async function getBriefItems(options?: {
       if (!f) continue;
       item.keywords = f.keywords.slice(0, 8);
       item.meshTerms = f.meshTerms.slice(0, 12);
+      item.topics = getItemTopics({
+        autoTopics: item.autoTopics,
+        title: item.title,
+        keywords: item.keywords,
+        meshTerms: item.meshTerms,
+        abstractSnippet: item.abstractSnippet,
+      });
+      item.whoRegions = getItemWhoRegions({
+        autoWhoRegions: item.autoWhoRegions,
+        title: item.title,
+        keywords: item.keywords,
+        meshTerms: item.meshTerms,
+        abstractSnippet: item.abstractSnippet,
+      });
     }
   }
 
@@ -849,6 +911,12 @@ export async function getBriefItems(options?: {
       const autoSettings = Array.isArray(slim?.auto_settings)
         ? (slim!.auto_settings as ArticleSetting[])
         : null;
+      const autoTopics = Array.isArray(slim?.auto_topics)
+        ? (slim!.auto_topics as ArticleTopic[])
+        : null;
+      const autoWhoRegions = Array.isArray(slim?.auto_who_regions)
+        ? (slim!.auto_who_regions as WhoRegion[])
+        : null;
       const feedLike: FeedItem = {
         pmid: item.pmid,
         summary_text: body.summaryText,
@@ -880,6 +948,22 @@ export async function getBriefItems(options?: {
       item.setting = getItemSetting(feedLike);
       item.settings = getItemSettings(feedLike);
       item.adminSetting = adminSetting;
+      item.autoTopics = autoTopics;
+      item.topics = getItemTopics({
+        autoTopics,
+        title: item.title,
+        keywords: item.keywords,
+        meshTerms: item.meshTerms,
+        abstractSnippet: item.abstractSnippet,
+      });
+      item.autoWhoRegions = autoWhoRegions;
+      item.whoRegions = getItemWhoRegions({
+        autoWhoRegions,
+        title: item.title,
+        keywords: item.keywords,
+        meshTerms: item.meshTerms,
+        abstractSnippet: item.abstractSnippet,
+      });
 
       abstractByPmid.set(item.pmid, body.abstract);
       headlineMetaByPmid.set(item.pmid, {

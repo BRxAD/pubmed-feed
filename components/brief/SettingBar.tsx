@@ -5,18 +5,26 @@ import {
   BRIEF_SETTING_OPTIONS,
   type BriefSettingFilter,
 } from "@/lib/brief/settingFilter";
+import { briefHomeHref } from "@/lib/brief/topicFilter";
+import type { BriefTopicFilter } from "@/lib/brief/topicFilter";
 
-export default function SettingBar({ active }: { active: BriefSettingFilter }) {
+export default function SettingBar({
+  active,
+  topic = "",
+}: {
+  active: BriefSettingFilter;
+  topic?: BriefTopicFilter;
+}) {
   return (
     <nav
       className={`flex flex-wrap gap-x-1 border-b ${brief.hairline}`}
       aria-label="Filter by setting"
     >
       {BRIEF_SETTING_OPTIONS.map((opt) => {
-        const href =
-          opt.value === ""
-            ? "/"
-            : `/?setting=${encodeURIComponent(opt.value)}`;
+        const href = briefHomeHref({
+          setting: opt.value || undefined,
+          topic: topic || undefined,
+        });
         const isActive = active === opt.value;
         return (
           <a

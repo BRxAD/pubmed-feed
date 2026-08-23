@@ -18,6 +18,8 @@ export type PubMedRecord = {
   meshTerms: string[];
   keywords: string[];
   authors: string[];
+  /** Author affiliation strings (country / WHO region). Not persisted. */
+  affiliations?: string[];
 };
 
 const EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
@@ -164,6 +166,30 @@ function extractAuthors(authorList: unknown): string[] {
   return authors;
 }
 
+function extractAffiliations(authorList: unknown): string[] {
+  const authors = toArray(
+    (authorList as Record<string, unknown> | undefined)?.Author,
+    (x) => x
+  );
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const auth of authors) {
+    const x = auth as Record<string, unknown>;
+    const fromInfo = toArray(x.AffiliationInfo, (ai) =>
+      textVal((ai as Record<string, unknown>)?.Affiliation)
+    );
+    const direct = textVal(x.Affiliation);
+    for (const a of [...fromInfo, direct]) {
+      if (!a) continue;
+      const key = a.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(a);
+    }
+  }
+  return out;
+}
+
 function extractMeshTerms(meshList: unknown): string[] {
   const headings = toArray(
     (meshList as Record<string, unknown>)?.MeshHeading,
@@ -269,9 +295,9 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
 
     const artContent = medline?.Article;
     const articleFields = extractArticle(artContent);
-    const authors = extractAuthors(
-      (medline?.Article as Record<string, unknown>)?.AuthorList
-    );
+    const authorList = (medline?.Article as Record<string, unknown>)?.AuthorList;
+    const authors = extractAuthors(authorList);
+    const affiliations = extractAffiliations(authorList);
     const meshTerms = extractMeshTerms(medline?.MeshHeadingList);
     const keywords = extractKeywords(medline?.KeywordList);
     const { epubDate, pubmedDate } = extractHistoryDates(art.PubmedData);
@@ -289,6 +315,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
       meshTerms,
       keywords,
       authors,
+      affiliations,
     };
   }).filter((r) => r.pmid && /^\d+$/.test(r.pmid));
 }

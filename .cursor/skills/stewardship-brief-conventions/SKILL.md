@@ -27,7 +27,7 @@ This file is the source of truth — overwrite older convention notes that confl
 
 Think of the product like a newspaper desk:
 
-1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
+1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), **topic capsules** (`auto_topics`), **WHO regions** (`auto_who_regions`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto setting (both are one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
 3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Default order: **prefer newest published, else newest ingest** (`max(publish, fetched_at)`), then priority. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
@@ -73,6 +73,8 @@ Think of the product like a newspaper desk:
 |--------|--------|
 | `scripts/add_ml_priority.sql` | **Applied** |
 | `scripts/add_auto_settings.sql` | **Applied** (GIN on `auto_settings`) |
+| `scripts/add_auto_topics.sql` | **Run in Supabase** (topic capsules: Urinary / Respiratory / SSTI / AI) |
+| `scripts/add_auto_who_regions.sql` | **Run in Supabase** (WHO regions on summaries for Brief / later filters) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
 | `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (user-edited journal list: JAMA only; trimmed Nature set + priority ID journals) |
@@ -109,7 +111,7 @@ Also: **do not commit or push** unless the user asks.
 | Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (**Vercel Cron only**) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v6` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v9` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
@@ -118,6 +120,10 @@ Also: **do not commit or push** unless the user asks.
 **Effective priority:** `admin_priority` → else `ml_priority` → else handcrafted live predict (legacy only).
 
 **Effective setting:** `admin_setting` (exclusive single label) → else stored `auto_settings` → else live `classifyArticleSettings` (legacy rows only).
+
+**Effective topics:** stored `auto_topics` when column present (multi-label; empty = none) → else live `classifyArticleTopics` from title + keywords + MeSH (+ abstract when hydrated). Orthogonal to care-setting. Going forward at ingest; no backfill unless asked. SQL: `scripts/add_auto_topics.sql`.
+
+**Effective WHO regions:** stored `auto_who_regions` when column present (multi-label; empty = none) → else live `classifyArticleWhoRegions` from title + keywords + MeSH + affiliations (+ abstract when hydrated). Going forward at ingest; no backfill unless asked. SQL: `scripts/add_auto_who_regions.sql`. Display: More detail, below Results and above Original title. Brief/email filter UI later.
 
 ## Summaries & headlines (hard)
 
@@ -161,7 +167,9 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
-- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v6`): All → sticky lead → images; filter setting tabs in memory.
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v9`): All → sticky lead → images; filter setting + **topic** tabs in memory.
+  - Setting bar (underline): All · Hospital · Community · One Health / Global.
+  - Topic bar (second row, color chips): All topics · Urinary · Respiratory · Skin & Soft Tissue · Artificial Intelligence. Multi-label; rules-only (`lib/classifyTopic.ts`). URL `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
@@ -187,7 +195,7 @@ Main topic animal exclusion must be:
    - **Human-rated total on `/feed`:** TTL only (~24 h); SQL `count` head — no row bodies.
 7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory.
 8. Ingest cron (`/api/cron/daily-digest`): PubMed summarize only — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
-9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` applied.
+9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` + `scripts/add_auto_topics.sql` + `scripts/add_auto_who_regions.sql` applied.
 10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
 11. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
 12. Select helpers live in `lib/feedSelect.ts`: `FEED_SELECT_SLIM` (no keywords/MeSH), `FEED_SELECT_KEYWORD_INDEX`.
@@ -221,13 +229,16 @@ Main topic animal exclusion must be:
 - Embeddings still stored as big JSON in `app_settings` — longer-term: dedicated table or drop after scoring.
 - Optional SEO: `metadataBase` / OG cleanup on public pages.
 - Shrinking Top 10’s 365-day window — **ask first**.
+- WHO region filter on Brief / digest email — data is saved; UI later.
 - No surprise backfills, bulk recompute, or mass headline/summary regenerations without go-ahead.
 
 ## Ranking & settings
 
 - Prefer stored `rank_score` for relevance sort when present.
 - Settings are **single-label** (`lib/classifySetting.ts`): highest score at/above floor (ties → `ARTICLE_SETTING_ORDER`). Labels: Hospital, Community, Long-term care, …. ED evidence still boosts hospital + community scores, but only the winner is saved/shown. Legacy multi-value `auto_settings` arrays: use **first** element only.
-- Prefer stored `auto_settings` on page load; do not re-classify from keywords/MeSH when `auto_settings` is present.
+- Topic capsules are **multi-label** (`lib/classifyTopic.ts`): Urinary, Respiratory (incl. ENT), Skin & Soft Tissue (no bare abscess / no osteomyelitis), Artificial Intelligence (higher score floor). Saved as `auto_topics` at ingest going forward.
+- WHO regions are **multi-label** (`lib/classifyWhoRegion.ts`): African Region, Region of the Americas, South-East Asia Region, European Region, Eastern Mediterranean Region, Western Pacific Region. From author affiliations + country names in title/keywords/MeSH. Saved as `auto_who_regions` at ingest going forward. Shown in More detail (below Results, above Original title). No Brief/email filter yet.
+- Prefer stored `auto_settings` / `auto_topics` / `auto_who_regions` on page load; do not re-classify from keywords/MeSH when stored arrays are present.
 - **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
 - **Top 10 rank:** effective priority desc → human-rated before ML-only → relevance % → journal impact. Window 365 days; scan floor ≥ 6.
@@ -256,7 +267,7 @@ Main topic animal exclusion must be:
 - **Fail loud:** `runDailyDigest` must throw when PubMed ingest fails so cron returns HTTP 500 (no silent success).
 - **PubMed ESearch:** use **HTTP POST** (not GET) so long topic queries do not fail with HTTP 414 Request-URI Too Long.
 - Cache bust after ingest: Brief homepage + feed slim; `revalidateTag` must be try/catch — never fail the ingest run.
-- New summary → embed once → save `ml_priority` + `auto_settings` + headline under current prompt rules.
+- New summary → embed once → save `ml_priority` + `auto_settings` + `auto_topics` + `auto_who_regions` + headline under current prompt rules.
 - Topic `query_string` animal filter: `(animals[MeSH] NOT humans[MeSH])` — see PubMed topic query section.
 
 ## UI / UX (soft)
@@ -281,6 +292,7 @@ Main topic animal exclusion must be:
 - [ ] Topic query uses animals NOT humans (not bare animals); AMS core AND quality block (no tactic lock-in)
 - [ ] Admin setting exclusive (no soft-match into other capsules)
 - [ ] Prefer stored `auto_settings` (ingest write; no live classify when present)
+- [ ] Prefer stored `auto_who_regions` (ingest write; live classify only when missing)
 - [ ] Story images: All-pool assign; top ~15; sticky across tabs/time/takeaway; no placeholder when null; curated hosts skip URL probe
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work

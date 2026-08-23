@@ -4,34 +4,44 @@ import {
   matchesBriefSettingFilter,
   parseBriefSetting,
 } from "@/lib/brief/settingFilter";
+import {
+  matchesBriefTopicFilter,
+  parseBriefTopic,
+} from "@/lib/brief/topicFilter";
 import { listApprovedNewsForBrief } from "@/lib/news/store";
 import BriefPage from "@/components/brief/BriefPage";
 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ setting?: string }>;
+  searchParams: Promise<{ setting?: string; topic?: string }>;
 }) {
-  const { setting: settingRaw } = await searchParams;
+  const { setting: settingRaw, topic: topicRaw } = await searchParams;
   const setting = parseBriefSetting(settingRaw);
+  const topic = parseBriefTopic(topicRaw);
 
   try {
     // Ready payload caches All-pool + sticky lead + story images once;
-    // setting tabs filter in memory so the same PMID keeps the same photo.
+    // setting/topic tabs filter in memory so the same PMID keeps the same photo.
     const [ready, topPriority, newsItems] = await Promise.all([
       getCachedHomepageReady(),
-      getTopPriorityYearItems(setting),
+      getTopPriorityYearItems(setting, topic),
       listApprovedNewsForBrief(6),
     ]);
-    const items = setting
-      ? ready.items.filter((item) => matchesBriefSettingFilter(item, setting))
-      : ready.items;
+    let items = ready.items;
+    if (setting) {
+      items = items.filter((item) => matchesBriefSettingFilter(item, setting));
+    }
+    if (topic) {
+      items = items.filter((item) => matchesBriefTopicFilter(item, topic));
+    }
 
     return (
       <BriefPage
         items={items}
         topPriority={topPriority}
         setting={setting}
+        topic={topic}
         images={ready.images}
         newsItems={newsItems}
       />
