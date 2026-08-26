@@ -5,7 +5,7 @@
 | Job | EDT | UTC cron | Route |
 |-----|-----|----------|--------|
 | PubMed ingest + summarize | 06:00, 17:00 | `0 10 * * *` / `0 21 * * *` | `/api/cron/daily-digest` |
-| Stewardship Brief email | 07:00 | `0 11 * * *` | `/api/cron/brief-digest` |
+| Stewardship Brief email | 08:30 | `30 12 * * *` | `/api/cron/brief-digest` |
 | Priority model retrain check | 18:00 | `0 22 * * *` | `/api/cron/retrain-priority` (weekly gate) |
 
 OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (no `DIGEST_SEND_LEGACY`, no abstract digests on the ingest cron).
@@ -39,4 +39,4 @@ https://YOUR_HOST/api/cron/brief-digest?secret=YOUR_CRON_SECRET
 4. Resend → recent send → **Deliverability Insights**.
 5. DMARC `_dmarc` TXT; tighten from `p=none` later if reports look clean.
 6. Ask subscribers to mark **Not junk** and allowlist your From address.
-7. Redeploy after From/header/body changes before the next 07:00 EDT Brief cron.
+7. Redeploy after From/header/body changes before the next 08:30 EDT Brief cron.

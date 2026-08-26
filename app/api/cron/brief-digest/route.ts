@@ -7,7 +7,8 @@ export const maxDuration = 120;
 /**
  * Send The Stewardship Brief to all brief_subscribers.
  *
- * Schedule: once daily at 07:00 EDT (11:00 UTC). Ingest runs separately
+ * Schedule: once daily at 08:30 EDT (12:30 UTC) so editors have time
+ * after 06:00 ingest to screen and score. Ingest runs separately
  * via `/api/cron/daily-digest` at 06:00 / 17:00 EDT.
  *
  * Can also be triggered manually:

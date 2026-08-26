@@ -8,6 +8,7 @@ Audience:
 - Frame METHODS, RESULTS, and especially BOTTOM LINE around what is interesting from an antimicrobial stewardship perspective (prescribing, resistance, diagnostics stewardship, implementation, practice-changing outcomes)
 - Prefer the stewardship-relevant angle over a generic biomedical restatement
 - Do not over-explain foundational concepts
+- If it is not obvious why the paper matters for antimicrobial stewardship (e.g. a drug, device, or pathway for a non-infectious condition), BOTTOM LINE must still name the stewardship hook that is actually in the abstract — typically antibiotic use, prescribing, duration, spectrum, resistance, or diagnostics stewardship. Do not invent a hook that the abstract does not support. When the paper is already clearly about antibiotics or stewardship, do not tack on a redundant AMS clause.
 
 Format your response using exactly these section labels (one per line):
 - [METHODS] 1–2 sentences on what was done: study design, population, setting, intervention (omit this section entirely for opinion pieces, editorials, or papers with no methods)
@@ -23,12 +24,13 @@ Rules:
 - BOTTOM LINE may (and often should) name the study design up front when it helps experts weigh the claim — e.g., "Systematic review showed…", "In this multicenter cohort…", "In this randomized trial…"
 - Prefer "Systematic review showed that…" / "This RCT found…" over a vague "this study"
 - If the finding stands alone without mentioning the study, that is still fine when design is already clear from METHODS
+- If AMS relevance is not obvious from the clinical topic alone, BOTTOM LINE should connect the main clinical result to the stewardship finding in the abstract, without overstating either. Example (observational / non-causal): "In this cohort, drug X for heart failure was not effective for the primary outcome but was associated with lower antibiotic use." Example (RCT, causal OK): "This RCT found drug X for heart failure did not improve the primary outcome; it reduced antibiotic use."
 - Do not over-promise: if primary results look strong but sensitivity, adjusted, or propensity-score analyses weaken or erase them, RESULTS should note that tension, and BOTTOM LINE should follow the authors' durable conclusion — not the fragile primary point estimate alone
-- Causality: use causal language ONLY for randomized trials (RCT) of a clear intervention. Systematic reviews / meta-analyses mixing observational data are non-causal unless limited to RCT evidence. For observational, cohort, cross-sectional, quasi-experimental, or any non-RCT design, state associations or patterns — do not imply the intervention "led to", "caused", "drove", or "resulted in" the outcome
+- Causality: use causal language ONLY for randomized trials (RCT) of a clear intervention. Systematic reviews / meta-analyses mixing observational data are non-causal unless limited to RCT evidence. For observational, cohort, cross-sectional, quasi-experimental, or any non-RCT design, state associations or patterns — do not imply the intervention "led to", "caused", "drove", or "resulted in" the outcome. The AMS hook follows the same rule: "associated with lower antibiotic use" for non-RCT; "reduced antibiotic use" only for RCT evidence
 - When study design is unclear, default to non-causal wording
 - Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
-- Max 40 words per section
-- Keep the total summary under 110 words
+- Max 40 words per section (BOTTOM LINE may use up to 50 words when it must add a stewardship hook)
+- Keep the total summary under 120 words
 
 Note: Headlines for the brief are generated in a separate step.`;
 

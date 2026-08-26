@@ -109,6 +109,7 @@ Also: **do not commit or push** unless the user asks.
 | Priority model | **v5** ridge + PCA-8 | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
 | Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (**Vercel Cron only**) | `vercel.json` |
+| Brief email | **08:30** Eastern → UTC **12:30** (after morning ingest so editors can score) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
 | Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v9` | `lib/brief/homepageCache.ts` |
@@ -131,7 +132,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 
 - **Audience:** ID / AMS experts — they already know stewardship basics; do not over-explain foundations.
 - **Angle:** Frame METHODS / RESULTS / BOTTOM LINE / headlines around antimicrobial stewardship (prescribing, resistance, diagnostics stewardship, implementation, practice-changing outcomes) — not a generic biomedical restatement.
-- **BOTTOM LINE:** May (and often should) name study design up front (“Systematic review showed…”, “In this multicenter cohort…”, “In this randomized trial…”). Prefer that over a vague “this study”.
+- **BOTTOM LINE:** May (and often should) name study design up front (“Systematic review showed…”, “In this multicenter cohort…”, “In this randomized trial…”). Prefer that over a vague “this study”. If AMS relevance is not obvious (e.g. a drug for a non-infectious condition), BOTTOM LINE must name the stewardship hook that is in the abstract (antibiotic use, prescribing, duration, spectrum, resistance, diagnostics stewardship) without inventing one. Same causality rules: “associated with lower antibiotic use” for non-RCT; “reduced” only for RCT evidence. Do not tack on a redundant AMS clause when the paper is already clearly about stewardship.
 - **Do not over-promise:** If sensitivity / adjusted / propensity / stratified analyses weaken or erase the primary effect, do **not** lead with the fragile point estimate. Headline the durable takeaway (signal of benefit, no excess harm, comparable outcomes, feasibility). RESULTS should note the tension; BOTTOM LINE follows the authors’ durable conclusion.
 - **Causality:** Causal verbs **only** for RCTs of a clear intervention. Systematic reviews / meta-analyses that mix observational data are **non-causal** unless clearly limited to RCT evidence. Observational / cohort / cross-sectional / quasi-experimental → associations or patterns only. When unsure, default non-causal.
 - **Good caution example:** “Oral therapy shows signal of benefit and no harm for Gram-negative BSI” — not “cut mortality 61%” when sensitivity analyses nullify that signal.
@@ -257,6 +258,7 @@ Main topic animal exclusion must be:
 ## Ingest & cron
 
 - `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
+- `/api/cron/brief-digest` daily 12:30 UTC (**08:30** ET) — after 06:00 ingest so editors have time to screen and score before email.
 - `/api/cron/news-rss` daily 12:00 UTC — poll WHO / CIDRAP / CIDRAP ASP / Google News into `news_items` as pending (approve before homepage).
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
