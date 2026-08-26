@@ -12,7 +12,7 @@ export const BRIEF_TOPIC_OPTIONS: {
   value: BriefTopicFilter;
   label: string;
 }[] = [
-  { value: "", label: "All topics" },
+  { value: "", label: "All" },
   ...ARTICLE_TOPIC_ORDER.map((value) => ({
     value,
     label: ARTICLE_TOPIC_LABELS[value],

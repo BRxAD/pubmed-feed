@@ -6,7 +6,7 @@ import { scoreAllSettings } from "@/lib/classifySetting";
 import type { BriefItem } from "@/lib/brief/items";
 
 /**
- * URL setting values for the brief pill bar.
+ * URL setting values for the brief filter dropdown.
  * Dentistry and long-term care stay in the classifier / feed admin, but are
  * not offered as homepage capsules.
  */

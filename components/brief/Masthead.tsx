@@ -10,7 +10,7 @@ export default function Masthead({ dateLabel }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
       <div
-        className={`${brief.shell} grid grid-cols-1 items-end gap-3 pt-3 pb-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-6 sm:pt-4 sm:pb-4`}
+        className={`${brief.shell} grid grid-cols-1 items-end gap-3 pt-3 pb-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 sm:pt-4 sm:pb-4`}
       >
         <p
           className={`${brief.sans} order-2 text-center text-[0.6875rem] leading-snug text-[#72705B] sm:order-1 sm:justify-self-start sm:text-left sm:text-[0.75rem]`}
@@ -23,7 +23,7 @@ export default function Masthead({ dateLabel }: Props) {
           </span>
         </p>
 
-        <div className="brief-masthead-settle order-1 justify-self-center sm:order-2">
+        <div className="brief-masthead-settle order-1 flex flex-col items-center justify-self-center sm:order-2">
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
@@ -32,6 +32,11 @@ export default function Masthead({ dateLabel }: Props) {
             priority
             className="h-auto w-full max-w-[520px] max-h-[112px] object-contain object-center sm:max-h-[120px]"
           />
+          <p
+            className={`${brief.serif} mt-1.5 max-w-[24rem] text-center text-[0.9375rem] font-medium leading-snug tracking-[-0.01em] text-[#1C0B19] sm:mt-2 sm:max-w-[34rem] sm:text-[1.0625rem]`}
+          >
+            High Priority Antimicrobial Stewardship, Delivered Daily
+          </p>
         </div>
 
         <span className="order-3 hidden sm:block" aria-hidden />

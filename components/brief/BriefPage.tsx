@@ -8,8 +8,7 @@ import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import Masthead from "@/components/brief/Masthead";
 import SiteNav from "@/components/brief/SiteNav";
 import SiteFooter from "@/components/brief/SiteFooter";
-import SettingBar from "@/components/brief/SettingBar";
-import TopicBar from "@/components/brief/TopicBar";
+import BriefFilterBar from "@/components/brief/BriefFilterBar";
 import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
@@ -73,8 +72,7 @@ export default function BriefPage({
       <Masthead dateLabel={formatToday()} />
 
       <div className={`${brief.shell} py-4 sm:py-5`}>
-        <SettingBar active={setting} topic={topic} />
-        <TopicBar active={topic} setting={setting} />
+        <BriefFilterBar setting={setting} topic={topic} />
 
         {items.length === 0 ? (
           <p

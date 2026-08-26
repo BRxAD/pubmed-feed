@@ -26,18 +26,18 @@ export const ARTICLE_TOPIC_LABELS: Record<ArticleTopic, string> = {
   "artificial-intelligence": "Artificial Intelligence",
 };
 
-/** Capsule chip colors (Brief second row — distinct from setting underline tabs). */
+/** Capsule chip colors (topic filter + MetaLine). */
 export const ARTICLE_TOPIC_CHIP_CLASSES: Record<
   ArticleTopic,
   { idle: string; active: string }
 > = {
   urinary: {
-    idle: "bg-[#7BC1D4]/20 text-[#1C5F7A] ring-1 ring-[#7BC1D4]/45",
-    active: "bg-[#2A79A7] text-white ring-1 ring-[#2A79A7]",
+    idle: "bg-[#E4B429]/25 text-[#6B4E00] ring-1 ring-[#E4B429]/50",
+    active: "bg-[#E4B429] text-[#1C0B19] ring-1 ring-[#E4B429]",
   },
   respiratory: {
-    idle: "bg-[#72705B]/15 text-[#4A4838] ring-1 ring-[#72705B]/35",
-    active: "bg-[#72705B] text-white ring-1 ring-[#72705B]",
+    idle: "bg-[#7BC1D4]/20 text-[#1C5F7A] ring-1 ring-[#7BC1D4]/45",
+    active: "bg-[#2A79A7] text-white ring-1 ring-[#2A79A7]",
   },
   "skin-soft-tissue": {
     idle: "bg-[#FFA69E]/25 text-[#8B3A32] ring-1 ring-[#FFA69E]/55",
@@ -47,6 +47,14 @@ export const ARTICLE_TOPIC_CHIP_CLASSES: Record<
     idle: "bg-[#1C0B19]/08 text-[#1C0B19] ring-1 ring-[#1C0B19]/25",
     active: "bg-[#1C0B19] text-[#F6F4EF] ring-1 ring-[#1C0B19]",
   },
+};
+
+/** Solid swatches for the Topic dropdown (same hues as the chips). */
+export const ARTICLE_TOPIC_SWATCH: Record<ArticleTopic, string> = {
+  urinary: "#E4B429",
+  respiratory: "#2A79A7",
+  "skin-soft-tissue": "#E07A72",
+  "artificial-intelligence": "#1C0B19",
 };
 
 // ── Urinary ───────────────────────────────────────────────────────────────────
