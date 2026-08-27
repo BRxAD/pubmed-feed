@@ -23,17 +23,17 @@ export default function Masthead({ dateLabel }: Props) {
           </span>
         </p>
 
-        <div className="brief-masthead-settle order-1 flex flex-col items-center justify-self-center sm:order-2">
+        <div className="brief-masthead-settle order-1 flex w-full max-w-[520px] flex-col justify-self-center sm:order-2">
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
-            width={1403}
-            height={631}
+            width={1240}
+            height={195}
             priority
-            className="h-auto w-full max-w-[520px] max-h-[112px] object-contain object-center sm:max-h-[120px]"
+            className="h-auto w-full max-h-[112px] object-contain object-right sm:max-h-[120px]"
           />
           <p
-            className={`${brief.serif} mt-1.5 max-w-[24rem] text-center text-[0.9375rem] font-medium leading-snug tracking-[-0.01em] text-[#1C0B19] sm:mt-2 sm:max-w-[34rem] sm:text-[1.0625rem]`}
+            className={`${brief.serif} mt-1.5 w-full text-right text-[0.75rem] font-medium leading-snug tracking-[-0.01em] text-[#1C0B19] sm:mt-2 sm:text-[0.85rem]`}
           >
             High Priority Antimicrobial Stewardship, Delivered Daily
           </p>

@@ -58,7 +58,7 @@ export default function BriefSelect({
       </p>
       <button
         type="button"
-        className={`${brief.sans} flex h-10 w-full items-center gap-2 rounded-lg border border-[#D8D4C8] bg-white px-3 text-left text-[0.8125rem] text-[#1C0B19] transition-[border-color,box-shadow] hover:border-[#1C0B19]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7]`}
+        className={`${brief.sans} flex h-10 w-full items-center gap-2 rounded-lg border border-[#D8D4C8] bg-[color-mix(in_srgb,#F6F4EF,black_10%)] px-3 text-left text-[0.8125rem] text-[#1C0B19] transition-[border-color,box-shadow] hover:border-[#1C0B19]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7]`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
@@ -95,7 +95,7 @@ export default function BriefSelect({
           id={listId}
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-lg border border-[#D8D4C8] bg-white py-1 shadow-[0_10px_28px_-14px_rgba(28,11,25,0.28)]"
+          className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-lg border border-[#D8D4C8] bg-[color-mix(in_srgb,#F6F4EF,black_10%)] py-1 shadow-[0_10px_28px_-14px_rgba(28,11,25,0.28)]"
         >
           {options.map((opt) => {
             const isActive = opt.value === value;
@@ -113,9 +113,9 @@ export default function BriefSelect({
                     onOpenChange(false);
                     router.push(opt.href);
                   }}
-                  className={`${brief.sans} flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] transition-colors hover:bg-[#F6F4EF] ${
+                  className={`${brief.sans} flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] transition-colors hover:bg-[color-mix(in_srgb,#F6F4EF,black_16%)] ${
                     isActive
-                      ? "bg-[#F6F4EF] font-medium text-[#1C0B19]"
+                      ? "bg-[color-mix(in_srgb,#F6F4EF,black_16%)] font-medium text-[#1C0B19]"
                       : "font-normal text-[#1C0B19]/85"
                   }`}
                 >
