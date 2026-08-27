@@ -18,19 +18,23 @@ export default function BriefSelect({
   options,
   open,
   onOpenChange,
+  menuAlign = "left",
 }: {
   label: string;
   value: string;
   options: BriefSelectOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  menuAlign?: "left" | "right";
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonId = useId();
   const listId = useId();
   const router = useRouter();
   const selected = options.find((o) => o.value === value) ?? options[0];
-  const hasSwatches = options.some((o) => o.swatch);
+  const isAll = !value;
+  const triggerLabel = isAll ? "" : (selected?.label ?? "");
+  const triggerSwatch = !isAll && selected?.swatch ? selected.swatch : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -49,35 +53,31 @@ export default function BriefSelect({
   }, [open, onOpenChange]);
 
   return (
-    <div ref={rootRef} className="relative min-w-[11.5rem] flex-1 sm:flex-none sm:w-[15.5rem]">
-      <p
-        id={buttonId}
-        className={`${brief.sans} mb-1.5 text-[0.6875rem] font-medium tracking-[0.02em] text-[#72705B]`}
-      >
-        {label}
-      </p>
+    <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
-        className={`${brief.sans} flex h-10 w-full items-center gap-2 rounded-lg border border-[#D8D4C8] bg-[color-mix(in_srgb,#F6F4EF,black_10%)] px-3 text-left text-[0.8125rem] text-[#1C0B19] transition-[border-color,box-shadow] hover:border-[#1C0B19]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7]`}
+        id={buttonId}
+        className={`${brief.sans} inline-flex max-w-[14rem] items-center gap-1 py-0.5 text-left text-[0.8125rem] font-medium tracking-[0.02em] text-[#1C0B19] transition-colors hover:text-[#2A79A7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:max-w-none`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        aria-label={`${label}: ${selected?.label ?? "All"}`}
+        aria-label={`${label}: ${isAll ? "All" : (selected?.label ?? "All")}`}
         onClick={() => onOpenChange(!open)}
       >
-        {hasSwatches && selected?.swatch ? (
+        <span>{label}</span>
+        {triggerSwatch ? (
           <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: selected.swatch }}
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: triggerSwatch }}
             aria-hidden
           />
-        ) : hasSwatches ? (
-          <span className="size-2 shrink-0" aria-hidden />
         ) : null}
-        <span className="min-w-0 flex-1 truncate">{selected?.label ?? "All"}</span>
+        {triggerLabel ? (
+          <span className="min-w-0 truncate font-normal">{triggerLabel}</span>
+        ) : null}
         <svg
           viewBox="0 0 12 8"
-          className={`size-2.5 shrink-0 text-[#72705B] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+          className={`size-2 shrink-0 text-[#72705B] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
           aria-hidden
         >
           <path
@@ -91,51 +91,62 @@ export default function BriefSelect({
         </svg>
       </button>
       {open && (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-labelledby={buttonId}
-          className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-lg border border-[#D8D4C8] bg-[color-mix(in_srgb,#F6F4EF,black_10%)] py-1 shadow-[0_10px_28px_-14px_rgba(28,11,25,0.28)]"
+        <div
+          className={`absolute top-full z-30 pt-2 ${
+            menuAlign === "right" ? "right-0 sm:right-auto sm:left-0" : "left-0"
+          }`}
         >
-          {options.map((opt) => {
-            const isActive = opt.value === value;
-            return (
-              <li key={opt.value || "all"} role="none">
-                <a
-                  href={opt.href}
-                  role="option"
-                  aria-selected={isActive}
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                      return;
-                    }
-                    e.preventDefault();
-                    onOpenChange(false);
-                    router.push(opt.href);
-                  }}
-                  className={`${brief.sans} flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] transition-colors hover:bg-[color-mix(in_srgb,#F6F4EF,black_16%)] ${
-                    isActive
-                      ? "bg-[color-mix(in_srgb,#F6F4EF,black_16%)] font-medium text-[#1C0B19]"
-                      : "font-normal text-[#1C0B19]/85"
-                  }`}
-                >
-                  {hasSwatches ? (
-                    opt.swatch ? (
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute top-0.5 z-10 ${
+              menuAlign === "right" ? "right-5 sm:right-auto sm:left-5" : "left-5"
+            }`}
+          >
+            <span className="block h-0 w-0 border-x-[7px] border-b-[7px] border-x-transparent border-b-[#C8C4B8]" />
+            <span className="absolute left-1/2 top-[1px] block h-0 w-0 -translate-x-1/2 border-x-[6px] border-b-[6px] border-x-transparent border-b-white" />
+          </span>
+          <ul
+            id={listId}
+            role="listbox"
+            aria-labelledby={buttonId}
+            className="relative w-max min-w-[9.5rem] rounded-[3px] border border-[#C8C4B8] bg-white py-1 shadow-[0_2px_10px_rgba(28,11,25,0.12)]"
+          >
+            {options.map((opt) => {
+              const isActive = opt.value === value;
+              return (
+                <li key={opt.value || "all"} role="none">
+                  <a
+                    href={opt.href}
+                    role="option"
+                    aria-selected={isActive}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                        return;
+                      }
+                      e.preventDefault();
+                      onOpenChange(false);
+                      router.push(opt.href);
+                    }}
+                    className={`${brief.sans} flex items-center gap-2 whitespace-nowrap px-3 py-1.5 text-[0.8125rem] transition-colors hover:bg-[#F6F4EF] ${
+                      isActive
+                        ? "font-medium text-[#1C0B19]"
+                        : "font-normal text-[#1C0B19]/85"
+                    }`}
+                  >
+                    {opt.swatch ? (
                       <span
-                        className="size-2 shrink-0 rounded-full"
+                        className="size-1.5 shrink-0 rounded-full"
                         style={{ backgroundColor: opt.swatch }}
                         aria-hidden
                       />
-                    ) : (
-                      <span className="size-2 shrink-0" aria-hidden />
-                    )
-                  ) : null}
-                  {opt.label}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+                    ) : null}
+                    {opt.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -30,7 +30,7 @@ export default function BriefFilterBar({
   }, [setting, topic]);
 
   return (
-    <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-b border-[#D8D4C8] pb-4">
+    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 border-b border-[#D8D4C8] pb-3">
       <BriefSelect
         label="Setting"
         value={setting}

@@ -169,7 +169,7 @@ Main topic animal exclusion must be:
 
 - **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
 - **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v9`): All → sticky lead → images; filter setting + **topic** tabs in memory.
-  - Setting + Topic: paired minimalist dropdowns (default All). Topic keeps color swatches. URL `?setting=` / `?topic=`.
+  - Setting + Topic: compact text menus (default All), Flickr-style attached list. Topic keeps color swatches. URL `?setting=` / `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
