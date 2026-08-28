@@ -136,6 +136,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 - **Do not over-promise:** If sensitivity / adjusted / propensity / stratified analyses weaken or erase the primary effect, do **not** lead with the fragile point estimate. Headline the durable takeaway (signal of benefit, no excess harm, comparable outcomes, feasibility). RESULTS should note the tension; BOTTOM LINE follows the authors’ durable conclusion.
 - **Causality:** Causal verbs **only** for RCTs of a clear intervention. Systematic reviews / meta-analyses that mix observational data are **non-causal** unless clearly limited to RCT evidence. Observational / cohort / cross-sectional / quasi-experimental → associations or patterns only. When unsure, default non-causal.
 - **Good caution example:** “Oral therapy shows signal of benefit and no harm for Gram-negative BSI” — not “cut mortality 61%” when sensitivity analyses nullify that signal.
+- **Named outcome:** Headlines must name the key subject and what was measured. Bare “rates” / “outcomes” is invalid — write “cure rates”, “mortality”, “antibiotic days”, etc. Bad: “Acute pyelonephritis showed higher rates than other cUTIs…”. Good: “…higher cure rates…”. New ingest only unless asked to rewrite old rows.
 
 ## Embeddings & ML priority (hard)
 
@@ -303,7 +304,7 @@ Main topic animal exclusion must be:
 - [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
 - [ ] Digest email: headline → PubMed; date above headline; no under-story PubMed link
-- [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise
+- [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise, named outcome (not bare “rates”)
 - [ ] Article upsert always sends `fetched_at` (preserve first-seen)
 - [ ] Digest cron fails loud on ingest error; revalidateTag try/catch
 - [ ] Ingest schedule = Vercel Cron only (Actions manual)

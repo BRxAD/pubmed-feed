@@ -5,6 +5,15 @@ import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
 
+/** Clinical endpoint phrasing — not the banned hype word "cure". */
+const CLINICAL_CURE_RE =
+  /\b(?:clinical\s+|microbiologic(?:al)?\s+)?cure(?:\s+rates?)?\b/gi;
+
+function hasHypeLanguage(headline: string): boolean {
+  const withoutEndpoint = headline.replace(CLINICAL_CURE_RE, " ");
+  return HYPE_WORDS.test(withoutEndpoint);
+}
+
 /** Hard max for display. Headlines over this fail validation and are regenerated. */
 export const HEADLINE_MAX_CHARS = 100;
 
@@ -26,9 +35,10 @@ Requirements:
 - Pithy and interesting: lead with the finding or surprise, NOT the paper title, framework name, or acronyms
 - High-quality science journalism: precise, readable, no hype
 - Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
+- Name the key subject and the measured outcome in full so an expert knows what changed — never a bare "rates", "outcomes", or "use" when the abstract names what was measured (cure rates, mortality, antibiotic days, resistance). "Higher rates" is invalid; "higher cure rates" is valid
 - Never end on a bare number, preposition, or unfinished phrase ("across 118" is invalid — say "across 118 VA hospitals")
 - Never pack contradictory statistics into one headline
-- Do NOT use banned hype words: breakthrough, game-changer, revolutionary, cure, miracle, landmark, paradigm-shifting
+- Do NOT use banned hype words: breakthrough, game-changer, revolutionary, miracle, landmark, paradigm-shifting, or "cure" as hype — "cure rates" and "clinical cure" are required when that is the endpoint
 - Do NOT write a bottom-line, recommendation, or methods dump
 - Do NOT start with "Study shows", "Researchers find", "New framework", "New [ACRONYM]", or "[NAME] framework reveals"
 - Do NOT paste the paper title or lead with tool/metric acronyms (DASC-LOT, S3, etc.) — translate into plain English
@@ -54,11 +64,13 @@ Good examples:
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs" (RCT)
 - "Four in five sinusitis visits meeting criteria still got antibiotics"
 - "Oral therapy shows signal of benefit and no harm for Gram-negative BSI" (meta-analysis where mortality signal did not hold in sensitivity analyses)
+- "Acute pyelonephritis showed higher cure rates than other cUTIs in a trial analysis"
 
 Bad examples (never write these):
 - "New DASC-LOT framework reveals 727,958 patients' antimicrobial use varies widely across 118"
 - "Study shows antibiotic use was high"
 - "Oral step-down cut mortality 61% in Gram-negative BSI" (over-promises when sensitivity analyses nullify the mortality signal)
+- "Acute pyelonephritis showed higher rates than other cUTIs in trial analysis" (rates of what — name cure rates, mortality, or the actual endpoint)
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
@@ -80,6 +92,16 @@ const FRAMEWORK_LEAD_RE =
 const BARE_NUMBER_END_RE =
   /\b(across|in|at|for|of|among|from|over|under|within|between|to|with|and)\s+\d[\d,.\s]*$/i;
 
+/** "cure rates" / "mortality rates" are fine; bare "rates" is not. */
+const NAMED_RATE_RE =
+  /\b(?:clinical\s+|microbiologic(?:al)?\s+|culture[-\s]negative\s+|treatment[-\s]success\s+)?(?:cure|success|mortality|death|resistance|response|recurrence|failure|colonization|infection|prescribing|prescription|readmission|relapse|eradication|hospitalization|admission|complication|event)\s+rates?\b/gi;
+
+function hasUnspecifiedRateNoun(headline: string): boolean {
+  if (!/\brates?\b/i.test(headline)) return false;
+  const stripped = headline.replace(NAMED_RATE_RE, " ");
+  return /\brates?\b/i.test(stripped);
+}
+
 export type HeadlineValidation = {
   ok: boolean;
   issues: string[];
@@ -96,8 +118,14 @@ function sanitizeHeadline(raw: string): string {
     .replace(/^\[HEADLINE\]\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
-  if (HYPE_WORDS.test(h)) {
+  if (hasHypeLanguage(h)) {
+    const kept: string[] = [];
+    h = h.replace(CLINICAL_CURE_RE, (m) => {
+      kept.push(m);
+      return `\u0000${kept.length - 1}\u0000`;
+    });
     h = h.replace(HYPE_WORDS, "").replace(/\s+/g, " ").trim();
+    h = h.replace(/\u0000(\d+)\u0000/g, (_, i) => kept[Number(i)] ?? "");
   }
   return h;
 }
@@ -156,7 +184,8 @@ function looksTruncated(headline: string): boolean {
 
 export function validateHeadlineQuality(
   headline: string,
-  abstract: string
+  abstract: string,
+  opts?: { requireNamedRates?: boolean }
 ): HeadlineValidation {
   const h = headline.trim();
   const issues: string[] = [];
@@ -180,7 +209,7 @@ export function validateHeadlineQuality(
   if (/^new\s+/i.test(h)) {
     issues.push('do not start with "New …"');
   }
-  if (HYPE_WORDS.test(h)) issues.push("hype language");
+  if (hasHypeLanguage(h)) issues.push("hype language");
 
   const causalAllowed = allowsCausalLanguage(abstract);
   if (!causalAllowed && STRONG_CAUSAL_RE.test(h)) {
@@ -189,6 +218,11 @@ export function validateHeadlineQuality(
   if (!causalAllowed && INTERVENTION_CAUSAL_RE.test(h)) {
     issues.push(
       "intervention-style causal verb on non-RCT study — use descriptive or non-causal phrasing"
+    );
+  }
+  if (opts?.requireNamedRates && hasUnspecifiedRateNoun(h)) {
+    issues.push(
+      "name the measured outcome (e.g. cure rates, mortality rates) — do not say only rates"
     );
   }
 
@@ -298,7 +332,9 @@ export async function generateBriefHeadline(options: {
         : undefined
     );
 
-    const validation = validateHeadlineQuality(headline, abstract);
+    const validation = validateHeadlineQuality(headline, abstract, {
+      requireNamedRates: true,
+    });
     if (validation.ok) return headline;
 
     lastHeadline = headline;
