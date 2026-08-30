@@ -9,6 +9,7 @@ import {
   composeVisualSummary,
   downloadBlob,
 } from "@/components/brief/composeVisualSummary";
+import { graphicTakeawayShareText } from "@/lib/brief/shareAttribution";
 
 type Props = {
   item: BriefItem;
@@ -138,7 +139,11 @@ export default function GraphicTakeawayButton({ item, image }: Props) {
         await navigator.share({
           files: [file],
           title: item.headline,
-          text: item.bottomLine ?? item.headline,
+          text: graphicTakeawayShareText({
+            headline: item.headline,
+            bottomLine: item.bottomLine,
+            pubmedUrl: item.pubmedUrl,
+          }),
           url: item.pubmedUrl,
         });
         close();

@@ -5,7 +5,7 @@ import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 const WIDTH = 1600;
 const HEIGHT = 900;
-const BRAND_URL = "StewardshipBrief.com";
+const BRAND_URL = "via www.stewardshipbrief.com";
 const LOGO_SRC = "/stewardship-brief-logo.png";
 /** Dark left shade over photo (classic graphic takeaway). */
 const SHADE = "#1C0B19";
@@ -284,7 +284,6 @@ async function renderToBlob(
 
   // Logo + site below citation, inverted (white) for the dark shade.
   citeY += brandGap;
-  ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
   ctx.fillStyle = "#FFFFFF";
   const brandGapX = 12;
   let brandX = padX;
@@ -305,7 +304,7 @@ async function renderToBlob(
 
   ctx.fillStyle = "#FFFFFF";
   ctx.textBaseline = "middle";
-  ctx.font = "700 28px Newsreader, Georgia, 'Times New Roman', serif";
+  ctx.font = "600 22px 'Libre Franklin', system-ui, sans-serif";
   ctx.fillText(BRAND_URL, brandX, citeY + brandLogoH / 2);
 
   // QR stays bottom-right on the photo.

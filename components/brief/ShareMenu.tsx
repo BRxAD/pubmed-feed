@@ -8,6 +8,14 @@ import {
   composeVisualSummary,
   downloadBlob,
 } from "@/components/brief/composeVisualSummary";
+import {
+  copyLinkText,
+  facebookShareHref,
+  graphicTakeawayShareText,
+  linkedinShareHref,
+  mailtoShareHref,
+  twitterShareHref,
+} from "@/lib/brief/shareAttribution";
 
 type Props = {
   item: BriefItem;
@@ -85,7 +93,7 @@ export default function ShareMenu({ item, image }: Props) {
   async function copyPubmedLink() {
     setError(null);
     try {
-      await navigator.clipboard.writeText(item.pubmedUrl);
+      await navigator.clipboard.writeText(copyLinkText(item.pubmedUrl));
       setCopied(true);
     } catch {
       setError("Could not copy link");
@@ -113,7 +121,11 @@ export default function ShareMenu({ item, image }: Props) {
         await navigator.share({
           files: [file],
           title: item.headline,
-          text: item.bottomLine ?? item.headline,
+          text: graphicTakeawayShareText({
+            headline: item.headline,
+            bottomLine: item.bottomLine,
+            pubmedUrl: item.pubmedUrl,
+          }),
           url: item.pubmedUrl,
         });
       } else {
@@ -134,19 +146,17 @@ export default function ShareMenu({ item, image }: Props) {
     }
   }
 
-  const shareText = [
-    item.headline,
-    item.bottomLine,
-    item.pubmedUrl,
-    "via The Stewardship Brief - www.stewardshipbrief.com",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-  const mailto = `mailto:?subject=${encodeURIComponent(item.headline)}&body=${encodeURIComponent(shareText)}`;
-  const twitter = `https://twitter.com/intent/tweet?text=${encodeURIComponent(item.headline)}&url=${encodeURIComponent(item.pubmedUrl)}`;
-  const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(item.pubmedUrl)}`;
-  const facebook = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(item.pubmedUrl)}`;
+  const mailto = mailtoShareHref({
+    headline: item.headline,
+    bottomLine: item.bottomLine,
+    pubmedUrl: item.pubmedUrl,
+  });
+  const twitter = twitterShareHref({
+    headline: item.headline,
+    pubmedUrl: item.pubmedUrl,
+  });
+  const linkedin = linkedinShareHref(item.pubmedUrl);
+  const facebook = facebookShareHref(item.pubmedUrl);
 
   return (
     <div className="relative inline-flex" ref={rootRef}>
@@ -195,7 +205,7 @@ export default function ShareMenu({ item, image }: Props) {
                 : "Share graphic takeaway"}
             </MenuButton>
             <MenuButton onClick={() => void copyPubmedLink()}>
-              {copied ? "PubMed link copied" : "Copy PubMed link"}
+              {copied ? "Link copied" : "Copy PubMed link"}
             </MenuButton>
             <MenuLink href={mailto}>Email</MenuLink>
             <div className="my-1.5 border-t border-[#D8D4C8]" />

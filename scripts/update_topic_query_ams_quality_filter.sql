@@ -1,9 +1,12 @@
 -- Main AMS PubMed topic.
--- Antimicrobial Stewardship MeSH or stewardship phrases alone are enough.
--- Broader use/exposure terms still need a high-signal study/design/scope block.
--- Also: bare antibiotic/antimicrobial Title/Abstract in priority journals
--- (Lancet family, JAMA, NEJM, Nature family, key ID/ICHE/ASHE/OFID/CMI).
--- Animal exclusion stays (animals NOT humans). AI stewardship matches main feed.
+-- 1) AMS MeSH or stewardship phrases alone are enough.
+-- 2) Use/exposure still needs a high-signal study/design/scope block
+--    (no loose intervention*/implementation/guidance/recommendation*/ASP).
+-- 3) Priority journals: antibiotic/antimicrobial in TITLE only.
+--    Lancet list is ID/public-health titles only. No Nat Commun.
+-- 4) Named drugs (vancomycin, pip-tazo, etc.) only with a stewardship
+--    co-term, so PK/toxicity papers without an AMS frame stay out.
+-- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
 -- Run in Supabase SQL Editor (ASCII comments only).
 
 UPDATE public.topics
@@ -33,8 +36,6 @@ SET query_string = '(
       OR "Clinical Trial"[Publication Type]
 
       OR guideline*[Title/Abstract]
-      OR guidance[Title/Abstract]
-      OR recommendation*[Title/Abstract]
       OR "consensus statement"[Title/Abstract]
       OR "consensus guideline"[Title/Abstract]
 
@@ -74,19 +75,16 @@ SET query_string = '(
       OR "stewardship programme"[Title/Abstract]
       OR "antimicrobial stewardship program"[Title/Abstract]
       OR "antibiotic stewardship program"[Title/Abstract]
-      OR ASP[Title/Abstract]
-      OR intervention*[Title/Abstract]
-      OR implementation[Title/Abstract]
       OR "quality improvement"[Title/Abstract]
     )
   )
   OR
   (
     (
-      antimicrobial[Title/Abstract]
-      OR antimicrobials[Title/Abstract]
-      OR antibiotic[Title/Abstract]
-      OR antibiotics[Title/Abstract]
+      antimicrobial[Title]
+      OR antimicrobials[Title]
+      OR antibiotic[Title]
+      OR antibiotics[Title]
     )
     AND
     (
@@ -101,17 +99,6 @@ SET query_string = '(
       OR "Lancet Reg Health West Pac"[Journal]
       OR "Lancet Reg Health Southeast Asia"[Journal]
       OR "EClinicalMedicine"[Journal]
-      OR "Lancet Healthy Longev"[Journal]
-      OR "Lancet Planet Health"[Journal]
-      OR "Lancet Respir Med"[Journal]
-      OR "Lancet Gastroenterol Hepatol"[Journal]
-      OR "Lancet Oncol"[Journal]
-      OR "Lancet Neurol"[Journal]
-      OR "Lancet Psychiatry"[Journal]
-      OR "Lancet Child Adolesc Health"[Journal]
-      OR "Lancet Haematol"[Journal]
-      OR "Lancet HIV"[Journal]
-      OR "Lancet Rheumatol"[Journal]
 
       OR "N Engl J Med"[Journal]
       OR "New England Journal of Medicine"[Journal]
@@ -121,7 +108,6 @@ SET query_string = '(
       OR "Nature"[Journal]
       OR "Nat Med"[Journal]
       OR "Nat Microbiol"[Journal]
-      OR "Nat Commun"[Journal]
       OR "npj Antimicrob Resist"[Journal]
       OR "Clin Microbiol Infect"[Journal]
       OR "Clinical Microbiology and Infection"[Journal]
@@ -136,6 +122,81 @@ SET query_string = '(
       OR "Antimicrob Steward Healthc Epidemiol"[Journal]
       OR "Antimicrobial Stewardship & Healthcare Epidemiology"[Journal]
       OR "Antimicrobial Stewardship and Healthcare Epidemiology"[Journal]
+    )
+  )
+  OR
+  (
+    (
+      stewardship[Title/Abstract]
+      OR de-escalat*[Title/Abstract]
+      OR deescalat*[Title/Abstract]
+      OR "audit and feedback"[Title/Abstract]
+      OR "prospective audit"[Title/Abstract]
+      OR "iv to oral"[Title/Abstract]
+      OR "iv to po"[Title/Abstract]
+      OR "intravenous to oral"[Title/Abstract]
+      OR "oral switch"[Title/Abstract]
+      OR "oral step-down"[Title/Abstract]
+      OR "days of therapy"[Title/Abstract]
+      OR "duration of therapy"[Title/Abstract]
+      OR "length of therapy"[Title/Abstract]
+      OR "antibiotic timeout"[Title/Abstract]
+      OR prescribing[Title/Abstract]
+    )
+    AND
+    (
+      vancomycin[Title/Abstract]
+      OR piperacillin*[Title/Abstract]
+      OR "pip-tazo"[Title/Abstract]
+      OR "pip/tazo"[Title/Abstract]
+      OR piptazo[Title/Abstract]
+      OR tazobactam[Title/Abstract]
+      OR meropenem[Title/Abstract]
+      OR imipenem[Title/Abstract]
+      OR ertapenem[Title/Abstract]
+      OR doripenem[Title/Abstract]
+      OR carbapenem*[Title/Abstract]
+      OR ceftriaxone[Title/Abstract]
+      OR cefepime[Title/Abstract]
+      OR ceftazidime[Title/Abstract]
+      OR cefazolin[Title/Abstract]
+      OR cefotaxime[Title/Abstract]
+      OR cephalexin[Title/Abstract]
+      OR cefalexin[Title/Abstract]
+      OR cephalosporin*[Title/Abstract]
+      OR ciprofloxacin[Title/Abstract]
+      OR levofloxacin[Title/Abstract]
+      OR moxifloxacin[Title/Abstract]
+      OR fluoroquinolon*[Title/Abstract]
+      OR azithromycin[Title/Abstract]
+      OR linezolid[Title/Abstract]
+      OR daptomycin[Title/Abstract]
+      OR gentamicin[Title/Abstract]
+      OR tobramycin[Title/Abstract]
+      OR amikacin[Title/Abstract]
+      OR aminoglycoside*[Title/Abstract]
+      OR amoxicillin[Title/Abstract]
+      OR ampicillin[Title/Abstract]
+      OR metronidazole[Title/Abstract]
+      OR clindamycin[Title/Abstract]
+      OR doxycycline[Title/Abstract]
+      OR "trimethoprim-sulfamethoxazole"[Title/Abstract]
+      OR cotrimoxazole[Title/Abstract]
+      OR "co-trimoxazole"[Title/Abstract]
+      OR colistin[Title/Abstract]
+      OR polymyxin*[Title/Abstract]
+      OR aztreonam[Title/Abstract]
+      OR ceftaroline[Title/Abstract]
+      OR ceftolozane[Title/Abstract]
+      OR cefiderocol[Title/Abstract]
+      OR nitrofurantoin[Title/Abstract]
+      OR fosfomycin[Title/Abstract]
+      OR fidaxomicin[Title/Abstract]
+      OR nafcillin[Title/Abstract]
+      OR oxacillin[Title/Abstract]
+      OR penicillin*[Title/Abstract]
+      OR "beta-lactam"[Title/Abstract]
+      OR "beta lactam"[Title/Abstract]
     )
   )
 )

@@ -77,7 +77,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_auto_who_regions.sql` | **Run in Supabase** (WHO regions on summaries for Brief / later filters) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
-| `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (user-edited journal list: JAMA only; trimmed Nature set + priority ID journals) |
+| `scripts/update_topic_query_ams_quality_filter.sql` | **Applied** (Title-only journal arm; trimmed Lancet; no Nat Commun; named drugs only with a stewardship co-term) |
 | `scripts/add_news_items.sql` | **Run in Supabase** (In the news RSS approve queue) |
 | `scripts/add_news_items_image_url.sql` | **Run in Supabase** if table already exists (adds `image_url`) |
 | `scripts/add_survey_prompts.sql` | **Run in Supabase** (anonymous homepage survey · hashed IP · max 2 prompts) |
@@ -164,7 +164,7 @@ Main topic animal exclusion must be:
 
 **Never** bare `NOT animals[MeSH]`. In MeSH, Humans sits under Animals, so the bare form drops almost all MEDLINE human clinical papers. Keep case-report exclusion as before. Script: `scripts/fix_topic_query_animals_not_humans.sql`.
 
-**Main AMS topic shape (preferred):** `"Antimicrobial Stewardship"[MeSH]` or stewardship Title/Abstract phrases alone are enough. Broader antibiotic/antimicrobial **use/exposure** terms still need a high-signal block (guidelines / SR-MA / RCT / cohort / cross-sectional / observational / national-international / program or generic intervention-implementation). Separately, bare **antibiotic/antimicrobial** Title/Abstract terms match when the journal is in the priority set (Lancet family, NEJM, **JAMA** only — not full JAMA Network, Nature / Nat Med / Nat Microbiol / Nat Commun / npj Antimicrob Resist, CMI / CMI Communications, ICHE, CID, OFID, ASHE). Then NOT animal-only + case reports (+ optional Comment/Editorial/Letter). Do **not** require specific ASP tactics. AI stewardship papers that match belong in the **main** feed — do not maintain a separate AI topic query, and do not use `NOT ILIKE '%artificial intelligence%'` when updating main topic rows. Apply via `scripts/update_topic_query_ams_quality_filter.sql`. Do not re-add bare `antibiotic treatment` / `antimicrobial treatment` ORs without asking.
+**Main AMS topic shape (preferred):** `"Antimicrobial Stewardship"[MeSH]` or stewardship Title/Abstract phrases alone are enough. Broader antibiotic/antimicrobial **use/exposure** terms still need a high-signal block (guidelines / SR-MA / RCT / cohort / cross-sectional / observational / national-international / stewardship program / quality improvement). Do **not** use loose `intervention*`, bare `implementation`, `guidance`, `recommendation*`, or `ASP[Title/Abstract]` in that block. Separately, bare **antibiotic/antimicrobial** in **Title only** (not Title/Abstract) match when the journal is in the priority set (ID/public-health Lancet titles, NEJM, **JAMA** only — not full JAMA Network, Nature / Nat Med / Nat Microbiol / npj Antimicrob Resist — **not** Nat Commun, CMI / CMI Communications, ICHE, CID, OFID, ASHE). Named drugs (vancomycin, pip-tazo, carbapenems, etc.) match only with a stewardship co-term (stewardship, de-escalation, audit and feedback, IV-to-oral, days/duration of therapy, prescribing) — not as a bare drug search. Then NOT animal-only + case reports (+ optional Comment/Editorial/Letter). Do **not** require specific ASP tactics on the main AMS/use arms. AI stewardship papers that match belong in the **main** feed — do not maintain a separate AI topic query, and do not use `NOT ILIKE '%artificial intelligence%'` when updating main topic rows. Apply via `scripts/update_topic_query_ams_quality_filter.sql`. Do not re-add bare `antibiotic treatment` / `antimicrobial treatment` ORs without asking.
 
 ## Surfaces
 
@@ -174,7 +174,7 @@ Main topic animal exclusion must be:
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
-- **Brief digest email** — headline links to **PubMed**; no separate PubMed line under the story. Article date sits tightly **above** the headline. “Open today’s brief” / footer still point at the site.
+- **Brief digest email** — headline links to **PubMed**; article date sits tightly **above** the headline. Under each story: **Read article** plus Email / LinkedIn / X / Facebook, and **via www.stewardshipbrief.com**. Copy, native Share, and Graphic takeaway do not work in email. “Open today’s brief” / footer still point at the site.
 - **In the news** — WHO / CIDRAP (general + ASP topic `news/48/rss`) / Google News RSS polled daily (`/api/cron/news-rss`). Items need a real **http(s)** link to be stored, approved, or shown. **Rolling 7-day window** (`NEWS_MAX_AGE_DAYS` in `lib/news/store.ts`): ingest skips older RSS items; Brief + approval lists filter to last 7 days and sort **newest → oldest** by `published_at` (fallback `created_at`). Editors approve on **`/feed`** (collapsible accordion, collapsed by default). Homepage shell matches broadsheet gutters (`brief.shell`: ~5vw sides, `max-w-[1570px]`). Masthead uses date-left / logo-center + double rule. Lead between news + tools (floats). Sidebars use a shared cream `SidebarCard` (hairline + accent top rule: steel / salmon / sky / olive) with Lead-style eyebrows — not solid steel fills. Scripts: `scripts/add_news_items.sql`, `scripts/add_news_items_image_url.sql`.
 - **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** Default **Ingested** = newest `fetched_at`, then stored `ml_priority`, then PMID. **Published** = newest article/release date, then ML, then PMID. **Relevance** = `rank_score` (+ ML boost only — not admin). Human rating must **not** reshuffle order; **Unrated only** may drop a card after save. `/feed` is always **dark** (`.dark` shell); Brief stays cream.
@@ -222,7 +222,7 @@ Main topic animal exclusion must be:
 - Production schedule: **Vercel Cron only**; GitHub Actions ingest is **manual `workflow_dispatch`** (no schedule).
 - Feed sort: ingested default; ML tie-break (not admin); unrated-only may drop after rate; `/feed` dark shell.
 - Brief sort: prefer published, else recent ingest (`max(publish, fetched_at)`); sticky lead equal-or-higher replaces.
-- Digest email: headline → PubMed; date above headline; no separate PubMed link under each story.
+- Digest email: headline → PubMed; date above headline; Read article + Email/LinkedIn/X/Facebook share links; via www.stewardshipbrief.com credit. Email cannot Copy, native-share, or Graphic takeaway.
 - Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses.
 
 ## Still open (optional later)
@@ -277,8 +277,8 @@ Main topic animal exclusion must be:
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
 - **Homepage survey:** after **15s** on Brief homepage only; anonymous; emailed to `BRIEF_SURVEY_EMAIL` or `brad.langford@gmail.com`. Max **two** prompts per hashed IP (+ localStorage): “Ask me later” allows one more visit, then never. SQL: `scripts/add_survey_prompts.sql`.
-- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”. Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo.
-- Digest email: headline links to PubMed (no separate PubMed line); article date sits tightly above the headline. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
+- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu keeps “Share graphic takeaway”. Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo, **via www.stewardshipbrief.com**. Share text (email, copy, native share, X) includes the same via line with `https://www.stewardshipbrief.com`.
+- Digest email: headline links to PubMed; article date sits tightly above the headline. Each story has **Read article** plus Email / LinkedIn / X / Facebook share links and a **via www.stewardshipbrief.com** credit. Copy, native Share, and Graphic takeaway cannot run in email. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 - Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
 - Feed sort: newest first (ingested=`fetched_at`, published=article date), then ML grade — not admin priority (so rating does not reshuffle). Unrated-only may remove after rate.
@@ -303,7 +303,7 @@ Main topic animal exclusion must be:
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
 - [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
-- [ ] Digest email: headline → PubMed; date above headline; no under-story PubMed link
+- [ ] Digest email: headline → PubMed; date above headline; Read article + share links; via stewardshipbrief.com
 - [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise, named outcome (not bare “rates”)
 - [ ] Article upsert always sends `fetched_at` (preserve first-seen)
 - [ ] Digest cron fails loud on ingest error; revalidateTag try/catch
