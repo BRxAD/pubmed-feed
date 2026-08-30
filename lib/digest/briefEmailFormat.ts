@@ -1,13 +1,8 @@
 import type { BriefItem } from "@/lib/brief/items";
 import { briefPalette } from "@/components/brief/briefTheme";
 import {
-  BRIEF_SITE_HOST,
-  BRIEF_SITE_URL,
-  BRIEF_VIA_LINE,
-  facebookShareHref,
   linkedinShareHref,
   mailtoShareHref,
-  twitterShareHref,
 } from "@/lib/brief/shareAttribution";
 
 function escapeHtml(s: string): string {
@@ -47,21 +42,12 @@ function storyActionsMarkup(
     })
   );
   const linkedin = escapeHtml(linkedinShareHref(item.pubmedUrl));
-  const twitter = escapeHtml(
-    twitterShareHref({ headline: item.headline, pubmedUrl: item.pubmedUrl })
-  );
-  const facebook = escapeHtml(facebookShareHref(item.pubmedUrl));
-  const site = escapeHtml(BRIEF_SITE_URL);
-  const viaHost = escapeHtml(BRIEF_SITE_HOST);
   const link = `color:${steel};text-decoration:none;font-weight:500`;
   const sep = `<span style="color:${olive}">&nbsp;&middot;&nbsp;</span>`;
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${read}" style="${link}">Read article</a>${sep}<a href="${email}" style="${link}">Email</a>${sep}<a href="${linkedin}" style="${link}">LinkedIn</a>${sep}<a href="${twitter}" style="${link}">X</a>${sep}<a href="${facebook}" style="${link}">Facebook</a>
-        </p>
-        <p style="margin:8px 0 0;font-size:12px;line-height:1.4;font-family:system-ui,-apple-system,sans-serif;color:${olive}">
-          via <a href="${site}" style="color:${steel};text-decoration:none;font-weight:500">${viaHost}</a>
+          <a href="${read}" style="${link}">Read article</a>${sep}<a href="${email}" style="${link}">Email</a>${sep}<a href="${linkedin}" style="${link}">LinkedIn</a>
         </p>`;
 }
 
@@ -172,7 +158,6 @@ export function buildBriefDigestEmail(options: {
       item.headline,
       item.bottomLine ?? "",
       `Read article: ${item.pubmedUrl}`,
-      `${BRIEF_VIA_LINE} ${BRIEF_SITE_URL}`,
       ""
     );
 

@@ -194,6 +194,7 @@ function StoryActions({
   skipMethodsResults?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [takeawayOpen, setTakeawayOpen] = useState(false);
   const showDetail = hasDetailContent(item, { skipMethodsResults });
 
   return (
@@ -235,8 +236,16 @@ function StoryActions({
         >
           Read article
         </a>
-        <ShareMenu item={item} image={image} />
-        <GraphicTakeawayButton item={item} image={image} />
+        <ShareMenu
+          item={item}
+          onGraphicTakeaway={() => setTakeawayOpen(true)}
+        />
+        <GraphicTakeawayButton
+          item={item}
+          image={image}
+          open={takeawayOpen}
+          onOpenChange={setTakeawayOpen}
+        />
       </div>
       {expanded && showDetail && (
         <DetailPanel item={item} skipMethodsResults={skipMethodsResults} />

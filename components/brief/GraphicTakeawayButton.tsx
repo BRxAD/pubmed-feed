@@ -14,6 +14,8 @@ import { graphicTakeawayShareText } from "@/lib/brief/shareAttribution";
 type Props = {
   item: BriefItem;
   image?: StoryImageMatch | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 type Prepared = {
@@ -28,8 +30,19 @@ type Prepared = {
  * Portal to document.body so article photo stacking / CSS transforms cannot
  * cover the dialog on mobile scroll.
  */
-export default function GraphicTakeawayButton({ item, image }: Props) {
-  const [open, setOpen] = useState(false);
+export default function GraphicTakeawayButton({
+  item,
+  image,
+  open: openProp,
+  onOpenChange,
+}: Props) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : uncontrolledOpen;
+  function setOpen(next: boolean) {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<Prepared | null>(null);
