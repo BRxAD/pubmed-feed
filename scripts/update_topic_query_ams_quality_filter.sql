@@ -4,8 +4,13 @@
 --    (no loose intervention*/implementation/guidance/recommendation*/ASP).
 -- 3) Priority journals: antibiotic/antimicrobial in TITLE only.
 --    Lancet list is ID/public-health titles only. No Nat Commun.
+--    J Clin Microbiol is in this list and in the all-pubs ID journal arm.
 -- 4) Named drugs (vancomycin, pip-tazo, etc.) only with a stewardship
 --    co-term, so PK/toxicity papers without an AMS frame stay out.
+--    Oral step-down phrases include oral transitional / stepdown / IVOST.
+-- 5) Diagnostic stewardship / antibiogram / procalcitonin-guided (any journal).
+-- 6) All research articles from CID, OFID, JCM, ICHE, ASHE
+--    (still drop case reports, letters, editorials, comments, animal-only).
 -- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
 -- Run in Supabase SQL Editor (ASCII comments only).
 
@@ -122,6 +127,8 @@ SET query_string = '(
       OR "Antimicrob Steward Healthc Epidemiol"[Journal]
       OR "Antimicrobial Stewardship & Healthcare Epidemiology"[Journal]
       OR "Antimicrobial Stewardship and Healthcare Epidemiology"[Journal]
+      OR "J Clin Microbiol"[Journal]
+      OR "Journal of Clinical Microbiology"[Journal]
     )
   )
   OR
@@ -137,6 +144,14 @@ SET query_string = '(
       OR "intravenous to oral"[Title/Abstract]
       OR "oral switch"[Title/Abstract]
       OR "oral step-down"[Title/Abstract]
+      OR "oral stepdown"[Title/Abstract]
+      OR "oral transitional"[Title/Abstract]
+      OR "transitional therapy"[Title/Abstract]
+      OR "step-down therapy"[Title/Abstract]
+      OR "step down therapy"[Title/Abstract]
+      OR IVOST[Title/Abstract]
+      OR "early oral antibiotic"[Title/Abstract]
+      OR "early oral therapy"[Title/Abstract]
       OR "days of therapy"[Title/Abstract]
       OR "duration of therapy"[Title/Abstract]
       OR "length of therapy"[Title/Abstract]
@@ -163,6 +178,7 @@ SET query_string = '(
       OR cefotaxime[Title/Abstract]
       OR cephalexin[Title/Abstract]
       OR cefalexin[Title/Abstract]
+      OR cefadroxil[Title/Abstract]
       OR cephalosporin*[Title/Abstract]
       OR ciprofloxacin[Title/Abstract]
       OR levofloxacin[Title/Abstract]
@@ -198,6 +214,31 @@ SET query_string = '(
       OR "beta-lactam"[Title/Abstract]
       OR "beta lactam"[Title/Abstract]
     )
+  )
+  OR
+  (
+    "diagnostic stewardship"[Title/Abstract]
+    OR antibiogram*[Title/Abstract]
+    OR "procalcitonin-guided"[Title/Abstract]
+    OR
+    (
+      procalcitonin[Title/Abstract]
+      AND
+      (
+        antibiotic*[Title/Abstract]
+        OR antimicrobial*[Title/Abstract]
+        OR stewardship[Title/Abstract]
+        OR "duration of"[Title/Abstract]
+      )
+    )
+  )
+  OR
+  (
+    "Clin Infect Dis"[Journal]
+    OR "Open Forum Infect Dis"[Journal]
+    OR "J Clin Microbiol"[Journal]
+    OR "Infect Control Hosp Epidemiol"[Journal]
+    OR "Antimicrob Steward Healthc Epidemiol"[Journal]
   )
 )
 
