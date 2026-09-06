@@ -160,10 +160,6 @@ function SavedStories({
           {warning}
         </p>
       ) : null}
-      <p className={`mb-6 ${brief.sans} text-sm ${brief.muted}`}>
-        Same story cards as the brief, without photos. Remove anytime with
-        Unsave.
-      </p>
       <div className="divide-y divide-[#D8D4C8] border-t border-[#D8D4C8]">
         {stories.map((item) => (
           <FeaturedStory

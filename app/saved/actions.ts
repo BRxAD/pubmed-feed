@@ -2,6 +2,7 @@
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { ensureAuthUserId } from "@/lib/ensureAuthUser";
 import {
   listSavedArticles,
   mergeSavedArticles,
@@ -14,18 +15,28 @@ import {
 import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import type { BriefItem } from "@/lib/brief/items";
 
-async function requireUserId(): Promise<string | null> {
+async function requireAuthUserId(): Promise<
+  { id: string } | { error: string }
+> {
   const session = await getServerSession(authOptions);
-  return session?.user?.id ?? null;
+  if (!session?.user) {
+    return { error: "Please sign in to save articles." };
+  }
+  return ensureAuthUserId({
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    image: session.user.image,
+  });
 }
 
 export async function listMySavedArticles(): Promise<{
   items: SavedBriefItem[];
   error?: string;
 }> {
-  const userId = await requireUserId();
-  if (!userId) return { items: [] };
-  return listSavedArticles(userId);
+  const auth = await requireAuthUserId();
+  if ("error" in auth) return { items: [] };
+  return listSavedArticles(auth.id);
 }
 
 export async function toggleMySavedArticle(input: {
@@ -34,8 +45,8 @@ export async function toggleMySavedArticle(input: {
   pubmedUrl?: string | null;
   saved: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const userId = await requireUserId();
-  if (!userId) return { ok: false, error: "Please sign in to save articles." };
+  const auth = await requireAuthUserId();
+  if ("error" in auth) return { ok: false, error: auth.error };
 
   const item = sanitizeSavedItem({
     pmid: input.pmid,
@@ -44,7 +55,7 @@ export async function toggleMySavedArticle(input: {
   });
   if (!item) return { ok: false, error: "That article id is not valid." };
 
-  const result = await setSavedArticle(userId, item, input.saved);
+  const result = await setSavedArticle(auth.id, item, input.saved);
   if (!result.success) {
     return { ok: false, error: result.error ?? "Could not update saved article." };
   }
@@ -54,16 +65,16 @@ export async function toggleMySavedArticle(input: {
 export async function syncLocalSavedArticles(
   incoming: SavedBriefItem[]
 ): Promise<{ items: SavedBriefItem[]; error?: string }> {
-  const userId = await requireUserId();
-  if (!userId) return { items: [] };
-  return mergeSavedArticles(userId, incoming);
+  const auth = await requireAuthUserId();
+  if ("error" in auth) return { items: incoming, error: auth.error };
+  return mergeSavedArticles(auth.id, incoming);
 }
 
 export async function hydrateMySavedArticles(
   incoming: SavedBriefItem[]
 ): Promise<{ items: BriefItem[]; error?: string }> {
-  const userId = await requireUserId();
-  if (!userId) return { items: [] };
+  const auth = await requireAuthUserId();
+  if ("error" in auth) return { items: [] };
   const cleaned = incoming
     .map((item) => sanitizeSavedItem(item))
     .filter((item): item is SavedBriefItem => Boolean(item));

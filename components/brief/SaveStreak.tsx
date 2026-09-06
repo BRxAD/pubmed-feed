@@ -103,7 +103,8 @@ const BriefSavedContext = createContext<BriefSavedContextValue | null>(null);
 export function BriefSavedProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const userId = session?.user?.id ?? "";
-  const signedIn = Boolean(userId);
+  const userEmail = session?.user?.email ?? "";
+  const signedIn = Boolean(userId) || Boolean(userEmail);
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | undefined>();
@@ -126,39 +127,32 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
 
       if (cancelled) return;
 
-      if (remote.error) {
-        // Keep device saves if account storage is unavailable.
+      // Always push this device's saves into the account, then pull the
+      // full union so phone + desktop share one list under the same email.
+      const synced = await syncLocalSavedArticles(local);
+      if (cancelled) return;
+
+      if (synced.error && !synced.items.length && remote.error) {
         setSavedItems(local);
-        setSyncError(remote.error);
+        setSyncError(synced.error || remote.error);
         setReady(true);
         return;
       }
 
-      let accountItems = remote.items;
-      if (local.length > 0) {
-        const synced = await syncLocalSavedArticles(local);
-        if (cancelled) return;
-        if (synced.error) {
-          setSyncError(synced.error);
-          accountItems = mergeSavedLists(local, remote.items);
-        } else {
-          setSyncError(undefined);
-          accountItems = synced.items;
-        }
-      } else {
-        setSyncError(undefined);
-      }
-
-      const merged = mergeSavedLists(accountItems, local);
+      const merged = mergeSavedLists(
+        synced.items.length > 0 ? synced.items : remote.items,
+        local
+      );
       writeSavedEntries(merged);
       setSavedItems(merged);
+      setSyncError(synced.error);
       setReady(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [signedIn, status, userId]);
+  }, [signedIn, status, userId, userEmail]);
 
   const toggleSave = useCallback(
     (
@@ -184,7 +178,8 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
             pubmedUrl,
             saved: !exists,
           }).then((result) => {
-            if (!result.ok) setSyncError(result.error);
+            if (!result.ok && result.error) setSyncError(result.error);
+            else if (result.ok) setSyncError(undefined);
           });
         }
         return next;

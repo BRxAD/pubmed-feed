@@ -26,6 +26,15 @@ function isMissingTable(message: string | undefined): boolean {
   return m.includes("schema cache") || m.includes("does not exist");
 }
 
+function publicSavedError(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+  if (isMissingTable(message)) {
+    return "Saved-article storage is not ready. Run scripts/add_next_auth.sql in Supabase.";
+  }
+  // Never surface raw Postgres / FK noise in the product UI.
+  return undefined;
+}
+
 export async function listSavedArticles(
   userId: string
 ): Promise<{ items: SavedBriefItem[]; error?: string }> {
@@ -39,14 +48,8 @@ export async function listSavedArticles(
       .limit(200);
 
     if (error) {
-      if (isMissingTable(error.message)) {
-        return {
-          items: [],
-          error:
-            "Saved-article storage is not ready. Run scripts/add_next_auth.sql in Supabase.",
-        };
-      }
-      return { items: [], error: error.message };
+      console.warn("[savedArticles] list failed:", error.message);
+      return { items: [], error: publicSavedError(error.message) };
     }
 
     const items = (data as SavedRow[] | null)
@@ -56,7 +59,8 @@ export async function listSavedArticles(
   } catch (err) {
     return {
       items: [],
-      error: err instanceof Error ? err.message : "Could not load saved articles",
+      error:
+        err instanceof Error ? publicSavedError(err.message) : undefined,
     };
   }
 }
@@ -77,7 +81,7 @@ export async function setSavedArticle(
         .delete()
         .eq("user_id", userId)
         .eq("pmid", clean.pmid);
-      if (error) return { success: false, error: error.message };
+      if (error) return { success: false, error: publicSavedError(error.message) };
       return { success: true };
     }
 
@@ -90,12 +94,15 @@ export async function setSavedArticle(
       },
       { onConflict: "user_id,pmid" }
     );
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.warn("[savedArticles] upsert failed:", error.message);
+      return { success: false, error: publicSavedError(error.message) };
+    }
     return { success: true };
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Could not update saved article",
+      error: err instanceof Error ? publicSavedError(err.message) : undefined,
     };
   }
 }
@@ -123,20 +130,16 @@ export async function mergeSavedArticles(
       { onConflict: "user_id,pmid" }
     );
     if (error) {
-      if (isMissingTable(error.message)) {
-        return {
-          items: [],
-          error:
-            "Saved-article storage is not ready. Run scripts/add_next_auth.sql in Supabase.",
-        };
-      }
-      return { items: [], error: error.message };
+      console.warn("[savedArticles] merge failed:", error.message);
+      const publicError = publicSavedError(error.message);
+      return { items: [], error: publicError };
     }
     return listSavedArticles(userId);
   } catch (err) {
     return {
       items: [],
-      error: err instanceof Error ? err.message : "Could not sync saved articles",
+      error:
+        err instanceof Error ? publicSavedError(err.message) : undefined,
     };
   }
 }

@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PublicAuthAdapter } from "@/lib/publicAuthAdapter";
 import { verifyPasswordLogin } from "@/lib/passwordAuth";
+import { ensureAuthUserId, isAuthUserUuid } from "@/lib/ensureAuthUser";
 
 function googleProviders() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
@@ -57,12 +58,32 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user?.id) token.id = user.id;
       if (user?.email) token.email = user.email;
+      if (user?.name) token.name = user.name;
+      if (user?.image) token.picture = user.image;
+
+      const email =
+        typeof token.email === "string" ? token.email : undefined;
+      // Heal on sign-in, or whenever the token still lacks our auth_users UUID
+      // (Google often leaves `sub` as the Google subject id).
+      if (
+        email &&
+        (user || !isAuthUserUuid(String(token.id ?? "")))
+      ) {
+        const ensured = await ensureAuthUserId({
+          id: typeof token.id === "string" ? token.id : null,
+          email,
+          name: typeof token.name === "string" ? token.name : null,
+          image: typeof token.picture === "string" ? token.picture : null,
+        });
+        if ("id" in ensured) token.id = ensured.id;
+      }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = (token.id as string | undefined) ?? token.sub ?? "";
-        if (token.email) session.user.email = token.email;
+        const id = String(token.id ?? "");
+        session.user.id = isAuthUserUuid(id) ? id : "";
+        if (token.email) session.user.email = String(token.email);
       }
       return session;
     },

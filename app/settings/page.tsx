@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { ensureAuthUserId } from "@/lib/ensureAuthUser";
 import { getUserPreferences } from "@/lib/updatePreferences";
 import { listSavedArticles } from "@/lib/savedArticles";
 import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
@@ -34,7 +35,7 @@ export default async function SettingsPage({
   const { error: authError, tab: tabRaw } = await searchParams;
   const tab = parseTab(tabRaw);
   const session = await getServerSession(authOptions);
-  const signedIn = Boolean(session?.user?.id);
+  const signedIn = Boolean(session?.user?.email || session?.user?.id);
 
   let preferences = DEFAULT_USER_PREFERENCES;
   let email = session?.user?.email ?? null;
@@ -42,16 +43,27 @@ export default async function SettingsPage({
   let savedBriefItems: Awaited<ReturnType<typeof getBriefItemsForSaved>> = [];
   let savedError: string | undefined;
 
-  if (session?.user?.id) {
-    const loaded = await getUserPreferences(session.user.id);
-    preferences = loaded.preferences;
-    email = loaded.email ?? email;
-    loadError = loaded.error;
+  if (signedIn) {
+    const auth = await ensureAuthUserId({
+      id: session?.user?.id,
+      email: session?.user?.email,
+      name: session?.user?.name,
+      image: session?.user?.image,
+    });
 
-    const saved = await listSavedArticles(session.user.id);
-    savedError = saved.error;
-    if (saved.items.length > 0) {
-      savedBriefItems = await getBriefItemsForSaved(saved.items);
+    if ("id" in auth) {
+      const loaded = await getUserPreferences(auth.id);
+      preferences = loaded.preferences;
+      email = loaded.email ?? email;
+      loadError = loaded.error;
+
+      const saved = await listSavedArticles(auth.id);
+      savedError = saved.error;
+      if (saved.items.length > 0) {
+        savedBriefItems = await getBriefItemsForSaved(saved.items);
+      }
+    } else {
+      loadError = auth.error;
     }
   }
 
