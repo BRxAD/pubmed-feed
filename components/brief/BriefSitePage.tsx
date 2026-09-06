@@ -4,7 +4,7 @@ import { brief } from "@/components/brief/briefTheme";
 
 type Props = {
   children: React.ReactNode;
-  active?: "/" | "/about" | "/contact";
+  active?: "/" | "/about" | "/contact" | "/settings";
 };
 
 /** Shell for static Brief pages (About, Contact): nav, content, footer. */

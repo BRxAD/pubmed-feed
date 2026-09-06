@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
 
@@ -79,6 +80,11 @@ export default function DigestSignup() {
           {message}
         </p>
       )}
+      <p className={`mt-3 ${brief.sans} text-xs ${brief.muted}`}>
+        <Link href="/settings" className={brief.action}>
+          Manage email preferences
+        </Link>
+      </p>
     </section>
   );
 }

@@ -8,6 +8,7 @@ const DISALLOW_TOOLS = [
   "/dashboard",
   "/api/",
   "/stewardshipbrief/settings",
+  "/settings",
   "/brief/unsubscribe",
 ];
 

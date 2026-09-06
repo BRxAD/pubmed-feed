@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono, Newsreader, Libre_Franklin } from "next/font/google";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = "G-R3CGC4MY67";
@@ -48,7 +49,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${libreFranklin.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
+        <Providers>{children}</Providers>
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
           strategy="afterInteractive"

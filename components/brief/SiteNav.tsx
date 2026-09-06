@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import SiteNavAccount from "@/components/brief/SiteNavAccount";
 import { brief } from "@/components/brief/briefTheme";
 
 const LINKS = [
@@ -10,7 +11,7 @@ const LINKS = [
 
 type Props = {
   /** Current path so the active link is marked. */
-  active?: "/" | "/about" | "/contact";
+  active?: "/" | "/about" | "/contact" | "/settings";
   /** Hide on the brief page — masthead already shows the brand. */
   showLogo?: boolean;
 };
@@ -60,6 +61,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
               </li>
             );
           })}
+          <SiteNavAccount active={active === "/settings"} />
         </ul>
       </nav>
     </div>

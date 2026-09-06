@@ -16,6 +16,11 @@ export async function GET() {
     configured: {
       CRON_SECRET: Boolean(process.env.CRON_SECRET?.trim()),
       RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY?.trim()),
+      RESEND_AUDIENCE_ID: Boolean(process.env.RESEND_AUDIENCE_ID?.trim()),
+      NEXTAUTH_SECRET: Boolean(process.env.NEXTAUTH_SECRET?.trim()),
+      NEXTAUTH_URL: Boolean(process.env.NEXTAUTH_URL?.trim()),
+      GOOGLE_CLIENT_ID: Boolean(process.env.GOOGLE_CLIENT_ID?.trim()),
+      GOOGLE_CLIENT_SECRET: Boolean(process.env.GOOGLE_CLIENT_SECRET?.trim()),
       OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY?.trim()),
       OPENALEX_MAILTO: Boolean(process.env.OPENALEX_MAILTO?.trim()),
       NCBI_EMAIL: Boolean(process.env.NCBI_EMAIL?.trim()),

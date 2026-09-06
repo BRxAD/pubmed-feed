@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import {
+  listMySavedArticles,
+  syncLocalSavedArticles,
+  toggleMySavedArticle,
+} from "@/app/saved/actions";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
+import type { SavedBriefItem } from "@/lib/savedArticleTypes";
+
+export type { SavedBriefItem };
 
 const STREAK_KEY = "stewardship-brief-streak";
 const SAVED_KEY = "stewardship-brief-saved";
-
-export type SavedBriefItem = {
-  pmid: string;
-  title: string;
-  pubmedUrl: string;
-};
+const SAVED_SYNC_KEY = "stewardship-brief-saved-synced";
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -78,37 +83,75 @@ export function useBriefSaved(): {
     meta?: { title?: string | null; pubmedUrl?: string | null }
   ) => void;
   savedCount: number;
+  signedIn: boolean;
 } {
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id ?? "";
+  const signedIn = Boolean(userId);
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
 
   useEffect(() => {
-    setSavedItems(readSavedEntries());
-  }, []);
+    if (status === "loading") return;
+
+    if (!signedIn) {
+      try {
+        localStorage.removeItem(SAVED_SYNC_KEY);
+      } catch {
+        /* ignore */
+      }
+      setSavedItems(readSavedEntries());
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const alreadySynced =
+        typeof window !== "undefined" &&
+        localStorage.getItem(SAVED_SYNC_KEY) === userId;
+      const local = alreadySynced ? [] : readSavedEntries();
+      const result =
+        local.length > 0
+          ? await syncLocalSavedArticles(local)
+          : await listMySavedArticles();
+      try {
+        localStorage.setItem(SAVED_SYNC_KEY, userId);
+      } catch {
+        /* ignore */
+      }
+      if (!cancelled) setSavedItems(result.items);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, status, userId]);
 
   const toggleSave = (
     pmid: string,
     meta?: { title?: string | null; pubmedUrl?: string | null }
   ) => {
+    const title = meta?.title?.trim() || `PMID ${pmid}`;
+    const pubmedUrl =
+      meta?.pubmedUrl?.trim() || `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+
     setSavedItems((prev) => {
       const exists = prev.some((e) => e.pmid === pmid);
-      let next: SavedBriefItem[];
-      if (exists) {
-        next = prev.filter((e) => e.pmid !== pmid);
-      } else {
-        next = [
-          {
-            pmid,
-            title: meta?.title?.trim() || `PMID ${pmid}`,
-            pubmedUrl:
-              meta?.pubmedUrl?.trim() ||
-              `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-          },
-          ...prev,
-        ];
-      }
-      writeSavedEntries(next);
+      const next = exists
+        ? prev.filter((e) => e.pmid !== pmid)
+        : [{ pmid, title, pubmedUrl }, ...prev];
+      if (!signedIn) writeSavedEntries(next);
       return next;
     });
+
+    if (signedIn) {
+      const exists = savedItems.some((e) => e.pmid === pmid);
+      void toggleMySavedArticle({
+        pmid,
+        title,
+        pubmedUrl,
+        saved: !exists,
+      });
+    }
   };
 
   return {
@@ -116,6 +159,7 @@ export function useBriefSaved(): {
     savedItems,
     toggleSave,
     savedCount: savedItems.length,
+    signedIn,
   };
 }
 
@@ -123,10 +167,12 @@ export default function SaveStreak({
   savedCount,
   savedItems,
   onRemove,
+  signedIn = false,
 }: {
   savedCount: number;
   savedItems: SavedBriefItem[];
   onRemove: (pmid: string) => void;
+  signedIn?: boolean;
 }) {
   const [streak, setStreak] = useState(0);
   const [open, setOpen] = useState(false);
@@ -168,6 +214,15 @@ export default function SaveStreak({
           </span>
         )}
       </button>
+
+      {!signedIn ? (
+        <p className={`mt-3 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}>
+          <Link href="/settings" className={brief.action}>
+            Sign in
+          </Link>{" "}
+          to keep saved articles on this account.
+        </p>
+      ) : null}
 
       {open && savedItems.length > 0 && (
         <ul

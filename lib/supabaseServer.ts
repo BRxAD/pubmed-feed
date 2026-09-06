@@ -23,3 +23,8 @@ export function getSupabaseServerClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+/** Auth user rows live in public.auth_users (no custom schema required). */
+export function getAuthUsersClient() {
+  return getSupabaseServerClient();
+}
