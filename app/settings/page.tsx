@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/updatePreferences";
+import { listSavedArticles } from "@/lib/savedArticles";
+import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import BriefSitePage from "@/components/brief/BriefSitePage";
 import AccountSignIn from "@/components/brief/AccountSignIn";
 import AccountSignedInHeader from "@/components/brief/AccountSignedInHeader";
-import EmailPreferencesDashboard from "@/components/brief/EmailPreferencesDashboard";
-import AccountSavedArticles from "@/components/brief/AccountSavedArticles";
+import AccountProfileTabs, {
+  type AccountTab,
+} from "@/components/brief/AccountProfileTabs";
 import { brief } from "@/components/brief/briefTheme";
 import { DEFAULT_USER_PREFERENCES } from "@/lib/userPreferences";
 
@@ -19,24 +22,37 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+function parseTab(raw: string | undefined): AccountTab {
+  return raw === "saved" ? "saved" : "email";
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; tab?: string }>;
 }) {
-  const { error: authError } = await searchParams;
+  const { error: authError, tab: tabRaw } = await searchParams;
+  const tab = parseTab(tabRaw);
   const session = await getServerSession(authOptions);
   const signedIn = Boolean(session?.user?.id);
 
   let preferences = DEFAULT_USER_PREFERENCES;
   let email = session?.user?.email ?? null;
   let loadError: string | undefined;
+  let savedBriefItems: Awaited<ReturnType<typeof getBriefItemsForSaved>> = [];
+  let savedError: string | undefined;
 
   if (session?.user?.id) {
     const loaded = await getUserPreferences(session.user.id);
     preferences = loaded.preferences;
     email = loaded.email ?? email;
     loadError = loaded.error;
+
+    const saved = await listSavedArticles(session.user.id);
+    savedError = saved.error;
+    if (saved.items.length > 0) {
+      savedBriefItems = await getBriefItemsForSaved(saved.items);
+    }
   }
 
   const signInError =
@@ -51,24 +67,20 @@ export default async function SettingsPage({
   return (
     <BriefSitePage active="/settings">
       <section className={`${brief.shell} py-12 sm:py-16`}>
-        <div className="mx-auto max-w-3xl">
+        <div
+          className={`mx-auto ${tab === "saved" ? "max-w-2xl" : "max-w-3xl"}`}
+        >
           {signedIn ? (
             <div className="space-y-10">
               <AccountSignedInHeader email={email} />
-              {loadError ? (
-                <p
-                  className={`${brief.sans} text-sm text-red-800`}
-                  role="alert"
-                >
-                  {loadError}
-                </p>
-              ) : null}
-              <EmailPreferencesDashboard
+              <AccountProfileTabs
+                tab={tab}
                 email={email}
-                initialPreferences={preferences}
-                hideAccountChrome
+                preferences={preferences}
+                prefsError={loadError}
+                savedItems={savedBriefItems}
+                savedError={savedError}
               />
-              <AccountSavedArticles />
             </div>
           ) : (
             <AccountSignIn

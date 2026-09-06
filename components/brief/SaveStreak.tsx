@@ -84,11 +84,14 @@ export function useBriefSaved(): {
   ) => void;
   savedCount: number;
   signedIn: boolean;
+  /** False until guest localStorage or signed-in account list has loaded. */
+  ready: boolean;
 } {
   const { data: session, status } = useSession();
   const userId = session?.user?.id ?? "";
   const signedIn = Boolean(userId);
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -100,10 +103,12 @@ export function useBriefSaved(): {
         /* ignore */
       }
       setSavedItems(readSavedEntries());
+      setReady(true);
       return;
     }
 
     let cancelled = false;
+    setReady(false);
     void (async () => {
       const alreadySynced =
         typeof window !== "undefined" &&
@@ -118,7 +123,10 @@ export function useBriefSaved(): {
       } catch {
         /* ignore */
       }
-      if (!cancelled) setSavedItems(result.items);
+      if (!cancelled) {
+        setSavedItems(result.items);
+        setReady(true);
+      }
     })();
 
     return () => {
@@ -160,6 +168,7 @@ export function useBriefSaved(): {
     toggleSave,
     savedCount: savedItems.length,
     signedIn,
+    ready,
   };
 }
 
