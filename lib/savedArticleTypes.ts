@@ -29,3 +29,19 @@ export function sanitizeSavedItem(raw: {
 export function capSavedItems(items: SavedBriefItem[]): SavedBriefItem[] {
   return items.slice(0, MAX_SAVED);
 }
+
+/** Prefer newer/local order first; fill gaps from remote without duplicates. */
+export function mergeSavedLists(
+  preferred: SavedBriefItem[],
+  other: SavedBriefItem[]
+): SavedBriefItem[] {
+  const seen = new Set<string>();
+  const out: SavedBriefItem[] = [];
+  for (const item of [...preferred, ...other]) {
+    const clean = sanitizeSavedItem(item);
+    if (!clean || seen.has(clean.pmid)) continue;
+    seen.add(clean.pmid);
+    out.push(clean);
+  }
+  return capSavedItems(out);
+}

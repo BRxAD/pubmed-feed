@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
@@ -10,13 +18,15 @@ import {
 } from "@/app/saved/actions";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
-import type { SavedBriefItem } from "@/lib/savedArticleTypes";
+import {
+  mergeSavedLists,
+  type SavedBriefItem,
+} from "@/lib/savedArticleTypes";
 
 export type { SavedBriefItem };
 
 const STREAK_KEY = "stewardship-brief-streak";
 const SAVED_KEY = "stewardship-brief-saved";
-const SAVED_SYNC_KEY = "stewardship-brief-saved-synced";
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -75,7 +85,7 @@ function writeSavedEntries(entries: SavedBriefItem[]) {
   }
 }
 
-export function useBriefSaved(): {
+type BriefSavedContextValue = {
   saved: Set<string>;
   savedItems: SavedBriefItem[];
   toggleSave: (
@@ -84,25 +94,26 @@ export function useBriefSaved(): {
   ) => void;
   savedCount: number;
   signedIn: boolean;
-  /** False until guest localStorage or signed-in account list has loaded. */
   ready: boolean;
-} {
+  syncError?: string;
+};
+
+const BriefSavedContext = createContext<BriefSavedContextValue | null>(null);
+
+export function BriefSavedProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const userId = session?.user?.id ?? "";
   const signedIn = Boolean(userId);
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
   const [ready, setReady] = useState(false);
+  const [syncError, setSyncError] = useState<string | undefined>();
 
   useEffect(() => {
     if (status === "loading") return;
 
     if (!signedIn) {
-      try {
-        localStorage.removeItem(SAVED_SYNC_KEY);
-      } catch {
-        /* ignore */
-      }
       setSavedItems(readSavedEntries());
+      setSyncError(undefined);
       setReady(true);
       return;
     }
@@ -110,23 +121,38 @@ export function useBriefSaved(): {
     let cancelled = false;
     setReady(false);
     void (async () => {
-      const alreadySynced =
-        typeof window !== "undefined" &&
-        localStorage.getItem(SAVED_SYNC_KEY) === userId;
-      const local = alreadySynced ? [] : readSavedEntries();
-      const result =
-        local.length > 0
-          ? await syncLocalSavedArticles(local)
-          : await listMySavedArticles();
-      try {
-        localStorage.setItem(SAVED_SYNC_KEY, userId);
-      } catch {
-        /* ignore */
-      }
-      if (!cancelled) {
-        setSavedItems(result.items);
+      const local = readSavedEntries();
+      const remote = await listMySavedArticles();
+
+      if (cancelled) return;
+
+      if (remote.error) {
+        // Keep device saves if account storage is unavailable.
+        setSavedItems(local);
+        setSyncError(remote.error);
         setReady(true);
+        return;
       }
+
+      let accountItems = remote.items;
+      if (local.length > 0) {
+        const synced = await syncLocalSavedArticles(local);
+        if (cancelled) return;
+        if (synced.error) {
+          setSyncError(synced.error);
+          accountItems = mergeSavedLists(local, remote.items);
+        } else {
+          setSyncError(undefined);
+          accountItems = synced.items;
+        }
+      } else {
+        setSyncError(undefined);
+      }
+
+      const merged = mergeSavedLists(accountItems, local);
+      writeSavedEntries(merged);
+      setSavedItems(merged);
+      setReady(true);
     })();
 
     return () => {
@@ -134,42 +160,65 @@ export function useBriefSaved(): {
     };
   }, [signedIn, status, userId]);
 
-  const toggleSave = (
-    pmid: string,
-    meta?: { title?: string | null; pubmedUrl?: string | null }
-  ) => {
-    const title = meta?.title?.trim() || `PMID ${pmid}`;
-    const pubmedUrl =
-      meta?.pubmedUrl?.trim() || `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+  const toggleSave = useCallback(
+    (
+      pmid: string,
+      meta?: { title?: string | null; pubmedUrl?: string | null }
+    ) => {
+      const title = meta?.title?.trim() || `PMID ${pmid}`;
+      const pubmedUrl =
+        meta?.pubmedUrl?.trim() || `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
 
-    setSavedItems((prev) => {
-      const exists = prev.some((e) => e.pmid === pmid);
-      const next = exists
-        ? prev.filter((e) => e.pmid !== pmid)
-        : [{ pmid, title, pubmedUrl }, ...prev];
-      if (!signedIn) writeSavedEntries(next);
-      return next;
-    });
-
-    if (signedIn) {
-      const exists = savedItems.some((e) => e.pmid === pmid);
-      void toggleMySavedArticle({
-        pmid,
-        title,
-        pubmedUrl,
-        saved: !exists,
+      setSavedItems((prev) => {
+        const exists = prev.some((e) => e.pmid === pmid);
+        const next = exists
+          ? prev.filter((e) => e.pmid !== pmid)
+          : [{ pmid, title, pubmedUrl }, ...prev];
+        // Always mirror on this device so remounts / account sync failures
+        // do not erase an optimistic save.
+        writeSavedEntries(next);
+        if (signedIn) {
+          void toggleMySavedArticle({
+            pmid,
+            title,
+            pubmedUrl,
+            saved: !exists,
+          }).then((result) => {
+            if (!result.ok) setSyncError(result.error);
+          });
+        }
+        return next;
       });
-    }
-  };
+    },
+    [signedIn]
+  );
 
-  return {
-    saved: new Set(savedItems.map((e) => e.pmid)),
-    savedItems,
-    toggleSave,
-    savedCount: savedItems.length,
-    signedIn,
-    ready,
-  };
+  const value = useMemo<BriefSavedContextValue>(
+    () => ({
+      saved: new Set(savedItems.map((e) => e.pmid)),
+      savedItems,
+      toggleSave,
+      savedCount: savedItems.length,
+      signedIn,
+      ready,
+      syncError,
+    }),
+    [ready, savedItems, signedIn, syncError, toggleSave]
+  );
+
+  return (
+    <BriefSavedContext.Provider value={value}>
+      {children}
+    </BriefSavedContext.Provider>
+  );
+}
+
+export function useBriefSaved(): BriefSavedContextValue {
+  const ctx = useContext(BriefSavedContext);
+  if (!ctx) {
+    throw new Error("useBriefSaved must be used within BriefSavedProvider");
+  }
+  return ctx;
 }
 
 export default function SaveStreak({

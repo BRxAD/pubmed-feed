@@ -33,9 +33,9 @@ export default function Masthead({ dateLabel }: Props) {
             className="h-auto w-full max-h-[112px] object-contain object-right sm:max-h-[120px]"
           />
           <p
-            className={`${brief.serif} mt-1.5 w-full text-right text-[0.75rem] font-medium leading-snug tracking-[-0.01em] text-[#1C0B19] sm:mt-2 sm:text-[0.85rem]`}
+            className={`${brief.serif} mt-0.5 w-full text-right text-[0.75rem] font-medium italic leading-snug tracking-[-0.01em] text-[#1C0B19] sm:mt-1 sm:text-[0.85rem]`}
           >
-            High Priority Antimicrobial Stewardship, Delivered Daily
+            High Priority Antimicrobial Stewardship, Delivered Daily.
           </p>
         </div>
 
