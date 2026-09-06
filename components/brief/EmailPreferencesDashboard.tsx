@@ -183,11 +183,7 @@ export default function EmailPreferencesDashboard({
       </section>
 
       <section>
-        <h2 className={`${brief.kicker} mb-2`}>Which articles</h2>
-        <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          The usual Brief bar is priority 5 and up. Highest impact means a score
-          above 5.
-        </p>
+        <h2 className={`${brief.kicker} mb-3`}>Which articles</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <CheckboxCard
             name="highImpactOnly"
@@ -196,7 +192,7 @@ export default function EmailPreferencesDashboard({
               setPreferences((prev) => ({ ...prev, highImpactOnly: false }))
             }
             label="All important articles"
-            hint="Everything that would appear on the daily Brief."
+            hint="Moderate and highest ranking articles."
           />
           <CheckboxCard
             name="highImpactOnly"
@@ -205,7 +201,7 @@ export default function EmailPreferencesDashboard({
               setPreferences((prev) => ({ ...prev, highImpactOnly: true }))
             }
             label="Only highest impact"
-            hint="Priority score above 5."
+            hint="Highest ranked articles."
           />
         </div>
       </section>
