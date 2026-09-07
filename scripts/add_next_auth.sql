@@ -87,6 +87,28 @@ create table if not exists public.saved_articles (
   constraint saved_articles_pkey primary key (user_id, pmid)
 );
 
+-- If an older next_auth.users FK remains, retarget it to public.auth_users.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint c
+    join pg_class rel on rel.oid = c.conrelid
+    join pg_namespace n on n.oid = rel.relnamespace
+    where n.nspname = 'public'
+      and rel.relname = 'saved_articles'
+      and c.conname = 'saved_articles_user_id_fkey'
+      and c.confrelid <> 'public.auth_users'::regclass
+  ) then
+    alter table public.saved_articles
+      drop constraint saved_articles_user_id_fkey;
+    alter table public.saved_articles
+      add constraint saved_articles_user_id_fkey
+      foreign key (user_id) references public.auth_users (id)
+      on delete cascade;
+  end if;
+end $$;
+
 create index if not exists auth_accounts_userId_idx
   on public.auth_accounts ("userId");
 

@@ -26,13 +26,15 @@ function isMissingTable(message: string | undefined): boolean {
   return m.includes("schema cache") || m.includes("does not exist");
 }
 
-function publicSavedError(message: string | undefined): string | undefined {
-  if (!message) return undefined;
+function publicSavedError(message: string | undefined): string {
+  const m = (message ?? "").toLowerCase();
   if (isMissingTable(message)) {
     return "Saved-article storage is not ready. Run scripts/add_next_auth.sql in Supabase.";
   }
-  // Never surface raw Postgres / FK noise in the product UI.
-  return undefined;
+  if (m.includes("foreign key") || m.includes("fkey")) {
+    return "Your account could not be linked for saving. Sign out, sign in again, then retry.";
+  }
+  return message?.trim() || "Could not update saved article.";
 }
 
 export async function listSavedArticles(
