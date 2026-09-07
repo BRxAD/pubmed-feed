@@ -40,14 +40,20 @@ function client(): SupabaseClient {
 
 /**
  * NextAuth adapter using public.auth_* tables (no custom schema to expose).
+ * Client is created lazily so `next build` can collect page data without
+ * Supabase env vars present in CI.
  */
 export function PublicAuthAdapter(): Adapter {
-  const supabase = client();
+  let cached: SupabaseClient | null = null;
+  const db = () => {
+    if (!cached) cached = client();
+    return cached;
+  };
 
   return {
     async createUser(user: Omit<AdapterUser, "id">) {
       const email = user.email?.trim().toLowerCase() ?? null;
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_users")
         .insert({
           name: user.name,
@@ -61,7 +67,7 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterUser>(data as Record<string, unknown>);
     },
     async getUser(id) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_users")
         .select()
         .eq("id", id)
@@ -72,7 +78,7 @@ export function PublicAuthAdapter(): Adapter {
     },
     async getUserByEmail(email) {
       const normalized = email.trim().toLowerCase();
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_users")
         .select()
         .ilike("email", normalized)
@@ -83,7 +89,7 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterUser>(row as Record<string, unknown>);
     },
     async getUserByAccount({ providerAccountId, provider }) {
-      const { data: account, error } = await supabase
+      const { data: account, error } = await db()
         .from("auth_accounts")
         .select("userId")
         .match({ provider, providerAccountId })
@@ -91,7 +97,7 @@ export function PublicAuthAdapter(): Adapter {
       if (error) throw error;
       const userId = (account as { userId?: string } | null)?.userId;
       if (!userId) return null;
-      const { data: user, error: userError } = await supabase
+      const { data: user, error: userError } = await db()
         .from("auth_users")
         .select()
         .eq("id", userId)
@@ -101,7 +107,7 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterUser>(user as Record<string, unknown>);
     },
     async updateUser(user) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_users")
         .update({
           ...user,
@@ -117,25 +123,25 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterUser>(data as Record<string, unknown>);
     },
     async deleteUser(userId) {
-      const { error } = await supabase.from("auth_users").delete().eq("id", userId);
+      const { error } = await db().from("auth_users").delete().eq("id", userId);
       if (error) throw error;
     },
     async linkAccount(account: AdapterAccount) {
-      const { error } = await supabase.from("auth_accounts").insert(account);
+      const { error } = await db().from("auth_accounts").insert(account);
       if (error) throw error;
     },
     async unlinkAccount({
       providerAccountId,
       provider,
     }: Pick<AdapterAccount, "provider" | "providerAccountId">) {
-      const { error } = await supabase
+      const { error } = await db()
         .from("auth_accounts")
         .delete()
         .match({ provider, providerAccountId });
       if (error) throw error;
     },
     async createSession({ sessionToken, userId, expires }) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_sessions")
         .insert({
           sessionToken,
@@ -148,7 +154,7 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterSession>(data as Record<string, unknown>);
     },
     async getSessionAndUser(sessionToken) {
-      const { data: session, error } = await supabase
+      const { data: session, error } = await db()
         .from("auth_sessions")
         .select()
         .eq("sessionToken", sessionToken)
@@ -157,7 +163,7 @@ export function PublicAuthAdapter(): Adapter {
       if (!session) return null;
       const userId = (session as { userId?: string }).userId;
       if (!userId) return null;
-      const { data: user, error: userError } = await supabase
+      const { data: user, error: userError } = await db()
         .from("auth_users")
         .select()
         .eq("id", userId)
@@ -170,7 +176,7 @@ export function PublicAuthAdapter(): Adapter {
       };
     },
     async updateSession(session) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_sessions")
         .update({
           ...session,
@@ -186,14 +192,14 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterSession>(data as Record<string, unknown>);
     },
     async deleteSession(sessionToken) {
-      const { error } = await supabase
+      const { error } = await db()
         .from("auth_sessions")
         .delete()
         .eq("sessionToken", sessionToken);
       if (error) throw error;
     },
     async createVerificationToken(token) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_verification_tokens")
         .insert({
           ...token,
@@ -207,7 +213,7 @@ export function PublicAuthAdapter(): Adapter {
       return format<VerificationToken>(verificationToken);
     },
     async useVerificationToken({ identifier, token }) {
-      const { data, error } = await supabase
+      const { data, error } = await db()
         .from("auth_verification_tokens")
         .delete()
         .match({ identifier, token })
