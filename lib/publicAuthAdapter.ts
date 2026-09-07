@@ -46,11 +46,12 @@ export function PublicAuthAdapter(): Adapter {
 
   return {
     async createUser(user: Omit<AdapterUser, "id">) {
+      const email = user.email?.trim().toLowerCase() ?? null;
       const { data, error } = await supabase
         .from("auth_users")
         .insert({
           name: user.name,
-          email: user.email,
+          email,
           image: user.image,
           emailVerified: user.emailVerified?.toISOString?.() ?? user.emailVerified,
         })
@@ -70,14 +71,16 @@ export function PublicAuthAdapter(): Adapter {
       return format<AdapterUser>(data as Record<string, unknown>);
     },
     async getUserByEmail(email) {
+      const normalized = email.trim().toLowerCase();
       const { data, error } = await supabase
         .from("auth_users")
         .select()
-        .eq("email", email)
-        .maybeSingle();
+        .ilike("email", normalized)
+        .limit(1);
       if (error) throw error;
-      if (!data) return null;
-      return format<AdapterUser>(data as Record<string, unknown>);
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) return null;
+      return format<AdapterUser>(row as Record<string, unknown>);
     },
     async getUserByAccount({ providerAccountId, provider }) {
       const { data: account, error } = await supabase

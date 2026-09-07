@@ -6,16 +6,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import {
-  listMySavedArticles,
-  syncLocalSavedArticles,
-  toggleMySavedArticle,
-} from "@/app/saved/actions";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
 import {
@@ -58,7 +54,6 @@ function readSavedEntries(): SavedBriefItem[] {
     const raw = localStorage.getItem(SAVED_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    // Legacy: string[] of PMIDs
     if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
       return (parsed as string[]).map((pmid) => ({
         pmid,
@@ -85,6 +80,48 @@ function writeSavedEntries(entries: SavedBriefItem[]) {
   }
 }
 
+async function apiSync(items: SavedBriefItem[]): Promise<{
+  items: SavedBriefItem[];
+  error?: string;
+}> {
+  const res = await fetch("/api/saved", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "sync", items }),
+  });
+  const data = (await res.json()) as {
+    items?: SavedBriefItem[];
+    error?: string;
+  };
+  return {
+    items: Array.isArray(data.items) ? data.items : [],
+    error: data.error,
+  };
+}
+
+async function apiToggle(input: {
+  pmid: string;
+  title: string;
+  pubmedUrl: string;
+  saved: boolean;
+}): Promise<{ items: SavedBriefItem[]; error?: string }> {
+  const res = await fetch("/api/saved", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "toggle", ...input }),
+  });
+  const data = (await res.json()) as {
+    items?: SavedBriefItem[];
+    error?: string;
+  };
+  return {
+    items: Array.isArray(data.items) ? data.items : [],
+    error: !res.ok ? data.error || "Could not update saved article." : data.error,
+  };
+}
+
 type BriefSavedContextValue = {
   saved: Set<string>;
   savedItems: SavedBriefItem[];
@@ -108,6 +145,46 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | undefined>();
+  const syncingRef = useRef(false);
+  const savedItemsRef = useRef<SavedBriefItem[]>([]);
+
+  useEffect(() => {
+    savedItemsRef.current = savedItems;
+  }, [savedItems]);
+
+  const applyAccountItems = useCallback((items: SavedBriefItem[]) => {
+    writeSavedEntries(items);
+    setSavedItems(items);
+  }, []);
+
+  const syncFromAccount = useCallback(
+    async (opts?: { quiet?: boolean }) => {
+      if (!signedIn || syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        const local = readSavedEntries();
+        const result = await apiSync(local);
+        if (result.error && result.items.length === 0) {
+          // Keep device saves if the account call failed completely.
+          setSavedItems(local);
+          if (!opts?.quiet) setSyncError(result.error);
+          return;
+        }
+        // Account list is the source of truth after a successful push/pull.
+        const merged = mergeSavedLists(result.items, local);
+        applyAccountItems(result.items.length > 0 ? result.items : merged);
+        setSyncError(undefined);
+      } catch {
+        if (!opts?.quiet) {
+          setSyncError("Could not sync saved articles. Try refreshing.");
+        }
+      } finally {
+        syncingRef.current = false;
+        setReady(true);
+      }
+    },
+    [applyAccountItems, signedIn]
+  );
 
   useEffect(() => {
     if (status === "loading") return;
@@ -119,40 +196,30 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let cancelled = false;
     setReady(false);
-    void (async () => {
-      const local = readSavedEntries();
-      const remote = await listMySavedArticles();
+    void syncFromAccount();
+  }, [signedIn, status, userId, userEmail, syncFromAccount]);
 
-      if (cancelled) return;
+  // When returning to this tab/device, pull the shared account list again.
+  useEffect(() => {
+    if (!signedIn) return;
 
-      // Always push this device's saves into the account, then pull the
-      // full union so phone + desktop share one list under the same email.
-      const synced = await syncLocalSavedArticles(local);
-      if (cancelled) return;
-
-      if (synced.error && !synced.items.length && remote.error) {
-        setSavedItems(local);
-        setSyncError(synced.error || remote.error);
-        setReady(true);
-        return;
-      }
-
-      const merged = mergeSavedLists(
-        synced.items.length > 0 ? synced.items : remote.items,
-        local
-      );
-      writeSavedEntries(merged);
-      setSavedItems(merged);
-      setSyncError(synced.error);
-      setReady(true);
-    })();
-
-    return () => {
-      cancelled = true;
+    const onFocus = () => {
+      void syncFromAccount({ quiet: true });
     };
-  }, [signedIn, status, userId, userEmail]);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void syncFromAccount({ quiet: true });
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [signedIn, syncFromAccount]);
 
   const toggleSave = useCallback(
     (
@@ -163,29 +230,37 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       const pubmedUrl =
         meta?.pubmedUrl?.trim() || `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
 
-      setSavedItems((prev) => {
-        const exists = prev.some((e) => e.pmid === pmid);
-        const next = exists
-          ? prev.filter((e) => e.pmid !== pmid)
-          : [{ pmid, title, pubmedUrl }, ...prev];
-        // Always mirror on this device so remounts / account sync failures
-        // do not erase an optimistic save.
-        writeSavedEntries(next);
-        if (signedIn) {
-          void toggleMySavedArticle({
-            pmid,
-            title,
-            pubmedUrl,
-            saved: !exists,
-          }).then((result) => {
-            if (!result.ok && result.error) setSyncError(result.error);
-            else if (result.ok) setSyncError(undefined);
-          });
+      const prev = savedItemsRef.current;
+      const exists = prev.some((e) => e.pmid === pmid);
+      const next = exists
+        ? prev.filter((e) => e.pmid !== pmid)
+        : [{ pmid, title, pubmedUrl }, ...prev];
+
+      // Optimistic device mirror (also helps if the network call is slow).
+      writeSavedEntries(next);
+      setSavedItems(next);
+
+      if (!signedIn) return;
+
+      void (async () => {
+        const result = await apiToggle({
+          pmid,
+          title,
+          pubmedUrl,
+          saved: !exists,
+        });
+        if (result.error && result.items.length === 0) {
+          setSyncError(result.error);
+          return;
         }
-        return next;
-      });
+        // Prefer the account list returned by the API.
+        if (result.items.length > 0 || !result.error) {
+          applyAccountItems(result.items);
+          setSyncError(undefined);
+        }
+      })();
     },
-    [signedIn]
+    [applyAccountItems, signedIn]
   );
 
   const value = useMemo<BriefSavedContextValue>(

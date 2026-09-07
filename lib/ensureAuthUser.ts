@@ -26,22 +26,41 @@ export async function ensureAuthUserId(input: {
   if (isAuthUserUuid(claimedId)) {
     const { data, error } = await supabase
       .from("auth_users")
-      .select("id")
+      .select("id, email")
       .eq("id", claimedId)
       .maybeSingle();
-    if (!error && data?.id) return { id: String(data.id) };
+    if (!error && data?.id) {
+      // Keep the row, but prefer matching by email when the claimed UUID's
+      // email disagrees (legacy duplicate-account cases).
+      const rowEmail = String(
+        (data as { email?: string | null }).email ?? ""
+      )
+        .trim()
+        .toLowerCase();
+      if (!email || !rowEmail || rowEmail === email) {
+        return { id: String(data.id) };
+      }
+    }
   }
 
   if (!email.includes("@")) {
     return { error: "Please sign in again to save articles to your account." };
   }
 
-  const { data: byEmail, error: emailError } = await supabase
+  // Case-insensitive match (Google may store mixed-case emails).
+  const { data: byEmailRows, error: emailError } = await supabase
     .from("auth_users")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-  if (!emailError && byEmail?.id) return { id: String(byEmail.id) };
+    .select("id, email")
+    .ilike("email", email)
+    .limit(5);
+
+  if (!emailError && byEmailRows && byEmailRows.length > 0) {
+    const exact =
+      byEmailRows.find(
+        (row) => String(row.email ?? "").trim().toLowerCase() === email
+      ) ?? byEmailRows[0];
+    return { id: String(exact.id) };
+  }
 
   const insert: Record<string, unknown> = {
     email,
@@ -63,12 +82,12 @@ export async function ensureAuthUserId(input: {
   if (!createError && created?.id) return { id: String(created.id) };
 
   // Race: another request created the row.
-  const { data: again } = await supabase
+  const { data: againRows } = await supabase
     .from("auth_users")
     .select("id")
-    .eq("email", email)
-    .maybeSingle();
-  if (again?.id) return { id: String(again.id) };
+    .ilike("email", email)
+    .limit(1);
+  if (againRows?.[0]?.id) return { id: String(againRows[0].id) };
 
   const msg = (createError?.message ?? "").toLowerCase();
   if (msg.includes("schema cache") || msg.includes("does not exist")) {

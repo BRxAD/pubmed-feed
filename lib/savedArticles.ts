@@ -85,18 +85,33 @@ export async function setSavedArticle(
       return { success: true };
     }
 
-    const { error } = await supabase.from("saved_articles").upsert(
-      {
-        user_id: userId,
-        pmid: clean.pmid,
-        title: clean.title,
-        pubmed_url: clean.pubmedUrl,
-      },
-      { onConflict: "user_id,pmid" }
-    );
+    const { data, error } = await supabase
+      .from("saved_articles")
+      .upsert(
+        {
+          user_id: userId,
+          pmid: clean.pmid,
+          title: clean.title,
+          pubmed_url: clean.pubmedUrl,
+        },
+        { onConflict: "user_id,pmid" }
+      )
+      .select("pmid")
+      .maybeSingle();
     if (error) {
       console.warn("[savedArticles] upsert failed:", error.message);
       return { success: false, error: publicSavedError(error.message) };
+    }
+    if (!data?.pmid) {
+      console.warn(
+        "[savedArticles] upsert returned no row for",
+        userId,
+        clean.pmid
+      );
+      return {
+        success: false,
+        error: "Could not save that article to your account.",
+      };
     }
     return { success: true };
   } catch (err) {
@@ -120,19 +135,29 @@ export async function mergeSavedArticles(
 
   try {
     const supabase = getSupabaseServerClient();
-    const { error } = await supabase.from("saved_articles").upsert(
-      cleaned.map((item) => ({
-        user_id: userId,
-        pmid: item.pmid,
-        title: item.title,
-        pubmed_url: item.pubmedUrl,
-      })),
-      { onConflict: "user_id,pmid" }
-    );
+    const { data, error } = await supabase
+      .from("saved_articles")
+      .upsert(
+        cleaned.map((item) => ({
+          user_id: userId,
+          pmid: item.pmid,
+          title: item.title,
+          pubmed_url: item.pubmedUrl,
+        })),
+        { onConflict: "user_id,pmid" }
+      )
+      .select("pmid");
     if (error) {
       console.warn("[savedArticles] merge failed:", error.message);
       const publicError = publicSavedError(error.message);
       return { items: [], error: publicError };
+    }
+    if ((data?.length ?? 0) < cleaned.length) {
+      console.warn(
+        "[savedArticles] merge upserted fewer rows than expected",
+        data?.length,
+        cleaned.length
+      );
     }
     return listSavedArticles(userId);
   } catch (err) {

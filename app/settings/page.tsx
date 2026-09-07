@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { ensureAuthUserId } from "@/lib/ensureAuthUser";
 import { getUserPreferences } from "@/lib/updatePreferences";
 import { listSavedArticles } from "@/lib/savedArticles";
+import { resolveSavedUserId } from "@/lib/savedArticlesService";
 import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import BriefSitePage from "@/components/brief/BriefSitePage";
 import AccountSignIn from "@/components/brief/AccountSignIn";
@@ -44,12 +44,7 @@ export default async function SettingsPage({
   let savedError: string | undefined;
 
   if (signedIn) {
-    const auth = await ensureAuthUserId({
-      id: session?.user?.id,
-      email: session?.user?.email,
-      name: session?.user?.name,
-      image: session?.user?.image,
-    });
+    const auth = await resolveSavedUserId();
 
     if ("id" in auth) {
       const loaded = await getUserPreferences(auth.id);
