@@ -44,7 +44,7 @@ export default function BriefPage({
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
 }) {
-  const { saved, savedItems, toggleSave, signedIn } = useBriefSaved();
+  const { saved, savedItems, toggleSave, signedIn, syncError } = useBriefSaved();
   const [brokenPmids, setBrokenPmids] = useState<Set<string>>(() => new Set());
 
   const ranked = useMemo(() => {
@@ -101,6 +101,7 @@ export default function BriefPage({
                     savedItems={savedItems}
                     onRemove={(pmid) => toggleSave(pmid)}
                     signedIn={signedIn}
+                    syncError={syncError}
                   />
                 </SidebarCard>
                 <SidebarCard accent="sky">

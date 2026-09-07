@@ -86,7 +86,7 @@ async function apiSync(items: SavedBriefItem[]): Promise<{
 }> {
   const res = await fetch("/api/saved", {
     method: "POST",
-    credentials: "same-origin",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "sync", items }),
   });
@@ -96,7 +96,9 @@ async function apiSync(items: SavedBriefItem[]): Promise<{
   };
   return {
     items: Array.isArray(data.items) ? data.items : [],
-    error: data.error,
+    error:
+      data.error ||
+      (!res.ok ? "Could not sync saved articles. Try signing in again." : undefined),
   };
 }
 
@@ -108,7 +110,7 @@ async function apiToggle(input: {
 }): Promise<{ items: SavedBriefItem[]; error?: string }> {
   const res = await fetch("/api/saved", {
     method: "POST",
-    credentials: "same-origin",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "toggle", ...input }),
   });
@@ -118,7 +120,9 @@ async function apiToggle(input: {
   };
   return {
     items: Array.isArray(data.items) ? data.items : [],
-    error: !res.ok ? data.error || "Could not update saved article." : data.error,
+    error:
+      data.error ||
+      (!res.ok ? "Could not update saved article. Try signing in again." : undefined),
   };
 }
 
@@ -164,15 +168,14 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       try {
         const local = readSavedEntries();
         const result = await apiSync(local);
-        if (result.error && result.items.length === 0) {
-          // Keep device saves if the account call failed completely.
-          setSavedItems(local);
+        if (result.error) {
+          // Keep this device's list, but do not pretend the account synced.
+          setSavedItems(mergeSavedLists(local, result.items));
           if (!opts?.quiet) setSyncError(result.error);
           return;
         }
-        // Account list is the source of truth after a successful push/pull.
-        const merged = mergeSavedLists(result.items, local);
-        applyAccountItems(result.items.length > 0 ? result.items : merged);
+        // Account list is the only source of truth after a clean sync.
+        applyAccountItems(result.items);
         setSyncError(undefined);
       } catch {
         if (!opts?.quiet) {
@@ -249,15 +252,12 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
           pubmedUrl,
           saved: !exists,
         });
-        if (result.error && result.items.length === 0) {
+        if (result.error) {
           setSyncError(result.error);
           return;
         }
-        // Prefer the account list returned by the API.
-        if (result.items.length > 0 || !result.error) {
-          applyAccountItems(result.items);
-          setSyncError(undefined);
-        }
+        applyAccountItems(result.items);
+        setSyncError(undefined);
       })();
     },
     [applyAccountItems, signedIn]
@@ -296,11 +296,13 @@ export default function SaveStreak({
   savedItems,
   onRemove,
   signedIn = false,
+  syncError,
 }: {
   savedCount: number;
   savedItems: SavedBriefItem[];
   onRemove: (pmid: string) => void;
   signedIn?: boolean;
+  syncError?: string;
 }) {
   const [streak, setStreak] = useState(0);
   const [open, setOpen] = useState(false);
@@ -349,6 +351,12 @@ export default function SaveStreak({
             Sign in
           </Link>{" "}
           to keep saved articles on this account.
+        </p>
+      ) : null}
+
+      {signedIn && syncError ? (
+        <p className={`mt-3 ${brief.sans} text-xs leading-relaxed text-red-800`} role="alert">
+          {syncError}
         </p>
       ) : null}
 

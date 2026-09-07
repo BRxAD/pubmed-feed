@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   loadAccountSavedArticles,
   pushAndLoadSavedArticles,
+  sessionFromRequest,
   writeSavedArticle,
 } from "@/lib/savedArticlesService";
 import {
@@ -13,8 +14,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET — account saved list (source of truth when signed in). */
-export async function GET() {
-  const result = await loadAccountSavedArticles();
+export async function GET(request: NextRequest) {
+  const session = await sessionFromRequest(request);
+  const result = await loadAccountSavedArticles(session);
   return NextResponse.json(result, {
     status: result.error && result.items.length === 0 ? 401 : 200,
   });
@@ -31,7 +33,9 @@ type Body =
     };
 
 /** POST — sync device saves into the account, or toggle one article. */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const session = await sessionFromRequest(request);
+
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -45,23 +49,26 @@ export async function POST(request: Request) {
           .map((item) => sanitizeSavedItem(item))
           .filter((item): item is SavedBriefItem => Boolean(item))
       : [];
-    const result = await pushAndLoadSavedArticles(incoming);
+    const result = await pushAndLoadSavedArticles(incoming, session);
     return NextResponse.json(result, {
-      status: result.error && result.items.length === 0 ? 400 : 200,
+      status: result.error ? 401 : 200,
     });
   }
 
   if (body.action === "toggle") {
-    const result = await writeSavedArticle({
-      pmid: body.pmid,
-      title: body.title,
-      pubmedUrl: body.pubmedUrl,
-      saved: Boolean(body.saved),
-    });
+    const result = await writeSavedArticle(
+      {
+        pmid: body.pmid,
+        title: body.title,
+        pubmedUrl: body.pubmedUrl,
+        saved: Boolean(body.saved),
+      },
+      session
+    );
     if (!result.ok) {
       return NextResponse.json(
         { error: result.error, items: [] as SavedBriefItem[] },
-        { status: 400 }
+        { status: 401 }
       );
     }
     return NextResponse.json({ items: result.items });
