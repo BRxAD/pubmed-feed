@@ -11,12 +11,18 @@ import {
   getBriefDigestFromAddress,
   getDigestRecipients,
 } from "@/lib/digest/config";
+import {
+  filterBriefItemsForPreferences,
+  getPreferencesByEmails,
+  shouldSendBriefEmailToday,
+} from "@/lib/digest/recipientPreferences";
 import { sendDigestEmailToEach } from "@/lib/digest/sendEmail";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import {
   unsubscribeApiUrlForEmail,
   unsubscribeUrlForEmail,
 } from "@/lib/digest/unsubscribeToken";
+import { DEFAULT_USER_PREFERENCES } from "@/lib/userPreferences";
 
 export type BriefDigestResult = {
   sent: boolean;
@@ -29,6 +35,7 @@ export type BriefDigestResult = {
   skippedDuplicates?: number;
   skippedStaleArticle?: number;
   skippedOldSummary?: number;
+  skippedByPreference?: number;
 };
 
 function isBriefDigestEnabled(): boolean {
@@ -124,17 +131,32 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     })
     .slice(0, 12);
 
-  const recipients = await getBriefDigestRecipients();
+  const allRecipients = await getBriefDigestRecipients();
+  const prefsByEmail = await getPreferencesByEmails(allRecipients);
 
-  const { subject, html, text } = buildBriefDigestEmail({
-    items,
-    briefUrl,
-    dateLabel,
-    logoUrl,
-    logoLightUrl,
-  });
+  const sendEmpty = process.env.BRIEF_DIGEST_SEND_IF_EMPTY === "1";
 
-  if (recipients.length === 0) {
+  let skippedByPreference = 0;
+  const activeRecipients: string[] = [];
+  const itemsByEmail = new Map<string, BriefItem[]>();
+
+  for (const email of allRecipients) {
+    const prefs =
+      prefsByEmail.get(email.trim().toLowerCase()) ?? DEFAULT_USER_PREFERENCES;
+    if (!shouldSendBriefEmailToday(prefs)) {
+      skippedByPreference++;
+      continue;
+    }
+    const filtered = filterBriefItemsForPreferences(items, prefs);
+    if (filtered.length === 0 && !sendEmpty) {
+      skippedByPreference++;
+      continue;
+    }
+    activeRecipients.push(email);
+    itemsByEmail.set(email, filtered);
+  }
+
+  if (allRecipients.length === 0) {
     return {
       sent: false,
       recipients: [],
@@ -143,16 +165,14 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       skippedDuplicates,
       skippedStaleArticle,
       skippedOldSummary,
+      skippedByPreference,
     };
   }
-
-  const sendEmpty =
-    process.env.BRIEF_DIGEST_SEND_IF_EMPTY === "1";
 
   if (items.length === 0 && !sendEmpty) {
     return {
       sent: false,
-      recipients,
+      recipients: allRecipients,
       itemCount: 0,
       skippedReason:
         skippedDuplicates > 0
@@ -163,6 +183,21 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       skippedDuplicates,
       skippedStaleArticle,
       skippedOldSummary,
+      skippedByPreference,
+    };
+  }
+
+  if (activeRecipients.length === 0) {
+    return {
+      sent: false,
+      recipients: allRecipients,
+      itemCount: items.length,
+      skippedReason:
+        "No recipients matched today’s email preferences (frequency or filters)",
+      skippedDuplicates,
+      skippedStaleArticle,
+      skippedOldSummary,
+      skippedByPreference,
     };
   }
 
@@ -174,13 +209,23 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     }
   })();
 
+  // Fallback body (unused when personalize always returns content).
+  const { subject, html, text } = buildBriefDigestEmail({
+    items,
+    briefUrl,
+    dateLabel,
+    logoUrl,
+    logoLightUrl,
+  });
+
   const result = await sendDigestEmailToEach({
-    recipients,
+    recipients: activeRecipients,
     subject,
     html,
     text,
     from: getBriefDigestFromAddress(),
     personalize: (email) => {
+      const recipientItems = itemsByEmail.get(email) ?? items;
       let unsubscribePageUrl: string | undefined;
       let unsubscribeApiUrl: string | undefined;
       try {
@@ -193,14 +238,13 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         );
       }
       const personalized = buildBriefDigestEmail({
-        items,
+        items: recipientItems,
         briefUrl,
         dateLabel,
         logoUrl,
         logoLightUrl,
         unsubscribeUrl: unsubscribePageUrl,
       });
-      // Gmail/Yahoo bulk-sender rules: one-click List-Unsubscribe + clear List-Id.
       const headers: Record<string, string> = {
         "List-Id": `The Stewardship Brief <brief.${listIdHost}>`,
         Precedence: "list",
@@ -214,6 +258,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       return {
         html: personalized.html,
         text: personalized.text,
+        subject: personalized.subject,
         headers,
       };
     },
@@ -225,7 +270,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
 
   return {
     sent: result.sent > 0,
-    recipients,
+    recipients: activeRecipients,
     itemCount: items.length,
     messageId: result.lastId,
     sentCount: result.sent,
@@ -233,5 +278,6 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     skippedDuplicates,
     skippedStaleArticle,
     skippedOldSummary,
+    skippedByPreference,
   };
 }

@@ -201,7 +201,7 @@ export default function EmailPreferencesDashboard({
               setPreferences((prev) => ({ ...prev, highImpactOnly: true }))
             }
             label="Only highest impact"
-            hint="Highest ranked articles."
+            hint="Highest ranked articles (priority 6 and up)."
           />
         </div>
       </section>

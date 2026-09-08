@@ -137,6 +137,8 @@ type BriefSavedContextValue = {
   signedIn: boolean;
   ready: boolean;
   syncError?: string;
+  /** True after a guest taps Save — show the sign-in prompt in the saved box. */
+  loginPrompt: boolean;
 };
 
 const BriefSavedContext = createContext<BriefSavedContextValue | null>(null);
@@ -149,6 +151,7 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
   const [savedItems, setSavedItems] = useState<SavedBriefItem[]>([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | undefined>();
+  const [loginPrompt, setLoginPrompt] = useState(false);
   const syncingRef = useRef(false);
   const savedItemsRef = useRef<SavedBriefItem[]>([]);
 
@@ -193,12 +196,15 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
     if (status === "loading") return;
 
     if (!signedIn) {
-      setSavedItems(readSavedEntries());
+      // Guests cannot save — keep the list empty (local leftovers stay only
+      // until the next sign-in sync).
+      setSavedItems([]);
       setSyncError(undefined);
       setReady(true);
       return;
     }
 
+    setLoginPrompt(false);
     setReady(false);
     void syncFromAccount();
   }, [signedIn, status, userId, userEmail, syncFromAccount]);
@@ -229,6 +235,11 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       pmid: string,
       meta?: { title?: string | null; pubmedUrl?: string | null }
     ) => {
+      if (!signedIn) {
+        setLoginPrompt(true);
+        return;
+      }
+
       const title = meta?.title?.trim() || `PMID ${pmid}`;
       const pubmedUrl =
         meta?.pubmedUrl?.trim() || `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
@@ -242,8 +253,6 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       // Optimistic device mirror (also helps if the network call is slow).
       writeSavedEntries(next);
       setSavedItems(next);
-
-      if (!signedIn) return;
 
       void (async () => {
         const result = await apiToggle({
@@ -272,8 +281,9 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       signedIn,
       ready,
       syncError,
+      loginPrompt,
     }),
-    [ready, savedItems, signedIn, syncError, toggleSave]
+    [loginPrompt, ready, savedItems, signedIn, syncError, toggleSave]
   );
 
   return (
@@ -297,15 +307,18 @@ export default function SaveStreak({
   onRemove,
   signedIn = false,
   syncError,
+  loginPrompt = false,
 }: {
   savedCount: number;
   savedItems: SavedBriefItem[];
   onRemove: (pmid: string) => void;
   signedIn?: boolean;
   syncError?: string;
+  loginPrompt?: boolean;
 }) {
   const [streak, setStreak] = useState(0);
   const [open, setOpen] = useState(false);
+  const promptRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(() => {
     setStreak(bumpStreak());
@@ -314,6 +327,11 @@ export default function SaveStreak({
   useEffect(() => {
     if (savedCount === 0) setOpen(false);
   }, [savedCount]);
+
+  useEffect(() => {
+    if (!loginPrompt || signedIn) return;
+    promptRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [loginPrompt, signedIn]);
 
   return (
     <section aria-labelledby="streak-heading">
@@ -346,11 +364,30 @@ export default function SaveStreak({
       </button>
 
       {!signedIn ? (
-        <p className={`mt-3 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}>
-          <Link href="/settings" className={brief.action}>
-            Sign in
-          </Link>{" "}
-          to keep saved articles on this account.
+        <p
+          ref={promptRef}
+          className={`mt-3 ${brief.sans} text-xs leading-relaxed ${
+            loginPrompt
+              ? "rounded-sm border border-[#2A79A7]/35 bg-[#2A79A7]/10 px-2.5 py-2 text-[#1C0B19]"
+              : brief.muted
+          }`}
+          role={loginPrompt ? "status" : undefined}
+        >
+          {loginPrompt ? (
+            <>
+              Sign in to save this article.{" "}
+              <Link href="/settings" className={brief.action}>
+                Sign in
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/settings" className={brief.action}>
+                Sign in
+              </Link>{" "}
+              to save articles for later.
+            </>
+          )}
         </p>
       ) : null}
 

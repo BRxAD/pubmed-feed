@@ -63,10 +63,11 @@ export async function sendDigestEmailToEach(options: {
   html: string;
   text: string;
   from?: string;
-  /** Override body/headers per recipient (e.g. unsubscribe links). */
+  /** Override body/headers/subject per recipient (e.g. unsubscribe links). */
   personalize?: (email: string) => {
     html?: string;
     text?: string;
+    subject?: string;
     headers?: Record<string, string>;
   };
 }): Promise<{ sent: number; failed: string[]; lastId?: string }> {
@@ -85,6 +86,7 @@ export async function sendDigestEmailToEach(options: {
       const result = await sendDigestEmail({
         ...payload,
         to: [email],
+        subject: extras.subject ?? payload.subject,
         html: extras.html ?? payload.html,
         text: extras.text ?? payload.text,
         headers: extras.headers,
