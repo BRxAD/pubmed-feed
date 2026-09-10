@@ -12,7 +12,7 @@ Audience:
 
 Format your response using exactly these section labels (one per line):
 - [METHODS] 1–2 sentences on what was done: study design, population, setting, intervention (omit this section entirely for opinion pieces, editorials, or papers with no methods)
-- [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where the abstract provides them
+- [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where the abstract provides them. If you report a restricted, subgroup, sensitivity, or "subset" analysis, name what defined it in the same phrase as the count, using the abstract's own label (e.g. "73 published peer-reviewed RCTs", "per-protocol analysis", "excluding unpublished trials") — never "a subset of 73 trials". If the abstract does not say what the subset is, omit that analysis rather than inventing a label.
 - [BOTTOM LINE] 1 sentence stating the main finding directly — lead with the conclusion itself, not a meta phrase
 
 Rules:
@@ -20,6 +20,8 @@ Rules:
 - Use plain language; do not restate the abstract verbatim
 - Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed" unless the abstract says that
 - Include numbers in RESULTS when the abstract provides them
+- Name restricted analyses: if RESULTS include a subgroup, sensitivity, published-only, per-protocol, or other restricted analysis, say what defined that group using the abstract's words plus the N (e.g. "In 73 published peer-reviewed RCTs…"). Do not write "a subset of N trials/studies". If the abstract does not name the restriction, drop that number rather than guessing.
+- When primary and one named restricted analysis both matter, RESULTS may use up to 50 words so both numbers and the restriction label fit
 - BOTTOM LINE should lead with the finding when possible — do not open with empty meta phrases ("In conclusion", "Overall")
 - BOTTOM LINE may (and often should) name the study design up front when it helps experts weigh the claim — e.g., "Systematic review showed…", "In this multicenter cohort…", "In this randomized trial…"
 - Prefer "Systematic review showed that…" / "This RCT found…" over a vague "this study"
@@ -29,7 +31,7 @@ Rules:
 - Causality: use causal language ONLY for randomized trials (RCT) of a clear intervention. Systematic reviews / meta-analyses mixing observational data are non-causal unless limited to RCT evidence. For observational, cohort, cross-sectional, quasi-experimental, or any non-RCT design, state associations or patterns — do not imply the intervention "led to", "caused", "drove", or "resulted in" the outcome. The AMS hook follows the same rule: "associated with lower antibiotic use" for non-RCT; "reduced antibiotic use" only for RCT evidence
 - When study design is unclear, default to non-causal wording
 - Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
-- Max 40 words per section (BOTTOM LINE may use up to 50 words when it must add a stewardship hook)
+- Max 40 words per section (BOTTOM LINE may use up to 50 words when it must add a stewardship hook; RESULTS may use up to 50 words when primary plus one named restricted analysis both need numbers)
 - Keep the total summary under 120 words
 
 Note: Headlines for the brief are generated in a separate step.`;

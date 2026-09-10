@@ -11,6 +11,8 @@
 -- 5) Diagnostic stewardship / antibiogram / procalcitonin-guided (any journal).
 -- 6) All research articles from CID, OFID, JCM, ICHE, ASHE
 --    (still drop case reports, letters, editorials, comments, animal-only).
+-- 7) Major-topic MeSH: Anti-Bacterial Agents adverse effects or therapeutic use
+--    ([MAJR] = starred heading in PubMed). Not plain [MeSH] (too broad).
 -- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
 -- Run in Supabase SQL Editor (ASCII comments only).
 
@@ -239,6 +241,11 @@ SET query_string = '(
     OR "J Clin Microbiol"[Journal]
     OR "Infect Control Hosp Epidemiol"[Journal]
     OR "Antimicrob Steward Healthc Epidemiol"[Journal]
+  )
+  OR
+  (
+    "Anti-Bacterial Agents/adverse effects"[MAJR]
+    OR "Anti-Bacterial Agents/therapeutic use"[MAJR]
   )
 )
 
