@@ -23,7 +23,7 @@ export const EMAIL_FREQUENCY_OPTIONS: {
   {
     value: "weekly",
     label: "Weekly",
-    hint: "One roundup per week.",
+    hint: "One roundup per week (Mondays).",
   },
   {
     value: "none",
@@ -32,14 +32,17 @@ export const EMAIL_FREQUENCY_OPTIONS: {
   },
 ];
 
+/** Specific care-setting chips (All is empty settingsTags). */
 export const SETTINGS_TAG_OPTIONS = BRIEF_SETTING_OPTIONS.filter(
   (opt) => opt.value !== ""
 );
 
+/** Specific topic chips (All is empty topicsTags). */
 export const TOPICS_TAG_OPTIONS = BRIEF_TOPIC_OPTIONS.filter(
   (opt) => opt.value !== ""
 );
 
+/** New accounts: Daily, All settings, All topics, All curated articles. */
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   emailFrequency: "daily",
   settingsTags: [],

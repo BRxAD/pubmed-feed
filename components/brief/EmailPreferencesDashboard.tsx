@@ -18,7 +18,7 @@ type Props = {
   hideAccountChrome?: boolean;
 };
 
-function toggleInList(list: string[], value: string): string[] {
+function toggleSpecificTag(list: string[], value: string): string[] {
   return list.includes(value)
     ? list.filter((item) => item !== value)
     : [...list, value];
@@ -30,12 +30,14 @@ function CheckboxCard({
   label,
   hint,
   name,
+  badge,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
   hint?: string;
   name: string;
+  badge?: string;
 }) {
   return (
     <label
@@ -52,8 +54,17 @@ function CheckboxCard({
         onChange={onChange}
         className="mt-1 accent-[#2A79A7]"
       />
-      <span>
-        <span className={`${brief.sans} text-sm ${brief.ink}`}>{label}</span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className={`${brief.sans} text-sm ${brief.ink}`}>{label}</span>
+          {badge ? (
+            <span
+              className={`${brief.sans} rounded-sm bg-[#2A79A7]/15 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-[#2A79A7]`}
+            >
+              {badge}
+            </span>
+          ) : null}
+        </span>
         {hint ? (
           <p className={`mt-0.5 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}>
             {hint}
@@ -90,6 +101,9 @@ export default function EmailPreferencesDashboard({
     setMessage(result.warning ?? "Preferences saved.");
   }
 
+  const settingsAll = preferences.settingsTags.length === 0;
+  const topicsAll = preferences.topicsTags.length === 0;
+
   return (
     <form onSubmit={onSubmit} className="space-y-10">
       {!hideAccountChrome ? (
@@ -113,7 +127,7 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Email frequency</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Choose how often we send the Brief. Pick one.
+          Choose how often we send the Brief. Pick one. Default is Daily.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           {EMAIL_FREQUENCY_OPTIONS.map((opt) => (
@@ -129,6 +143,7 @@ export default function EmailPreferencesDashboard({
               }
               label={opt.label}
               hint={opt.hint}
+              badge={opt.value === "daily" ? "Default" : undefined}
             />
           ))}
         </div>
@@ -137,10 +152,22 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Care setting</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Limit email to the settings you care about. Leave all unchecked to
-          keep every setting.
+          Limit email to the settings you care about. Default is All.
         </p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <CheckboxCard
+            name="settingsTags"
+            checked={settingsAll}
+            onChange={() =>
+              setPreferences((prev) => ({
+                ...prev,
+                settingsTags: [],
+              }))
+            }
+            label="All"
+            hint="Every care setting."
+            badge="Default"
+          />
           {SETTINGS_TAG_OPTIONS.map((tag) => (
             <CheckboxCard
               key={tag.value}
@@ -149,7 +176,7 @@ export default function EmailPreferencesDashboard({
               onChange={() =>
                 setPreferences((prev) => ({
                   ...prev,
-                  settingsTags: toggleInList(prev.settingsTags, tag.value),
+                  settingsTags: toggleSpecificTag(prev.settingsTags, tag.value),
                 }))
               }
               label={tag.label}
@@ -161,10 +188,22 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Topics</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Limit email to these topic capsules. Leave all unchecked to keep every
-          topic.
+          Limit email to these topic capsules. Default is All.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <CheckboxCard
+            name="topicsTags"
+            checked={topicsAll}
+            onChange={() =>
+              setPreferences((prev) => ({
+                ...prev,
+                topicsTags: [],
+              }))
+            }
+            label="All"
+            hint="Every topic."
+            badge="Default"
+          />
           {TOPICS_TAG_OPTIONS.map((tag) => (
             <CheckboxCard
               key={tag.value}
@@ -173,7 +212,7 @@ export default function EmailPreferencesDashboard({
               onChange={() =>
                 setPreferences((prev) => ({
                   ...prev,
-                  topicsTags: toggleInList(prev.topicsTags, tag.value),
+                  topicsTags: toggleSpecificTag(prev.topicsTags, tag.value),
                 }))
               }
               label={tag.label}
@@ -191,8 +230,9 @@ export default function EmailPreferencesDashboard({
             onChange={() =>
               setPreferences((prev) => ({ ...prev, highImpactOnly: false }))
             }
-            label="All important articles"
-            hint="Moderate and highest ranking articles."
+            label="Default: All Curated Articles"
+            hint="Covers all priority-filtered content."
+            badge="Recommended"
           />
           <CheckboxCard
             name="highImpactOnly"
@@ -200,8 +240,8 @@ export default function EmailPreferencesDashboard({
             onChange={() =>
               setPreferences((prev) => ({ ...prev, highImpactOnly: true }))
             }
-            label="Only highest impact"
-            hint="Highest ranked articles (priority 6 and up)."
+            label="Strict Filter: Highest Impact"
+            hint="Top priority items only."
           />
         </div>
       </section>
