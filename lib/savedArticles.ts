@@ -124,6 +124,10 @@ export async function setSavedArticle(
   }
 }
 
+/**
+ * Additive upsert only (does not delete). Used to migrate leftover local
+ * saves onto an empty account — not as a full-list replace from a device.
+ */
 export async function mergeSavedArticles(
   userId: string,
   incoming: SavedBriefItem[]

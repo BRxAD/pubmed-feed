@@ -32,7 +32,10 @@ type Body =
       saved: boolean;
     };
 
-/** POST — sync device saves into the account, or toggle one article. */
+/**
+ * POST — toggle one article, or migrate leftover local saves (additive upsert).
+ * Clients must pull via GET on refresh; do not POST a full device list every time.
+ */
 export async function POST(request: NextRequest) {
   const session = await sessionFromRequest(request);
 

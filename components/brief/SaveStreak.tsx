@@ -80,7 +80,28 @@ function writeSavedEntries(entries: SavedBriefItem[]) {
   }
 }
 
-async function apiSync(items: SavedBriefItem[]): Promise<{
+async function apiPull(): Promise<{
+  items: SavedBriefItem[];
+  error?: string;
+}> {
+  const res = await fetch("/api/saved", {
+    method: "GET",
+    credentials: "include",
+  });
+  const data = (await res.json()) as {
+    items?: SavedBriefItem[];
+    error?: string;
+  };
+  return {
+    items: Array.isArray(data.items) ? data.items : [],
+    error:
+      data.error ||
+      (!res.ok ? "Could not sync saved articles. Try signing in again." : undefined),
+  };
+}
+
+/** Additive only — used once to upload leftover local saves onto an empty account. */
+async function apiMigrateLocal(items: SavedBriefItem[]): Promise<{
   items: SavedBriefItem[];
   error?: string;
 }> {
@@ -152,7 +173,7 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | undefined>();
   const [loginPrompt, setLoginPrompt] = useState(false);
-  const syncingRef = useRef(false);
+  const syncGenRef = useRef(0);
   const savedItemsRef = useRef<SavedBriefItem[]>([]);
 
   useEffect(() => {
@@ -164,29 +185,52 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
     setSavedItems(items);
   }, []);
 
-  const syncFromAccount = useCallback(
-    async (opts?: { quiet?: boolean }) => {
-      if (!signedIn || syncingRef.current) return;
-      syncingRef.current = true;
+  /**
+   * Account list wins. Never push this device's full local list on refresh —
+   * that re-created deleted articles from a stale browser cache.
+   * Only migrate local leftovers when the account itself is empty.
+   */
+  const pullFromAccount = useCallback(
+    async (opts?: { quiet?: boolean; allowMigrate?: boolean }) => {
+      if (!signedIn) return;
+      const gen = ++syncGenRef.current;
       try {
-        const local = readSavedEntries();
-        const result = await apiSync(local);
-        if (result.error) {
-          // Keep this device's list, but do not pretend the account synced.
-          setSavedItems(mergeSavedLists(local, result.items));
-          if (!opts?.quiet) setSyncError(result.error);
+        const pulled = await apiPull();
+        if (gen !== syncGenRef.current) return;
+
+        if (pulled.error) {
+          const local = readSavedEntries();
+          setSavedItems(mergeSavedLists(local, pulled.items));
+          if (!opts?.quiet) setSyncError(pulled.error);
           return;
         }
-        // Account list is the only source of truth after a clean sync.
-        applyAccountItems(result.items);
+
+        if (opts?.allowMigrate && pulled.items.length === 0) {
+          const local = readSavedEntries();
+          if (local.length > 0) {
+            const migrated = await apiMigrateLocal(local);
+            if (gen !== syncGenRef.current) return;
+            if (migrated.error) {
+              setSavedItems(local);
+              if (!opts?.quiet) setSyncError(migrated.error);
+              return;
+            }
+            applyAccountItems(migrated.items);
+            setSyncError(undefined);
+            return;
+          }
+        }
+
+        applyAccountItems(pulled.items);
         setSyncError(undefined);
       } catch {
         if (!opts?.quiet) {
           setSyncError("Could not sync saved articles. Try refreshing.");
         }
       } finally {
-        syncingRef.current = false;
-        setReady(true);
+        if (gen === syncGenRef.current) {
+          setReady(true);
+        }
       }
     },
     [applyAccountItems, signedIn]
@@ -196,8 +240,8 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
     if (status === "loading") return;
 
     if (!signedIn) {
-      // Guests cannot save — keep the list empty (local leftovers stay only
-      // until the next sign-in sync).
+      // Guests cannot save — keep the list empty (local leftovers migrate
+      // only if they later sign in to an account with no saves yet).
       setSavedItems([]);
       setSyncError(undefined);
       setReady(true);
@@ -206,19 +250,19 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
 
     setLoginPrompt(false);
     setReady(false);
-    void syncFromAccount();
-  }, [signedIn, status, userId, userEmail, syncFromAccount]);
+    void pullFromAccount({ allowMigrate: true });
+  }, [signedIn, status, userId, userEmail, pullFromAccount]);
 
   // When returning to this tab/device, pull the shared account list again.
   useEffect(() => {
     if (!signedIn) return;
 
     const onFocus = () => {
-      void syncFromAccount({ quiet: true });
+      void pullFromAccount({ quiet: true });
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        void syncFromAccount({ quiet: true });
+        void pullFromAccount({ quiet: true });
       }
     };
 
@@ -228,7 +272,7 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [signedIn, syncFromAccount]);
+  }, [signedIn, pullFromAccount]);
 
   const toggleSave = useCallback(
     (
@@ -254,6 +298,9 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       writeSavedEntries(next);
       setSavedItems(next);
 
+      // Invalidate in-flight pulls so a stale GET cannot undo this toggle.
+      const gen = ++syncGenRef.current;
+
       void (async () => {
         const result = await apiToggle({
           pmid,
@@ -261,6 +308,7 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
           pubmedUrl,
           saved: !exists,
         });
+        if (gen !== syncGenRef.current) return;
         if (result.error) {
           setSyncError(result.error);
           return;
