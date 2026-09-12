@@ -3,6 +3,7 @@ import { briefPalette } from "@/components/brief/briefTheme";
 import { mailtoShareHref } from "@/lib/brief/shareAttribution";
 import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
+import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 import type { BriefAnnouncement } from "@/lib/digest/announcements";
 
 function escapeHtml(s: string): string {
@@ -131,7 +132,11 @@ export function buildBriefDigestEmail(options: {
   ];
 
   if (items.length === 0) {
-    textParts.push("No new high-priority studies in this brief.", "");
+    textParts.push(
+      "No new high-priority studies in this brief.",
+      "The daily email brief is only dispatched when 1 or more articles are ready for inclusion.",
+      ""
+    );
   }
 
   const darkLogoStyle = logoLightUrl
@@ -162,7 +167,10 @@ export function buildBriefDigestEmail(options: {
 
   if (items.length === 0) {
     inner.push(
-      `<tr><td style="padding:8px 8px 24px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.55;color:${plum}">A quiet stretch in the stewardship literature.</td></tr>`
+      `<tr><td style="padding:14px 16px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.55;color:#4A483E;background:${paperWarm};border:1px dashed #D8D4C8;border-radius:2px;text-align:center">
+        <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:16px;font-weight:600;color:${plum}">A quiet stretch in the stewardship literature.</p>
+        <p style="margin:0;font-size:12px;color:${olive}">The daily email brief is paused until 1 or more new articles meet inclusion criteria. Queued news and announcements will be delivered on the next active brief.</p>
+      </td></tr>`
     );
   }
 
@@ -233,10 +241,12 @@ export function buildBriefDigestEmail(options: {
     for (const news of newsItems) {
       const source = newsSourceLabel(news.sourceId);
       const dateStr = formatDateLabel(news.publishedAt ?? news.createdAt);
+      const cleanSummary = getMeaningfulNewsSummary(news.title, news.summary);
+
       textParts.push(
         `${source}${dateStr ? ` (${dateStr})` : ""}: ${news.title}`,
         news.url,
-        news.summary ?? "",
+        ...(cleanSummary ? [cleanSummary] : []),
         ""
       );
 
@@ -249,7 +259,7 @@ export function buildBriefDigestEmail(options: {
             <h3 style="margin:0 0 6px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.35;font-weight:600">
               <a href="${escapeHtml(news.url)}" style="color:${plum};text-decoration:none">${escapeHtml(news.title)}</a>
             </h3>
-            ${news.summary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#4A483E">${escapeHtml(news.summary)}</p>` : ""}
+            ${cleanSummary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#4A483E">${escapeHtml(cleanSummary)}</p>` : ""}
             <p style="margin:0;font-size:12px">
               <a href="${escapeHtml(news.url)}" style="color:${steel};text-decoration:none;font-weight:500">Read story ↗</a>
             </p>

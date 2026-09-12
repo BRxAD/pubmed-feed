@@ -5,6 +5,7 @@ import {
   isHttpUrl,
   pickHttpUrl,
 } from "@/lib/news/url";
+import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 
 export type ParsedRssItem = {
   guid: string;
@@ -234,12 +235,13 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
           280
         );
         if (!title || !url || !isHttpUrl(url)) return null;
+        const cleanSummary = getMeaningfulNewsSummary(title, summary);
         return {
           guid,
           title,
           url,
           publishedAt: parseDate(textOf(item.pubDate) || textOf(item.published)),
-          summary: summary || null,
+          summary: cleanSummary || null,
           imageUrl: extractRssImage(item),
         } satisfies ParsedRssItem;
       })
@@ -273,6 +275,7 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
       const guid = textOf(entry.id) || url || title;
       const summary = truncate(stripHtml(summaryRaw), 280);
       if (!title || !url || !isHttpUrl(url)) return null;
+      const cleanSummary = getMeaningfulNewsSummary(title, summary);
       return {
         guid,
         title,
@@ -280,7 +283,7 @@ export function parseRssXml(xml: string): ParsedRssItem[] {
         publishedAt: parseDate(
           textOf(entry.published) || textOf(entry.updated)
         ),
-        summary: summary || null,
+        summary: cleanSummary || null,
         imageUrl:
           extractRssImage(entry) ||
           mediaUrl(entry["media:thumbnail"]) ||

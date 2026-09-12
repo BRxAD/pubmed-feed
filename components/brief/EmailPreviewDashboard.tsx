@@ -192,6 +192,30 @@ export default function EmailPreviewDashboard({
         </span>
       </div>
 
+      {/* Delivery Schedule Status Banner */}
+      {upcomingItems.length === 0 ? (
+        <div className="rounded-sm border border-amber-300 bg-amber-50/90 p-4 text-xs text-amber-950 shadow-xs">
+          <div className="flex items-start gap-3">
+            <span className="text-base leading-none">⏸</span>
+            <div className="space-y-1">
+              <p className="font-semibold text-amber-900">
+                Automated Delivery Delayed — 0 Priority Articles Queued
+              </p>
+              <p className="text-amber-800 leading-relaxed">
+                The brief email is <strong>strictly only sent when there is 1 or more article for inclusion</strong> that meets subscriber preferences. Tomorrow’s automated morning brief will <strong>not</strong> be sent. Any unsent &ldquo;In the News&rdquo; stories ({unsentNews.length}) and active announcements will remain safely queued in the database and will be delivered automatically on the next day with 1 or more priority articles.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-sm border border-[#34A853]/40 bg-[#34A853]/10 p-3 text-xs text-[#1C0B19]">
+          <span className="font-semibold text-[#1b6d31]">✓ Ready for Morning Send:</span>{" "}
+          {upcomingItems.length} {upcomingItems.length === 1 ? "article is" : "articles are"} queued for tomorrow&apos;s brief.
+          {unsentNews.length > 0 && ` Includes ${unsentNews.length} unsent news ${unsentNews.length === 1 ? "story" : "stories"}.`}
+          {announcementActive && (announcementTitle.trim() || announcementBody.trim()) && " Includes active announcement."}
+        </div>
+      )}
+
       {/* Control Panels Grid: Announcement Editor + Test Email Sender */}
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Panel 1: Announcement Editor */}
@@ -360,6 +384,12 @@ export default function EmailPreviewDashboard({
                 </p>
               )}
             </div>
+
+            {upcomingItems.length === 0 && (
+              <p className="mt-2 text-[11px] text-[#72705B]">
+                Note: Automated delivery is paused tomorrow because 0 articles are queued. You can still send a test preview to verify news and announcement formatting.
+              </p>
+            )}
           </form>
         </section>
       </div>

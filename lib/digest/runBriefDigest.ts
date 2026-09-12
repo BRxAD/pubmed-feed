@@ -142,9 +142,42 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     .slice(0, 12);
 
   const allRecipients = await getBriefDigestRecipients();
-  const prefsByEmail = await getPreferencesByEmails(allRecipients);
 
-  const sendEmpty = process.env.BRIEF_DIGEST_SEND_IF_EMPTY === "1";
+  if (allRecipients.length === 0) {
+    return {
+      sent: false,
+      recipients: [],
+      itemCount: items.length,
+      skippedReason: "No brief subscribers or digest recipients configured",
+      skippedDuplicates,
+      skippedStaleArticle,
+      skippedOldSummary,
+      skippedByPreference: 0,
+    };
+  }
+
+  // STRICT RULE: Only send the brief email if there is 1 or more article for inclusion.
+  // If there are 0 priority articles today, do NOT dispatch an email containing only
+  // "In the News" or announcements. Delay delivery until the next day with 1+ articles.
+  if (items.length === 0) {
+    return {
+      sent: false,
+      recipients: allRecipients,
+      itemCount: 0,
+      skippedReason:
+        skippedDuplicates > 0
+          ? "No new brief articles (all recent items already emailed) — email delivery delayed until 1+ new articles arrive"
+          : skippedStaleArticle > 0
+            ? "No newly published articles in the last 28 days — email delivery delayed until 1+ new articles arrive"
+            : "No new brief articles today — email delivery delayed until 1+ new articles arrive",
+      skippedDuplicates,
+      skippedStaleArticle,
+      skippedOldSummary,
+      skippedByPreference: 0,
+    };
+  }
+
+  const prefsByEmail = await getPreferencesByEmails(allRecipients);
 
   let skippedByPreference = 0;
   const activeRecipients: string[] = [];
@@ -158,43 +191,14 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       continue;
     }
     const filtered = filterBriefItemsForPreferences(items, prefs);
-    if (filtered.length === 0 && !sendEmpty) {
+    // Only send the brief email to this recipient if there is 1 or more article for inclusion
+    // matching their preferences. If filtered.length === 0, delay their delivery.
+    if (filtered.length === 0) {
       skippedByPreference++;
       continue;
     }
     activeRecipients.push(email);
     itemsByEmail.set(email, filtered);
-  }
-
-  if (allRecipients.length === 0) {
-    return {
-      sent: false,
-      recipients: [],
-      itemCount: items.length,
-      skippedReason: "No brief subscribers or digest recipients configured",
-      skippedDuplicates,
-      skippedStaleArticle,
-      skippedOldSummary,
-      skippedByPreference,
-    };
-  }
-
-  if (items.length === 0 && !sendEmpty) {
-    return {
-      sent: false,
-      recipients: allRecipients,
-      itemCount: 0,
-      skippedReason:
-        skippedDuplicates > 0
-          ? "No new brief items (all recent items already emailed)"
-          : skippedStaleArticle > 0
-            ? "No newly published articles in the last 28 days"
-            : "No new brief items today",
-      skippedDuplicates,
-      skippedStaleArticle,
-      skippedOldSummary,
-      skippedByPreference,
-    };
   }
 
   if (activeRecipients.length === 0) {
@@ -203,7 +207,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       recipients: allRecipients,
       itemCount: items.length,
       skippedReason:
-        "No recipients matched today’s email preferences (frequency or filters)",
+        "No recipients had 1 or more articles matching their preferences today — email delivery delayed until matching articles arrive",
       skippedDuplicates,
       skippedStaleArticle,
       skippedOldSummary,

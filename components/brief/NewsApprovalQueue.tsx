@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
+import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 
 type Props = { secret: string };
 
@@ -194,11 +195,17 @@ export default function NewsApprovalQueue({ secret }: Props) {
                       >
                         {item.title}
                       </a>
-                      {item.summary && (
-                        <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
-                          {item.summary}
-                        </p>
-                      )}
+                      {(() => {
+                        const cleanSummary = getMeaningfulNewsSummary(
+                          item.title,
+                          item.summary
+                        );
+                        return cleanSummary ? (
+                          <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
+                            {cleanSummary}
+                          </p>
+                        ) : null;
+                      })()}
                       <p className="mt-1.5 text-[0.65rem] text-zinc-400 dark:text-zinc-500">
                         {newsSourceLabel(item.sourceId)}
                         {item.publishedAt
