@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { removeBriefSubscriber } from "@/lib/digest/briefSubscribers";
 import { verifyUnsubscribeToken } from "@/lib/digest/unsubscribeToken";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,17 @@ async function unsubscribeFromToken(token: string | null): Promise<{
   const result = await removeBriefSubscriber(email);
   if (result.error) {
     return { ok: false, email, error: result.error, status: 503 };
+  }
+
+  // Also update registered account preferences if an auth_users row exists.
+  try {
+    const supabase = getSupabaseServerClient();
+    await supabase
+      .from("auth_users")
+      .update({ email_frequency: "none" })
+      .ilike("email", email.trim().toLowerCase());
+  } catch {
+    // Non-fatal if auth_users does not have this email
   }
 
   // Idempotent: already gone still counts as success.

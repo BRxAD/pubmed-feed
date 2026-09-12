@@ -34,6 +34,42 @@ export async function countBriefSubscribers(): Promise<number> {
   return list.length;
 }
 
+/** All active registered auth_users with email notifications enabled. */
+export async function getActiveAuthUserEmails(): Promise<string[]> {
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("auth_users")
+      .select("email, email_frequency");
+
+    if (error) {
+      if (!error.message.toLowerCase().includes("auth_users")) {
+        console.warn("[digest] failed to load auth_users emails:", error.message);
+      }
+      return [];
+    }
+
+    return [
+      ...new Set(
+        (data ?? [])
+          .filter((r) => {
+            const freq = (r as { email_frequency?: string | null }).email_frequency;
+            return freq !== "none";
+          })
+          .map((r) =>
+            String((r as { email?: string | null }).email ?? "")
+              .trim()
+              .toLowerCase()
+          )
+          .filter((e) => e.includes("@"))
+      ),
+    ];
+  } catch (err) {
+    console.warn("[digest] error fetching auth_users emails:", err);
+    return [];
+  }
+}
+
 /** Remove a subscriber by email. Returns whether a row was deleted. */
 export async function removeBriefSubscriber(email: string): Promise<{
   removed: boolean;

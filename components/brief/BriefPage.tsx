@@ -40,6 +40,7 @@ export default function BriefPage({
   q = "",
   images,
   newsItems = [],
+  googleEnabled = true,
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
@@ -49,6 +50,7 @@ export default function BriefPage({
   q?: string;
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
+  googleEnabled?: boolean;
 }) {
   const { saved, savedItems, toggleSave, signedIn, syncError, loginPrompt } =
     useBriefSaved();
@@ -134,7 +136,7 @@ export default function BriefPage({
                   <TopPriorityPanel items={topPriority} />
                 </SidebarCard>
                 <SidebarCard accent="olive">
-                  <DigestSignup />
+                  <DigestSignup googleEnabled={googleEnabled} />
                 </SidebarCard>
               </>
             }

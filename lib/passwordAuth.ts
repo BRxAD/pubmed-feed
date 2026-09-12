@@ -104,5 +104,11 @@ export async function registerPasswordUser(
     return { ok: false, error: error.message };
   }
 
+  // Keep brief_subscribers synchronized with registered users.
+  void supabase
+    .from("brief_subscribers")
+    .upsert({ email }, { onConflict: "email" })
+    .then(() => {}, () => {});
+
   return { ok: true };
 }

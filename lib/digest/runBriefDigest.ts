@@ -6,7 +6,10 @@ import {
   getPreviouslyEmailedPmids,
   recordBriefEmailSends,
 } from "@/lib/digest/briefEmailSends";
-import { getBriefSubscribers } from "@/lib/digest/briefSubscribers";
+import {
+  getBriefSubscribers,
+  getActiveAuthUserEmails,
+} from "@/lib/digest/briefSubscribers";
 import {
   getBriefDigestFromAddress,
   getDigestRecipients,
@@ -66,13 +69,14 @@ function isSummaryRecent(item: BriefItem, days: number): boolean {
   return t >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
-/** Subscribers + configured digest recipients (deduped). */
+/** Grandfathered subscribers + active auth_users + configured digest recipients (deduped). */
 export async function getBriefDigestRecipients(): Promise<string[]> {
-  const [subscribers, admins] = await Promise.all([
+  const [subscribers, authUsers, admins] = await Promise.all([
     getBriefSubscribers(),
+    getActiveAuthUserEmails(),
     Promise.resolve(getDigestRecipients()),
   ]);
-  return [...new Set([...subscribers, ...admins])];
+  return [...new Set([...subscribers, ...authUsers, ...admins])];
 }
 
 export async function runBriefDigest(): Promise<BriefDigestResult> {

@@ -11,13 +11,36 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
 import {
   mergeSavedLists,
   type SavedBriefItem,
 } from "@/lib/savedArticleTypes";
+
+function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.98 0 12s.45 3.84 1.25 5.42l4.03-3.15z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+      />
+    </svg>
+  );
+}
 
 export type { SavedBriefItem };
 
@@ -160,6 +183,7 @@ type BriefSavedContextValue = {
   syncError?: string;
   /** True after a guest taps Save — show the sign-in prompt in the saved box. */
   loginPrompt: boolean;
+  setLoginPrompt: (show: boolean) => void;
 };
 
 const BriefSavedContext = createContext<BriefSavedContextValue | null>(null);
@@ -330,6 +354,7 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
       ready,
       syncError,
       loginPrompt,
+      setLoginPrompt,
     }),
     [loginPrompt, ready, savedItems, signedIn, syncError, toggleSave]
   );
@@ -337,6 +362,56 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
   return (
     <BriefSavedContext.Provider value={value}>
       {children}
+      {loginPrompt && !signedIn && (
+        <aside
+          role="dialog"
+          aria-label="Sign in to save articles"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-96 z-50 rounded-sm border border-[#D8D4C8] bg-[#FAF9F5] p-4 shadow-xl text-[#1C0B19]"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-serif font-semibold text-sm sm:text-base text-[#1C0B19]">
+                Sign in to save articles
+              </p>
+              <p className="font-sans text-xs text-[#72705B] mt-0.5 leading-relaxed">
+                Sign in to save articles to your reading list and sync them across your devices.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLoginPrompt(false)}
+              className="text-[#72705B] hover:text-[#1C0B19] text-xs p-1"
+              aria-label="Close sign in prompt"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                signIn("google", {
+                  callbackUrl:
+                    typeof window !== "undefined"
+                      ? window.location.href
+                      : "/settings?tab=saved",
+                })
+              }
+              className="flex items-center gap-1.5 rounded-sm border border-[#D8D4C8] bg-white px-2.5 py-1 text-xs font-semibold text-[#1C0B19] shadow-xs hover:border-[#72705B] transition-colors"
+            >
+              <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
+              <span>Continue with Google</span>
+            </button>
+            <Link
+              href="/settings?tab=saved"
+              onClick={() => setLoginPrompt(false)}
+              className="text-xs font-medium text-[#2A79A7] hover:underline"
+            >
+              or sign in with email →
+            </Link>
+          </div>
+        </aside>
+      )}
     </BriefSavedContext.Provider>
   );
 }
@@ -424,13 +499,13 @@ export default function SaveStreak({
           {loginPrompt ? (
             <>
               Sign in to save this article.{" "}
-              <Link href="/settings" className={brief.action}>
+              <Link href="/settings?tab=saved" className={brief.action}>
                 Sign in
               </Link>
             </>
           ) : (
             <>
-              <Link href="/settings" className={brief.action}>
+              <Link href="/settings?tab=saved" className={brief.action}>
                 Sign in
               </Link>{" "}
               to save articles for later.

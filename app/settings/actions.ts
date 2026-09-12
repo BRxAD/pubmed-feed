@@ -2,7 +2,10 @@
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { updateUserPreferences } from "@/lib/updatePreferences";
+import {
+  getUserPreferences,
+  updateUserPreferences,
+} from "@/lib/updatePreferences";
 import { registerPasswordUser } from "@/lib/passwordAuth";
 import {
   sanitizeUserPreferences,
@@ -37,4 +40,23 @@ export async function registerPasswordAccount(input: {
   password: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   return registerPasswordUser(input.email, input.password);
+}
+
+export async function getMyEmailPreferences(): Promise<{
+  signedIn: boolean;
+  email?: string | null;
+  preferences?: UserPreferences;
+}> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  const email = session?.user?.email ?? null;
+  if (!userId) {
+    return { signedIn: false, email };
+  }
+  const loaded = await getUserPreferences(userId);
+  return {
+    signedIn: true,
+    email: loaded.email ?? email,
+    preferences: loaded.preferences,
+  };
 }

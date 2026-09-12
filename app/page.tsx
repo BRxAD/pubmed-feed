@@ -38,6 +38,10 @@ export default async function HomePage({
   const topic = parseBriefTopic(topicRaw);
   const region = parseBriefWhoRegion(regionRaw);
   const q = (queryRaw ?? "").trim();
+  const googleEnabled = Boolean(
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+      process.env.GOOGLE_CLIENT_SECRET?.trim()
+  );
 
   try {
     const [topPriority, newsItems] = await Promise.all([
@@ -75,6 +79,7 @@ export default async function HomePage({
           q={q}
           images={images}
           newsItems={newsItems}
+          googleEnabled={googleEnabled}
         />
       );
     }
@@ -104,6 +109,7 @@ export default async function HomePage({
         q=""
         images={ready.images}
         newsItems={newsItems}
+        googleEnabled={googleEnabled}
       />
     );
   } catch (err) {

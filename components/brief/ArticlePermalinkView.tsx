@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { signIn } from "next-auth/react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { brief } from "@/components/brief/briefTheme";
@@ -42,13 +43,19 @@ export default function ArticlePermalinkView({
   const [imageBroken, setImageBroken] = useState(false);
   const [showSavedBanner, setShowSavedBanner] = useState(autoSaved);
 
-  const isSaved = saved.has(item.pmid) || autoSaved;
+  const isSaved = signedIn && (saved.has(item.pmid) || autoSaved);
 
   useEffect(() => {
     if (autoSaved) {
       setShowSavedBanner(true);
+      if (signedIn && !saved.has(item.pmid)) {
+        toggleSave(item.pmid, {
+          title: item.headline || item.title,
+          pubmedUrl: item.pubmedUrl,
+        });
+      }
     }
-  }, [autoSaved]);
+  }, [autoSaved, signedIn, item, saved, toggleSave]);
 
   const settings =
     item.settings && item.settings.length > 0
@@ -88,7 +95,7 @@ export default function ArticlePermalinkView({
           href="/settings?tab=saved"
           className={`${brief.action} text-xs ${brief.muted} hover:text-[#1C0B19]`}
         >
-          View saved reading list →
+          {signedIn ? "View saved reading list →" : "Sign in to view saved →"}
         </Link>
       </div>
 
@@ -98,17 +105,42 @@ export default function ArticlePermalinkView({
           role="status"
           className="mb-8 flex items-center justify-between gap-3 rounded-sm border border-[#2A79A7]/40 bg-[#2A79A7]/10 px-4 py-3 text-sm text-[#1C0B19]"
         >
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#2A79A7]">✓</span>
-            <span>
-              Article saved to your reading list on{" "}
-              <strong>The Stewardship Brief</strong>.
-            </span>
-          </div>
+          {signedIn ? (
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-[#2A79A7]">✓</span>
+              <span>
+                Article saved to your reading list on{" "}
+                <strong>The Stewardship Brief</strong>.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 w-full pr-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[#2A79A7]">ℹ</span>
+                <span>
+                  Sign in to save this article to your reading list.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  signIn("google", {
+                    callbackUrl:
+                      typeof window !== "undefined"
+                        ? window.location.href
+                        : "/settings?tab=saved",
+                  })
+                }
+                className="rounded-sm bg-[#2A79A7] px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-[#236389]"
+              >
+                Sign in with Google
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setShowSavedBanner(false)}
-            className="text-xs uppercase tracking-wider text-[#72705B] hover:text-[#1C0B19]"
+            className="text-xs uppercase tracking-wider text-[#72705B] hover:text-[#1C0B19] shrink-0"
             aria-label="Dismiss message"
           >
             ✕
@@ -320,8 +352,11 @@ export default function ArticlePermalinkView({
         <Link href="/" className={`${brief.action} font-medium`}>
           ← Back to today&apos;s brief
         </Link>
-        <Link href="/settings" className={`${brief.muted} hover:text-[#1C0B19]`}>
-          {signedIn ? "Account & Email Settings" : "Sign in to sync saved articles"}
+        <Link
+          href={signedIn ? "/settings" : "/settings?tab=saved"}
+          className={`${brief.muted} hover:text-[#1C0B19]`}
+        >
+          {signedIn ? "Account & Email Settings" : "Sign in to save articles"}
         </Link>
       </div>
     </article>

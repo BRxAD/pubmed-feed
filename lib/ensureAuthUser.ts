@@ -23,6 +23,14 @@ export async function ensureAuthUserId(input: {
   const claimedId = (input.id ?? "").trim();
   const supabase = getSupabaseServerClient();
 
+  function syncSubscriberRow() {
+    if (!email.includes("@")) return;
+    void supabase
+      .from("brief_subscribers")
+      .upsert({ email }, { onConflict: "email" })
+      .then(() => {}, () => {});
+  }
+
   if (isAuthUserUuid(claimedId)) {
     const { data, error } = await supabase
       .from("auth_users")
@@ -38,6 +46,7 @@ export async function ensureAuthUserId(input: {
         .trim()
         .toLowerCase();
       if (!email || !rowEmail || rowEmail === email) {
+        syncSubscriberRow();
         return { id: String(data.id) };
       }
     }
@@ -59,6 +68,7 @@ export async function ensureAuthUserId(input: {
       byEmailRows.find(
         (row) => String(row.email ?? "").trim().toLowerCase() === email
       ) ?? byEmailRows[0];
+    syncSubscriberRow();
     return { id: String(exact.id) };
   }
 
@@ -79,7 +89,10 @@ export async function ensureAuthUserId(input: {
     .select("id")
     .single();
 
-  if (!createError && created?.id) return { id: String(created.id) };
+  if (!createError && created?.id) {
+    syncSubscriberRow();
+    return { id: String(created.id) };
+  }
 
   // Race: another request created the row.
   const { data: againRows } = await supabase
@@ -87,7 +100,10 @@ export async function ensureAuthUserId(input: {
     .select("id")
     .ilike("email", email)
     .limit(1);
-  if (againRows?.[0]?.id) return { id: String(againRows[0].id) };
+  if (againRows?.[0]?.id) {
+    syncSubscriberRow();
+    return { id: String(againRows[0].id) };
+  }
 
   const msg = (createError?.message ?? "").toLowerCase();
   if (msg.includes("schema cache") || msg.includes("does not exist")) {
