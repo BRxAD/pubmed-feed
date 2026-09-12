@@ -86,7 +86,7 @@ export default function BriefPage({
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D4C8]/60 pb-3 text-sm text-[#1C0B19]">
             <span>
               Search results for <strong>&ldquo;{q}&rdquo;</strong> &mdash;{" "}
-              {items.length} {items.length === 1 ? "study" : "studies"} found (priority &ge; 5, sorted by relevance)
+              {`${items.length} ${items.length === 1 ? "study" : "studies"} found (sorted by relevance)`}
             </span>
             <Link
               href="/"
@@ -102,7 +102,7 @@ export default function BriefPage({
             className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
           >
             {q
-              ? `No priority-rated studies (rating ≥ 5) matched "${q}". Try another search term or clear the filter.`
+              ? `No studies matched "${q}". Try another search term or clear the search.`
               : "No studies matched this filter yet. Try another setting, topic, or region, or check back after the next ingest."}
           </p>
         ) : (
