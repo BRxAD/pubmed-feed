@@ -20,12 +20,12 @@ export const ARTICLE_WHO_REGION_ORDER: WhoRegion[] = [
 ];
 
 export const ARTICLE_WHO_REGION_LABELS: Record<WhoRegion, string> = {
-  afr: "African Region",
-  amr: "Region of the Americas",
-  sear: "South-East Asia Region",
-  eur: "European Region",
-  emr: "Eastern Mediterranean Region",
-  wpr: "Western Pacific Region",
+  afr: "Africa",
+  amr: "Americas",
+  sear: "South-East Asia",
+  eur: "Europe",
+  emr: "Eastern Mediterranean",
+  wpr: "Western Pacific",
 };
 
 /**

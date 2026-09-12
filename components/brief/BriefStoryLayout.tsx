@@ -38,6 +38,7 @@ export default function BriefStoryLayout({
   saved,
   onToggleSave,
   onImageError,
+  isSearch = false,
 }: {
   lead: Ranked | null;
   rest: Ranked[];
@@ -49,6 +50,7 @@ export default function BriefStoryLayout({
     meta?: { title?: string | null; pubmedUrl?: string | null }
   ) => void;
   onImageError: (pmid: string) => void;
+  isSearch?: boolean;
 }) {
   const newsRef = useRef<HTMLElement | null>(null);
   const toolsRef = useRef<HTMLElement | null>(null);
@@ -162,6 +164,39 @@ export default function BriefStoryLayout({
           {children}
         </span>
       </h2>
+    );
+  }
+
+  if (isSearch) {
+    const all = lead ? [lead, ...rest] : rest;
+    return (
+      <div className="mt-6 grid grid-cols-1 gap-8 lg:block">
+        <aside
+          ref={newsRef}
+          className="order-2 lg:float-left lg:mb-4 lg:mr-7 lg:w-[200px]"
+          aria-label="In the news"
+        >
+          {left}
+        </aside>
+
+        <aside
+          ref={toolsRef}
+          className="order-3 flex flex-col gap-6 lg:float-right lg:mb-4 lg:ml-7 lg:w-[266px]"
+          aria-label="Brief tools"
+        >
+          {right}
+        </aside>
+
+        <div className="order-1 min-w-0">
+          <div className="flow-root divide-y divide-[#D8D4C8]">
+            {all.map((s) => (
+              <div key={s.item.pmid} className="flow-root">
+                {renderStory(s, "secondary")}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
 

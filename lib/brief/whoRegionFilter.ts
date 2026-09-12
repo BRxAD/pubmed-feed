@@ -12,7 +12,7 @@ export const BRIEF_WHO_REGION_OPTIONS: {
   value: BriefWhoRegionFilter;
   label: string;
 }[] = [
-  { value: "", label: "All regions" },
+  { value: "", label: "All" },
   ...ARTICLE_WHO_REGION_ORDER.map((value) => ({
     value,
     label: ARTICLE_WHO_REGION_LABELS[value],
