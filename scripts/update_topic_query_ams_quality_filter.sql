@@ -13,6 +13,12 @@
 --    (still drop case reports, letters, editorials, comments, animal-only).
 -- 7) Major-topic MeSH: Anti-Bacterial Agents adverse effects or therapeutic use
 --    ([MAJR] = starred heading in PubMed). Not plain [MeSH] (too broad).
+-- 8) Named drug in TITLE plus versus/vs in TITLE plus a clinical indication
+--    word in TITLE (treatment / therapy / infection / BSI / pneumonia /
+--    endocarditis). Comparative drug trials without a stewardship phrase
+--    (e.g. SAVE in IJAA). Not all of IJAA.
+-- 9) antifungal* in TITLE in CMI / CID / OFID / Lancet Infect Dis / NEJM
+--    only. Not antifungal MAJR. Not CMI all-pubs.
 -- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
 -- Run in Supabase SQL Editor (ASCII comments only).
 
@@ -246,6 +252,98 @@ SET query_string = '(
   (
     "Anti-Bacterial Agents/adverse effects"[MAJR]
     OR "Anti-Bacterial Agents/therapeutic use"[MAJR]
+  )
+  OR
+  (
+    (
+      "versus"[Title]
+      OR vs[Title]
+    )
+    AND
+    (
+      treatment[Title]
+      OR therapy[Title]
+      OR infection*[Title]
+      OR bloodstream[Title]
+      OR bacteremia[Title]
+      OR bacteraemia[Title]
+      OR pneumonia[Title]
+      OR endocarditis[Title]
+    )
+    AND
+    (
+      vancomycin[Title]
+      OR piperacillin*[Title]
+      OR "pip-tazo"[Title]
+      OR "pip/tazo"[Title]
+      OR piptazo[Title]
+      OR tazobactam[Title]
+      OR meropenem[Title]
+      OR imipenem[Title]
+      OR ertapenem[Title]
+      OR doripenem[Title]
+      OR carbapenem*[Title]
+      OR ceftriaxone[Title]
+      OR cefepime[Title]
+      OR ceftazidime[Title]
+      OR cefazolin[Title]
+      OR cefotaxime[Title]
+      OR cephalexin[Title]
+      OR cefalexin[Title]
+      OR cefadroxil[Title]
+      OR cephalosporin*[Title]
+      OR ciprofloxacin[Title]
+      OR levofloxacin[Title]
+      OR moxifloxacin[Title]
+      OR fluoroquinolon*[Title]
+      OR azithromycin[Title]
+      OR linezolid[Title]
+      OR daptomycin[Title]
+      OR gentamicin[Title]
+      OR tobramycin[Title]
+      OR amikacin[Title]
+      OR aminoglycoside*[Title]
+      OR amoxicillin[Title]
+      OR ampicillin[Title]
+      OR metronidazole[Title]
+      OR clindamycin[Title]
+      OR doxycycline[Title]
+      OR "trimethoprim-sulfamethoxazole"[Title]
+      OR cotrimoxazole[Title]
+      OR "co-trimoxazole"[Title]
+      OR colistin[Title]
+      OR polymyxin*[Title]
+      OR aztreonam[Title]
+      OR ceftaroline[Title]
+      OR ceftolozane[Title]
+      OR cefiderocol[Title]
+      OR nitrofurantoin[Title]
+      OR fosfomycin[Title]
+      OR fidaxomicin[Title]
+      OR nafcillin[Title]
+      OR oxacillin[Title]
+      OR penicillin*[Title]
+      OR "beta-lactam"[Title]
+      OR "beta lactam"[Title]
+    )
+  )
+  OR
+  (
+    antifungal*[Title]
+    AND
+    (
+      "Clin Microbiol Infect"[Journal]
+      OR "Clinical Microbiology and Infection"[Journal]
+      OR "CMI Commun"[Journal]
+      OR "CMI Communications"[Journal]
+      OR "Clin Infect Dis"[Journal]
+      OR "Clinical Infectious Diseases"[Journal]
+      OR "Open Forum Infect Dis"[Journal]
+      OR "Open Forum Infectious Diseases"[Journal]
+      OR "Lancet Infect Dis"[Journal]
+      OR "N Engl J Med"[Journal]
+      OR "New England Journal of Medicine"[Journal]
+    )
   )
 )
 
