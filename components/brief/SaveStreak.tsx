@@ -344,6 +344,17 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
     [applyAccountItems, signedIn]
   );
 
+  useEffect(() => {
+    if (!loginPrompt || signedIn) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLoginPrompt(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loginPrompt, signedIn]);
+
   const value = useMemo<BriefSavedContextValue>(
     () => ({
       saved: new Set(savedItems.map((e) => e.pmid)),
@@ -363,54 +374,67 @@ export function BriefSavedProvider({ children }: { children: ReactNode }) {
     <BriefSavedContext.Provider value={value}>
       {children}
       {loginPrompt && !signedIn && (
-        <aside
+        <div
           role="dialog"
-          aria-label="Sign in to save articles"
-          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-96 z-50 rounded-sm border border-[#D8D4C8] bg-[#FAF9F5] p-4 shadow-xl text-[#1C0B19]"
+          aria-modal="true"
+          aria-labelledby="save-prompt-heading"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/45 backdrop-blur-[2px] animate-in fade-in duration-150"
+          onClick={() => setLoginPrompt(false)}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-serif font-semibold text-sm sm:text-base text-[#1C0B19]">
-                Sign in to save articles
-              </p>
-              <p className="font-sans text-xs text-[#72705B] mt-0.5 leading-relaxed">
-                Sign in to save articles to your reading list and sync them across your devices.
-              </p>
-            </div>
+          <div
+            className="relative w-full max-w-md sm:max-w-lg rounded-md border border-[#D8D4C8] bg-[#FAF9F5] p-6 sm:p-8 shadow-2xl text-[#1C0B19]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setLoginPrompt(false)}
-              className="text-[#72705B] hover:text-[#1C0B19] text-xs p-1"
+              className="absolute right-4 top-4 p-2 text-[#72705B] hover:text-[#1C0B19] text-base leading-none transition-colors"
               aria-label="Close sign in prompt"
             >
               ✕
             </button>
+
+            <div className="pr-6">
+              <h2
+                id="save-prompt-heading"
+                className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[#1C0B19]"
+              >
+                Sign in to save articles
+              </h2>
+              <p className="mt-2.5 font-sans text-sm sm:text-base leading-relaxed text-[#72705B]">
+                Create a free account or sign in to save studies to your personal reading list, sync them across devices, and tailor your email alerts.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                onClick={() =>
+                  signIn("google", {
+                    callbackUrl:
+                      typeof window !== "undefined"
+                        ? window.location.href
+                        : "/settings?tab=saved",
+                  })
+                }
+                className="flex w-full items-center justify-center gap-2.5 rounded-sm border border-[#D8D4C8] bg-white px-4 py-3 text-sm font-semibold text-[#1C0B19] shadow-xs hover:border-[#72705B] hover:bg-[#FAF9F5] transition-colors"
+              >
+                <GoogleIcon className="h-4 w-4 shrink-0" />
+                <span>Continue with Google</span>
+              </button>
+
+              <div className="pt-1 text-center">
+                <Link
+                  href="/settings?tab=saved"
+                  onClick={() => setLoginPrompt(false)}
+                  className="font-sans text-xs sm:text-sm font-medium text-[#2A79A7] hover:underline"
+                >
+                  or sign in with email &amp; password →
+                </Link>
+              </div>
+            </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                signIn("google", {
-                  callbackUrl:
-                    typeof window !== "undefined"
-                      ? window.location.href
-                      : "/settings?tab=saved",
-                })
-              }
-              className="flex items-center gap-1.5 rounded-sm border border-[#D8D4C8] bg-white px-2.5 py-1 text-xs font-semibold text-[#1C0B19] shadow-xs hover:border-[#72705B] transition-colors"
-            >
-              <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
-              <span>Continue with Google</span>
-            </button>
-            <Link
-              href="/settings?tab=saved"
-              onClick={() => setLoginPrompt(false)}
-              className="text-xs font-medium text-[#2A79A7] hover:underline"
-            >
-              or sign in with email →
-            </Link>
-          </div>
-        </aside>
+        </div>
       )}
     </BriefSavedContext.Provider>
   );
@@ -441,7 +465,6 @@ export default function SaveStreak({
 }) {
   const [streak, setStreak] = useState(0);
   const [open, setOpen] = useState(false);
-  const promptRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(() => {
     setStreak(bumpStreak());
@@ -450,11 +473,6 @@ export default function SaveStreak({
   useEffect(() => {
     if (savedCount === 0) setOpen(false);
   }, [savedCount]);
-
-  useEffect(() => {
-    if (!loginPrompt || signedIn) return;
-    promptRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [loginPrompt, signedIn]);
 
   return (
     <section aria-labelledby="streak-heading">
@@ -487,30 +505,11 @@ export default function SaveStreak({
       </button>
 
       {!signedIn ? (
-        <p
-          ref={promptRef}
-          className={`mt-3 ${brief.sans} text-xs leading-relaxed ${
-            loginPrompt
-              ? "rounded-sm border border-[#2A79A7]/35 bg-[#2A79A7]/10 px-2.5 py-2 text-[#1C0B19]"
-              : brief.muted
-          }`}
-          role={loginPrompt ? "status" : undefined}
-        >
-          {loginPrompt ? (
-            <>
-              Sign in to save this article.{" "}
-              <Link href="/settings?tab=saved" className={brief.action}>
-                Sign in
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link href="/settings?tab=saved" className={brief.action}>
-                Sign in
-              </Link>{" "}
-              to save articles for later.
-            </>
-          )}
+        <p className={`mt-3 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}>
+          <Link href="/settings?tab=saved" className={brief.action}>
+            Sign in
+          </Link>{" "}
+          to save articles for later.
         </p>
       ) : null}
 
