@@ -615,6 +615,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
               headline = await generateBriefHeadline({
                 title: r.title!,
                 abstract: r.abstract!,
+                publicationTypes: r.publicationTypes,
               });
             } catch (headlineErr) {
               console.warn(

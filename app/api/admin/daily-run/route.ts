@@ -208,6 +208,7 @@ async function runOneTopic(
           headline = await generateBriefHeadline({
             title: r.title!,
             abstract: r.abstract!,
+            publicationTypes: r.publicationTypes,
           });
         } catch (headlineErr) {
           console.warn(

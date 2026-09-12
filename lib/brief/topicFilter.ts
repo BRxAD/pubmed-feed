@@ -84,14 +84,18 @@ export function briefTopicLabel(topic: ArticleTopic | null): string | null {
   return ARTICLE_TOPIC_LABELS[topic] ?? topic;
 }
 
-/** Build homepage href preserving setting + topic query params. */
+/** Build homepage href preserving setting, topic, region, and search query params. */
 export function briefHomeHref(opts: {
   setting?: string;
   topic?: string;
+  region?: string;
+  q?: string;
 }): string {
-  const q = new URLSearchParams();
-  if (opts.setting) q.set("setting", opts.setting);
-  if (opts.topic) q.set("topic", opts.topic);
-  const s = q.toString();
+  const params = new URLSearchParams();
+  if (opts.setting) params.set("setting", opts.setting);
+  if (opts.topic) params.set("topic", opts.topic);
+  if (opts.region) params.set("region", opts.region);
+  if (opts.q) params.set("q", opts.q);
+  const s = params.toString();
   return s ? `/?${s}` : "/";
 }

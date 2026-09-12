@@ -12,11 +12,12 @@ Audience:
 
 Format your response using exactly these section labels (one per line):
 - [METHODS] 1–2 sentences on what was done: study design, population, setting, intervention (omit this section entirely for opinion pieces, editorials, or papers with no methods)
-- [RESULTS] 1–2 sentences on key findings — include specific numbers, percentages, or effect sizes where the abstract provides them. If you report a restricted, subgroup, sensitivity, or "subset" analysis, name what defined it in the same phrase as the count, using the abstract's own label (e.g. "73 published peer-reviewed RCTs", "per-protocol analysis", "excluding unpublished trials") — never "a subset of 73 trials". If the abstract does not say what the subset is, omit that analysis rather than inventing a label.
+- [RESULTS] 1–2 sentences on key findings of THIS paper — include specific numbers, percentages, or effect sizes where the abstract provides them. If you report a restricted, subgroup, sensitivity, or "subset" analysis, name what defined it in the same phrase as the count, using the abstract's own label (e.g. "73 published peer-reviewed RCTs", "per-protocol analysis", "excluding unpublished trials") — never "a subset of 73 trials". If the abstract does not say what the subset is, omit that analysis rather than inventing a label. For narrative reviews, overviews, and clinical updates without original data, summarize this paper's synthesis or scope — do not present a result from cited primary literature as if this study generated it.
 - [BOTTOM LINE] 1 sentence stating the main finding directly — lead with the conclusion itself, not a meta phrase
 
 Rules:
 - Base every section only on what is in the abstract; do not invent implications or audiences
+- Attribute findings to THIS paper only. If the article is a narrative review, overview, or clinical update, RESULTS and BOTTOM LINE must describe this paper's synthesis or scope — do not present a result from cited primary literature as if this study generated it. Systematic reviews and meta-analyses may report this review's own pooled result.
 - Use plain language; do not restate the abstract verbatim
 - Be specific — avoid vague phrases like "may help improve outcomes" or "further research is needed" unless the abstract says that
 - Include numbers in RESULTS when the abstract provides them

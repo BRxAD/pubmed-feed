@@ -13,6 +13,7 @@ type HeadlineCandidate = {
   pmid: string;
   title: string;
   abstract: string | null;
+  publicationTypes?: string[] | null;
   summaryText: string;
   bottomLine: string | null;
   storedHeadline: string | null | undefined;
@@ -65,6 +66,7 @@ export async function ensureBriefHeadlines(
           const headline = await generateBriefHeadline({
             title: c.title,
             abstract: c.abstract!,
+            publicationTypes: c.publicationTypes,
           });
           c.headline = headline;
           await persistHeadline(supabase, topicId, c.pmid, headline);

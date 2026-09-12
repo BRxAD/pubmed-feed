@@ -138,6 +138,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 - **Good caution example:** “Oral therapy shows signal of benefit and no harm for Gram-negative BSI” — not “cut mortality 61%” when sensitivity analyses nullify that signal.
 - **Named restricted analyses:** In RESULTS, never write “a subset of N trials.” Name what defined the group using the abstract’s label plus N (e.g. “73 published peer-reviewed RCTs”, “per-protocol”, “excluding unpublished trials”). If the abstract does not name the restriction, omit that analysis. New ingest only unless asked to rewrite old rows.
 - **Named outcome:** Headlines must name the key subject and what was measured. Bare “rates” / “outcomes” is invalid — write “cure rates”, “mortality”, “antibiotic days”, etc. Bad: “Acute pyelonephritis showed higher rates than other cUTIs…”. Good: “…higher cure rates…”. New ingest only unless asked to rewrite old rows.
+- **This paper, not citations:** Headlines (and RESULTS / BOTTOM LINE) must describe what **this** article contributes. Never lead with a result the paper is citing from other studies. Narrative / clinical reviews and overviews without original data: headline this paper's scope or synthesis — not a cited trial or diagnostic accuracy claim (bad: “Point-of-care ultrasound helped distinguish cellulitis from abscess…” for a review that only discusses that literature). Systematic reviews / meta-analyses **may** headline this review's own pooled result. New ingest only unless asked to rewrite old rows.
 
 ## Embeddings & ML priority (hard)
 
@@ -224,7 +225,7 @@ Main topic animal exclusion must be:
 - Feed sort: ingested default; ML tie-break (not admin); unrated-only may drop after rate; `/feed` dark shell.
 - Brief sort: prefer published, else recent ingest (`max(publish, fetched_at)`); sticky lead equal-or-higher replaces.
 - Digest email: headline → PubMed; date above headline; journal below headline (smaller type); Read article + Email share links (no LinkedIn, X, or Facebook). No via-line in email. Email cannot Copy, native-share, or Graphic takeaway.
-- Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses.
+- Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses, headline this paper not cited literature.
 
 ## Still open (optional later)
 
@@ -305,7 +306,7 @@ Main topic animal exclusion must be:
 - [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
 - [ ] Digest email: headline → PubMed; date above headline; Read article + share links; no via-line in email
-- [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise, named outcome (not bare “rates”)
+- [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise, named outcome (not bare “rates”), this paper not cited literature
 - [ ] Article upsert always sends `fetched_at` (preserve first-seen)
 - [ ] Digest cron fails loud on ingest error; revalidateTag try/catch
 - [ ] Ingest schedule = Vercel Cron only (Actions manual)

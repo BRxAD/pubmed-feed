@@ -19,6 +19,8 @@ import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
 import type { BriefTopicFilter } from "@/lib/brief/topicFilter";
+import type { BriefWhoRegionFilter } from "@/lib/brief/whoRegionFilter";
+import Link from "next/link";
 
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
@@ -34,6 +36,8 @@ export default function BriefPage({
   topPriority,
   setting,
   topic = "",
+  region = "",
+  q = "",
   images,
   newsItems = [],
 }: {
@@ -41,6 +45,8 @@ export default function BriefPage({
   topPriority: TopPriorityItem[];
   setting: BriefSettingFilter;
   topic?: BriefTopicFilter;
+  region?: BriefWhoRegionFilter;
+  q?: string;
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
 }) {
@@ -73,14 +79,30 @@ export default function BriefPage({
       <Masthead dateLabel={formatToday()} />
 
       <div className={`${brief.shell} py-4 sm:py-5`}>
-        <BriefFilterBar setting={setting} topic={topic} />
+        <BriefFilterBar setting={setting} topic={topic} region={region} q={q} />
+
+        {q && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D4C8]/60 pb-3 text-sm text-[#1C0B19]">
+            <span>
+              Search results for <strong>&ldquo;{q}&rdquo;</strong> &mdash;{" "}
+              {items.length} {items.length === 1 ? "study" : "studies"} found
+            </span>
+            <Link
+              href="/"
+              className={`${brief.action} text-xs font-semibold`}
+            >
+              Clear search ✕
+            </Link>
+          </div>
+        )}
 
         {items.length === 0 ? (
           <p
             className={`mt-8 ${brief.sans} text-base leading-[1.55] ${brief.muted}`}
           >
-            No studies matched this filter yet. Try another setting or topic, or
-            check back after the next ingest.
+            {q
+              ? `No studies matched "${q}". Try another search term or clear the filter.`
+              : "No studies matched this filter yet. Try another setting, topic, or region, or check back after the next ingest."}
           </p>
         ) : (
           <BriefStoryLayout

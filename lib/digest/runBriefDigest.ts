@@ -22,6 +22,7 @@ import {
   unsubscribeApiUrlForEmail,
   unsubscribeUrlForEmail,
 } from "@/lib/digest/unsubscribeToken";
+import { createEmailSaveToken } from "@/lib/digest/emailArticleAction";
 import { DEFAULT_USER_PREFERENCES } from "@/lib/userPreferences";
 
 export type BriefDigestResult = {
@@ -237,6 +238,15 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
           err instanceof Error ? err.message : err
         );
       }
+      const saveUrlForPmid = (pmid: string) => {
+        try {
+          const token = createEmailSaveToken({ email, pmid });
+          return `${base}/article/${pmid}?save=1&token=${encodeURIComponent(token)}`;
+        } catch {
+          return `${base}/article/${pmid}?save=1`;
+        }
+      };
+
       const personalized = buildBriefDigestEmail({
         items: recipientItems,
         briefUrl,
@@ -244,6 +254,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         logoUrl,
         logoLightUrl,
         unsubscribeUrl: unsubscribePageUrl,
+        saveUrlForPmid,
       });
       const headers: Record<string, string> = {
         "List-Id": `The Stewardship Brief <brief.${listIdHost}>`,

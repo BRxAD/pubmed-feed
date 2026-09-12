@@ -876,6 +876,7 @@ export async function getBriefItems(options?: {
       summaryText: string;
       bottomLine: string | null;
       storedHeadline: string | null | undefined;
+      publicationTypes?: string[] | null;
     }
   >();
 
@@ -970,6 +971,7 @@ export async function getBriefItems(options?: {
         summaryText: body.summaryText,
         bottomLine: bullets?.bottomLine ?? null,
         storedHeadline: body.headline,
+        publicationTypes: slim?.articles?.publication_types ?? null,
       });
     }
 
@@ -979,6 +981,7 @@ export async function getBriefItems(options?: {
         pmid: item.pmid,
         title: item.title,
         abstract: abstractByPmid.get(item.pmid) ?? null,
+        publicationTypes: meta?.publicationTypes,
         summaryText: meta?.summaryText ?? "",
         bottomLine: meta?.bottomLine ?? item.bottomLine,
         storedHeadline: meta?.storedHeadline,

@@ -28,7 +28,9 @@ function pluralCount(count: number, singular: string, plural: string): string {
 function storyActionsMarkup(
   item: BriefItem,
   steel: string,
-  olive: string
+  olive: string,
+  articleUrl: string,
+  saveUrl: string
 ): string {
   const read = escapeHtml(item.pubmedUrl);
   const email = escapeHtml(
@@ -43,7 +45,7 @@ function storyActionsMarkup(
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${read}" style="${link}">Read article</a>${sep}<a href="${email}" style="${link}">Email</a>
+          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save on Brief</a>${sep}<a href="${read}" style="${link}">PubMed</a>${sep}<a href="${email}" style="${link}">Email</a>
         </p>`;
 }
 
@@ -88,9 +90,18 @@ export function buildBriefDigestEmail(options: {
   logoLightUrl?: string;
   /** Per-recipient signed unsubscribe link. */
   unsubscribeUrl?: string;
+  /** Optional resolver for 1-click signed save link for each article. */
+  saveUrlForPmid?: (pmid: string) => string;
 }): { subject: string; html: string; text: string } {
-  const { items, briefUrl, dateLabel, logoUrl, logoLightUrl, unsubscribeUrl } =
-    options;
+  const {
+    items,
+    briefUrl,
+    dateLabel,
+    logoUrl,
+    logoLightUrl,
+    unsubscribeUrl,
+    saveUrlForPmid,
+  } = options;
   const { plum, olive, steel, paper, paperWarm, hairline } = briefPalette;
 
   const subject =
@@ -99,7 +110,8 @@ export function buildBriefDigestEmail(options: {
       : dateLabel;
 
   // Prefer brand-domain links in the body (inbox filters penalize mostly-off-domain URLs).
-  const briefHost = briefUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  const briefBase = briefUrl.replace(/\/$/, "");
+  const briefHost = briefBase.replace(/^https?:\/\//i, "");
 
   const textParts = [
     "THE STEWARDSHIP BRIEF",
@@ -148,15 +160,20 @@ export function buildBriefDigestEmail(options: {
   for (const item of items) {
     // Date only — no study taxonomy / classification labels in email
     const meta = formatDateLabel(item.date);
-
     const journal = item.journal?.trim() ?? "";
+    const articleUrl = `${briefBase}/article/${item.pmid}`;
+    const saveUrl = saveUrlForPmid
+      ? saveUrlForPmid(item.pmid)
+      : `${articleUrl}?save=1`;
 
     textParts.push(
       meta,
       item.headline,
       journal,
       item.bottomLine ?? "",
-      `Read article: ${item.pubmedUrl}`,
+      `Read on Brief: ${articleUrl}`,
+      `Save on Brief: ${saveUrl}`,
+      `PubMed: ${item.pubmedUrl}`,
       ""
     );
 
@@ -169,7 +186,7 @@ export function buildBriefDigestEmail(options: {
             : ""
         }
         <h2 style="margin:0${journal ? "" : " 0 8px"};font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
-          <a href="${escapeHtml(item.pubmedUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
+          <a href="${escapeHtml(articleUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
         </h2>
         ${
           journal
@@ -177,7 +194,7 @@ export function buildBriefDigestEmail(options: {
             : ""
         }
         ${item.bottomLine ? `<p style="margin:0;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
-        ${storyActionsMarkup(item, steel, olive)}
+        ${storyActionsMarkup(item, steel, olive, articleUrl, saveUrl)}
         </td>
       </tr>
     `);

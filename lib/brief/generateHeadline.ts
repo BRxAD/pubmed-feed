@@ -32,7 +32,7 @@ Audience:
 Requirements:
 - 50–${HEADLINE_TARGET_MAX} characters preferred; never exceed ${HEADLINE_MAX_CHARS}
 - One complete, grammatical sentence that stands alone — must not feel cut off mid-thought
-- Pithy and interesting: lead with the finding or surprise, NOT the paper title, framework name, or acronyms
+- Pithy and interesting: lead with THIS paper's finding or (for reviews without original data) THIS paper's scope — NOT the paper title, framework name, or acronyms
 - High-quality science journalism: precise, readable, no hype
 - Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
 - Name the key subject and the measured outcome in full so an expert knows what changed — never a bare "rates", "outcomes", or "use" when the abstract names what was measured (cure rates, mortality, antibiotic days, resistance). "Higher rates" is invalid; "higher cure rates" is valid
@@ -42,6 +42,11 @@ Requirements:
 - Do NOT write a bottom-line, recommendation, or methods dump
 - Do NOT start with "Study shows", "Researchers find", "New framework", "New [ACRONYM]", or "[NAME] framework reveals"
 - Do NOT paste the paper title or lead with tool/metric acronyms (DASC-LOT, S3, etc.) — translate into plain English
+
+This paper, not citations (critical):
+- Headline what THIS article contributes. Never lead with a result the abstract attributes to other studies, guidelines, or literature it is citing ("has been shown", "studies found", "X is used to…")
+- For narrative reviews, clinical reviews, overviews, and practice updates without original data: state this paper's scope or synthesis — do not pick one cited trial, diagnostic accuracy claim, or tool result (e.g. do not write "Point-of-care ultrasound helped distinguish cellulitis from abscess" for a review that merely discusses that literature)
+- Systematic reviews and meta-analyses MAY headline this review's own pooled or synthesized result
 
 Do not over-promise (critical):
 - If the headline finding is weakened, null, or only borderline in sensitivity, adjusted, propensity-score, or stratified analyses, do NOT lead with the unadjusted/primary effect as a firm result
@@ -65,12 +70,14 @@ Good examples:
 - "Four in five sinusitis visits meeting criteria still got antibiotics"
 - "Oral therapy shows signal of benefit and no harm for Gram-negative BSI" (meta-analysis where mortality signal did not hold in sensitivity analyses)
 - "Acute pyelonephritis showed higher cure rates than other cUTIs in a trial analysis"
+- "Review maps SSTI diagnosis and when antibiotics vs drainage apply" (narrative review — this paper's scope, not a cited trial)
 
 Bad examples (never write these):
 - "New DASC-LOT framework reveals 727,958 patients' antimicrobial use varies widely across 118"
 - "Study shows antibiotic use was high"
 - "Oral step-down cut mortality 61% in Gram-negative BSI" (over-promises when sensitivity analyses nullify the mortality signal)
 - "Acute pyelonephritis showed higher rates than other cUTIs in trial analysis" (rates of what — name cure rates, mortality, or the actual endpoint)
+- "Point-of-care ultrasound helped distinguish cellulitis from abscess in SSTI cases" (that was cited primary literature, not this narrative review's own study)
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
@@ -85,6 +92,39 @@ const DANGLING_ENDING_RE =
 
 const RCT_RE =
   /\b(randomized|randomised|randomized controlled|randomised controlled|placebo[- ]controlled|cluster[- ]randomized|cluster[- ]randomised|double[- ]blind|rct\b)\b/i;
+
+const SYSTEMATIC_RE =
+  /\b(systematic review|meta[- ]analysis|metaanalysis)\b/i;
+
+const NARRATIVE_REVIEW_TEXT_RE =
+  /\b(narrative review|clinical review|this article reviews|this review (discusses|covers|provides|summarizes|outlines)|overview of|practice update)\b/i;
+
+export function isNarrativeOrClinicalReview(
+  title: string,
+  abstract: string,
+  publicationTypes?: string[] | null
+): boolean {
+  const blob = `${title}\n${abstract}`;
+  if (SYSTEMATIC_RE.test(blob)) return false;
+  const pubs = (publicationTypes ?? []).join(" ");
+  if (SYSTEMATIC_RE.test(pubs)) return false;
+  if (/\bReview\b/i.test(pubs) && !SYSTEMATIC_RE.test(pubs)) return true;
+  return NARRATIVE_REVIEW_TEXT_RE.test(blob);
+}
+
+function designHint(
+  title: string,
+  abstract: string,
+  publicationTypes?: string[] | null
+): string {
+  if (isNarrativeOrClinicalReview(title, abstract, publicationTypes)) {
+    return "Narrative/clinical review or overview — headline THIS paper's scope or synthesis, not a finding from studies it cites.";
+  }
+  if (allowsCausalLanguage(abstract)) {
+    return "Randomized trial — direct intervention verbs allowed if supported by abstract.";
+  }
+  return "Non-RCT — use descriptive or non-causal phrasing (vary wording; do not default to \"linked to\").";
+}
 
 const FRAMEWORK_LEAD_RE =
   /^(new\s+|.*\bframework\s+(reveals|shows|finds|demonstrates)\b)/i;
@@ -256,17 +296,25 @@ async function requestHeadline(
   client: OpenAI,
   title: string,
   abstract: string,
+  publicationTypes?: string[] | null,
   revision?: { previous: string; issues: string[]; strict?: boolean }
 ): Promise<string> {
   const strictNote = revision?.strict
     ? `\n\nFINAL ATTEMPT: Under 80 characters. One statistic max. Plain English only. Complete sentence ending with a noun.`
     : "";
 
+  const pubLine = publicationTypes?.length
+    ? `\nPublication types: ${publicationTypes.join(", ")}`
+    : "";
+
   const userContent = revision
     ? `Title: ${title.trim()}
+${pubLine}
 
 Abstract:
 ${abstract.trim()}
+
+Study design hint: ${designHint(title, abstract, publicationTypes)}
 
 Your previous headline was rejected:
 "${revision.previous}"
@@ -275,11 +323,12 @@ Problems: ${revision.issues.join("; ")}
 
 Write a NEW headline that fixes all problems. Shorter and clearer. One complete sentence under ${HEADLINE_TARGET_MAX} characters.${strictNote}`
     : `Title: ${title.trim()}
+${pubLine}
 
 Abstract:
 ${abstract.trim()}
 
-Study design hint: ${allowsCausalLanguage(abstract) ? "Randomized trial — direct intervention verbs allowed if supported by abstract." : "Non-RCT — use descriptive or non-causal phrasing (vary wording; do not default to \"linked to\")."}`;
+Study design hint: ${designHint(title, abstract, publicationTypes)}`;
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
@@ -306,13 +355,14 @@ Study design hint: ${allowsCausalLanguage(abstract) ? "Randomized trial — dire
 export async function generateBriefHeadline(options: {
   title: string;
   abstract: string;
+  publicationTypes?: string[] | null;
 }): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey?.trim()) {
     throw new Error("Missing OPENAI_API_KEY environment variable");
   }
 
-  const { title, abstract } = options;
+  const { title, abstract, publicationTypes } = options;
   const client = new OpenAI({ apiKey });
 
   let lastHeadline = "";
@@ -323,6 +373,7 @@ export async function generateBriefHeadline(options: {
       client,
       title,
       abstract,
+      publicationTypes,
       attempt > 0
         ? {
             previous: lastHeadline,

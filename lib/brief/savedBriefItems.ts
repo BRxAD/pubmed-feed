@@ -266,6 +266,108 @@ const SELECT =
   "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, summary_text, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, abstract, source)";
 
 /**
+ * Fetch a single BriefItem by its PMID. Tries the default topic summary,
+ * then any summary, and finally falls back to the articles table.
+ */
+export async function getBriefItemByPmid(
+  pmidRaw: string
+): Promise<BriefItem | null> {
+  const pmid = sanitizePmid(pmidRaw);
+  if (!pmid) return null;
+
+  const topicId = await getDefaultTopicId();
+  const supabase = getSupabaseServerClient();
+
+  if (topicId) {
+    const { data, error } = await supabase
+      .from("summaries")
+      .select(SELECT)
+      .eq("topic_id", topicId)
+      .eq("pmid", pmid)
+      .maybeSingle();
+
+    if (!error && data) {
+      const item = rowToBriefItem(data as SavedSummaryRow);
+      if (item) return item;
+    }
+  }
+
+  const { data: sumData } = await supabase
+    .from("summaries")
+    .select(SELECT)
+    .eq("pmid", pmid)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sumData) {
+    const item = rowToBriefItem(sumData as SavedSummaryRow);
+    if (item) return item;
+  }
+
+  const { data: artData } = await supabase
+    .from("articles")
+    .select("pmid, title, journal, pub_date, release_date, abstract, authors, keywords, mesh_terms, source")
+    .eq("pmid", pmid)
+    .maybeSingle();
+
+  if (artData?.pmid) {
+    const row = artData as {
+      pmid: string;
+      title?: string | null;
+      journal?: string | null;
+      pub_date?: string | null;
+      release_date?: string | null;
+      abstract?: string | null;
+      authors?: string[] | null;
+      keywords?: string[] | null;
+      mesh_terms?: string[] | null;
+      source?: string | null;
+    };
+    const title = decodeHtmlEntities(row.title?.trim() || `PMID ${pmid}`);
+    const date = row.release_date || row.pub_date || null;
+    return {
+      pmid,
+      source: "pubmed",
+      headline: title,
+      title,
+      journal: row.journal?.trim() ?? null,
+      jif: null,
+      jifIsHigh: false,
+      isQ1: false,
+      sjrScimago: null,
+      date,
+      createdAt: "",
+      fetchedAt: null,
+      isNew: false,
+      setting: null,
+      settings: [],
+      adminSetting: null,
+      autoTopics: null,
+      topics: [],
+      autoWhoRegions: null,
+      whoRegions: [],
+      studyLabel: null,
+      methods: null,
+      results: null,
+      bottomLine: null,
+      relevancePercent: 0,
+      predictedPriority: 5,
+      adminPriority: null,
+      effectivePriority: 5,
+      prioritySource: "fallback",
+      pubmedUrl: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      authors: (row.authors ?? []).map((a) => String(a).trim()).filter(Boolean),
+      keywords: Array.isArray(row.keywords) ? row.keywords : [],
+      meshTerms: Array.isArray(row.mesh_terms) ? row.mesh_terms : [],
+      abstractSnippet: row.abstract?.trim() ? row.abstract.trim().slice(0, 1200) : null,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Load Brief-shaped stories for an ordered list of saved PMIDs.
  * Only those IDs are fetched (bounded; no Brief date/priority gates).
  */

@@ -45,3 +45,11 @@ next-env.d.ts
 
 # priority model evaluation outputs (regenerate with npm run eval:priority)
 /scripts/priority-eval/data/
+
+# local editor / agent scratch (keep .cursor/skills tracked)
+.claude/
+.agents/
+.cursor/settings.json
+__pycache__/
+*.pyc
+/public/_email-preview.png
