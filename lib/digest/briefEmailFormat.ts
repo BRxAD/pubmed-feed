@@ -1,9 +1,6 @@
 import type { BriefItem } from "@/lib/brief/items";
 import { briefPalette } from "@/components/brief/briefTheme";
-import {
-  linkedinShareHref,
-  mailtoShareHref,
-} from "@/lib/brief/shareAttribution";
+import { mailtoShareHref } from "@/lib/brief/shareAttribution";
 
 function escapeHtml(s: string): string {
   return s
@@ -41,13 +38,12 @@ function storyActionsMarkup(
       pubmedUrl: item.pubmedUrl,
     })
   );
-  const linkedin = escapeHtml(linkedinShareHref(item.pubmedUrl));
   const link = `color:${steel};text-decoration:none;font-weight:500`;
   const sep = `<span style="color:${olive}">&nbsp;&middot;&nbsp;</span>`;
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${read}" style="${link}">Read article</a>${sep}<a href="${email}" style="${link}">Email</a>${sep}<a href="${linkedin}" style="${link}">LinkedIn</a>
+          <a href="${read}" style="${link}">Read article</a>${sep}<a href="${email}" style="${link}">Email</a>
         </p>`;
 }
 
@@ -153,9 +149,12 @@ export function buildBriefDigestEmail(options: {
     // Date only — no study taxonomy / classification labels in email
     const meta = formatDateLabel(item.date);
 
+    const journal = item.journal?.trim() ?? "";
+
     textParts.push(
       meta,
       item.headline,
+      journal,
       item.bottomLine ?? "",
       `Read article: ${item.pubmedUrl}`,
       ""
@@ -169,9 +168,14 @@ export function buildBriefDigestEmail(options: {
             ? `<p style="margin:0 0 4px;font-size:11px;line-height:1.3;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:${olive}">${escapeHtml(meta)}</p>`
             : ""
         }
-        <h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
+        <h2 style="margin:0${journal ? "" : " 0 8px"};font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;font-weight:600">
           <a href="${escapeHtml(item.pubmedUrl)}" style="color:${plum};text-decoration:none">${escapeHtml(item.headline)}</a>
         </h2>
+        ${
+          journal
+            ? `<p style="margin:4px 0 8px;font-size:13px;line-height:1.35;font-weight:400;color:${olive}">${escapeHtml(journal)}</p>`
+            : ""
+        }
         ${item.bottomLine ? `<p style="margin:0;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
         ${storyActionsMarkup(item, steel, olive)}
         </td>
