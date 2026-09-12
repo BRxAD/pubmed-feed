@@ -5,6 +5,7 @@ import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
 import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 import type { BriefAnnouncement } from "@/lib/digest/announcements";
+import { formatJournalTitle } from "@/lib/brief/formatJournal";
 
 function escapeHtml(s: string): string {
   return s
@@ -49,7 +50,7 @@ function storyActionsMarkup(
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save on Brief</a>${sep}<a href="${read}" style="${link}">PubMed</a>${sep}<a href="${email}" style="${link}">Email</a>
+          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save on Brief</a>${sep}<a href="${read}" style="${link}">View on Pubmed</a>${sep}<a href="${email}" style="${link}">Email</a>
         </p>`;
 }
 
@@ -177,7 +178,8 @@ export function buildBriefDigestEmail(options: {
   for (const item of items) {
     // Date only — no study taxonomy / classification labels in email
     const meta = formatDateLabel(item.date);
-    const journal = item.journal?.trim() ?? "";
+    const rawJournal = item.journal?.trim() ?? "";
+    const journal = rawJournal ? formatJournalTitle(rawJournal) : "";
     const articleUrl = `${briefBase}/article/${item.pmid}`;
     const saveUrl = saveUrlForPmid
       ? saveUrlForPmid(item.pmid)
@@ -190,7 +192,7 @@ export function buildBriefDigestEmail(options: {
       item.bottomLine ?? "",
       `Read on Brief: ${articleUrl}`,
       `Save on Brief: ${saveUrl}`,
-      `PubMed: ${item.pubmedUrl}`,
+      `View on Pubmed: ${item.pubmedUrl}`,
       ""
     );
 

@@ -1,3 +1,5 @@
+import { formatJournalTitle } from "@/lib/brief/formatJournal";
+
 /**
  * Format a PubMed-style citation from available brief fields.
  * Example: Smith JA, Jones B, et al. Title of the article. Journal Name. 2024.
@@ -20,7 +22,8 @@ export function formatPubmedCitation(input: {
   }
 
   const title = input.title.trim().replace(/\.$/, "");
-  const journal = input.journal?.trim() || null;
+  const rawJournal = input.journal?.trim() || null;
+  const journal = rawJournal ? formatJournalTitle(rawJournal) : null;
   const year = citationYear(input.date);
 
   const parts: string[] = [];

@@ -11,6 +11,7 @@ import {
   type ArticleTopic,
 } from "@/lib/classifyTopic";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
+import { formatJournalTitle } from "@/lib/brief/formatJournal";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
 import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
@@ -161,7 +162,7 @@ function DetailPanel({
           )}
           {(item.journal || item.jif != null) && (
             <p className={`mt-2 text-[0.8125rem] leading-relaxed ${brief.muted}`}>
-              {item.journal && <span>{item.journal}</span>}
+              {item.journal && <span>{formatJournalTitle(item.journal)}</span>}
               {item.jif != null && (
                 <span>
                   {item.journal ? " · " : ""}

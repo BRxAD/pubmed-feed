@@ -17,6 +17,7 @@ import {
 import { useBriefSaved } from "@/components/brief/SaveStreak";
 import ShareMenu from "@/components/brief/ShareMenu";
 import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
+import { formatJournalTitle } from "@/lib/brief/formatJournal";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -165,7 +166,7 @@ export default function ArticlePermalinkView({
           {item.journal && (
             <span className={brief.muted}>
               {" · "}
-              {item.journal}
+              {formatJournalTitle(item.journal)}
               {item.jif != null && ` (JIF ${item.jif.toFixed(1)}${item.jifIsHigh ? " ★" : ""})`}
             </span>
           )}
@@ -312,7 +313,7 @@ export default function ArticlePermalinkView({
           </p>
 
           <p className="mt-2 text-xs leading-relaxed text-[#72705B]">
-            {item.journal && <span className="font-medium">{item.journal}</span>}
+            {item.journal && <span className="font-medium">{formatJournalTitle(item.journal)}</span>}
             {item.jif != null && (
               <span>
                 {item.journal ? " · " : ""}
