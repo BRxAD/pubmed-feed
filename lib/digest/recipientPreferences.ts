@@ -43,7 +43,7 @@ export async function getPreferencesByEmails(
     const { data, error } = await supabase
       .from("auth_users")
       .select(
-        "email, email_frequency, settings_tags, topics_tags, high_impact_only"
+        "email, email_frequency, settings_tags, topics_tags, high_impact_only, include_news"
       )
       .in("email", normalized);
 
@@ -64,6 +64,7 @@ export async function getPreferencesByEmails(
         settings_tags?: string[] | null;
         topics_tags?: string[] | null;
         high_impact_only?: boolean | null;
+        include_news?: boolean | null;
       };
       map.set(
         email,
@@ -72,6 +73,7 @@ export async function getPreferencesByEmails(
           settingsTags: r.settings_tags ?? [],
           topicsTags: r.topics_tags ?? [],
           highImpactOnly: r.high_impact_only ?? false,
+          includeNews: r.include_news ?? true,
         })
       );
     }

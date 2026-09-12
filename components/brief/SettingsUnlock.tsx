@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
 
-export default function SettingsUnlock() {
+interface SettingsUnlockProps {
+  redirectPath?: string;
+  description?: string;
+}
+
+export default function SettingsUnlock({
+  redirectPath = "/stewardshipbrief/settings",
+  description,
+}: SettingsUnlockProps) {
   const [secret, setSecret] = useState("");
   const [status, setStatus] = useState<"idle" | "checking" | "error">("idle");
   const [error, setError] = useState("");
@@ -40,8 +48,9 @@ export default function SettingsUnlock() {
       }
 
       // Hard navigation so the server page re-renders with the secret.
+      const separator = redirectPath.includes("?") ? "&" : "?";
       window.location.assign(
-        `/stewardshipbrief/settings?secret=${encodeURIComponent(trimmed)}`
+        `${redirectPath}${separator}secret=${encodeURIComponent(trimmed)}`
       );
     } catch {
       setStatus("error");
@@ -53,10 +62,14 @@ export default function SettingsUnlock() {
     <section className={`rounded-sm border ${brief.hairline} bg-[#EFECE4]/60 p-6`}>
       <h2 className={`${brief.kicker} mb-3`}>Unlock</h2>
       <p className={`${brief.sans} text-sm ${brief.muted} mb-4`}>
-        Enter your admin secret to adjust relevance factors. Use{" "}
-        <code className="text-xs">CRON_SECRET</code> from Vercel → Settings →
-        Environment Variables (or <code className="text-xs">BRIEF_ADMIN_SECRET</code> if
-        set).
+        {description ?? (
+          <>
+            Enter your admin secret to adjust relevance factors. Use{" "}
+            <code className="text-xs">CRON_SECRET</code> from Vercel → Settings →
+            Environment Variables (or <code className="text-xs">BRIEF_ADMIN_SECRET</code> if
+            set).
+          </>
+        )}
       </p>
       <form onSubmit={onSubmit} className="flex flex-wrap gap-3">
         <input

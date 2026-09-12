@@ -1,6 +1,9 @@
 import type { BriefItem } from "@/lib/brief/items";
 import { briefPalette } from "@/components/brief/briefTheme";
 import { mailtoShareHref } from "@/lib/brief/shareAttribution";
+import type { NewsItem } from "@/lib/news/types";
+import { newsSourceLabel } from "@/lib/news/labels";
+import type { BriefAnnouncement } from "@/lib/digest/announcements";
 
 function escapeHtml(s: string): string {
   return s
@@ -92,6 +95,10 @@ export function buildBriefDigestEmail(options: {
   unsubscribeUrl?: string;
   /** Optional resolver for 1-click signed save link for each article. */
   saveUrlForPmid?: (pmid: string) => string;
+  /** Optional "In the News" items for this brief. */
+  newsItems?: NewsItem[];
+  /** Optional announcement banner for this brief. */
+  announcement?: BriefAnnouncement | null;
 }): { subject: string; html: string; text: string } {
   const {
     items,
@@ -101,6 +108,8 @@ export function buildBriefDigestEmail(options: {
     logoLightUrl,
     unsubscribeUrl,
     saveUrlForPmid,
+    newsItems = [],
+    announcement,
   } = options;
   const { plum, olive, steel, paper, paperWarm, hairline } = briefPalette;
 
@@ -195,6 +204,89 @@ export function buildBriefDigestEmail(options: {
         }
         ${item.bottomLine ? `<p style="margin:0;font-size:15px;line-height:1.55;color:${plum}">${escapeHtml(item.bottomLine)}</p>` : ""}
         ${storyActionsMarkup(item, steel, olive, articleUrl, saveUrl)}
+        </td>
+      </tr>
+    `);
+  }
+
+  // 1. In The News section (if any unsent approved news is included)
+  if (newsItems.length > 0) {
+    textParts.push(
+      "",
+      "--- IN THE NEWS ---",
+      "Recent antimicrobial stewardship headlines:"
+    );
+
+    inner.push(`
+      <tr>
+        <td style="padding:28px 8px 12px;border-top:2px solid ${plum};font-family:system-ui,sans-serif">
+          <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${olive}">
+            In The News
+          </p>
+          <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:600;color:${plum}">
+            Recent stewardship headlines
+          </p>
+        </td>
+      </tr>
+    `);
+
+    for (const news of newsItems) {
+      const source = newsSourceLabel(news.sourceId);
+      const dateStr = formatDateLabel(news.publishedAt ?? news.createdAt);
+      textParts.push(
+        `${source}${dateStr ? ` (${dateStr})` : ""}: ${news.title}`,
+        news.url,
+        news.summary ?? "",
+        ""
+      );
+
+      inner.push(`
+        <tr>
+          <td style="padding:10px 8px 18px;border-bottom:1px solid ${hairline};font-family:system-ui,sans-serif">
+            <p style="margin:0 0 4px;font-size:11px;color:${olive};font-weight:600;text-transform:uppercase;letter-spacing:0.06em">
+              ${escapeHtml(source)}${dateStr ? ` · ${escapeHtml(dateStr)}` : ""}
+            </p>
+            <h3 style="margin:0 0 6px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.35;font-weight:600">
+              <a href="${escapeHtml(news.url)}" style="color:${plum};text-decoration:none">${escapeHtml(news.title)}</a>
+            </h3>
+            ${news.summary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#4A483E">${escapeHtml(news.summary)}</p>` : ""}
+            <p style="margin:0;font-size:12px">
+              <a href="${escapeHtml(news.url)}" style="color:${steel};text-decoration:none;font-weight:500">Read story ↗</a>
+            </p>
+          </td>
+        </tr>
+      `);
+    }
+  }
+
+  // 2. Customizable Announcement section (if active)
+  if (announcement && (announcement.title.trim() || announcement.body.trim())) {
+    textParts.push(
+      "",
+      "--- ANNOUNCEMENT ---",
+      announcement.title ? announcement.title : "",
+      announcement.body,
+      ""
+    );
+
+    inner.push(`
+      <tr>
+        <td style="padding:24px 8px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${paperWarm};border:1px solid #D8D4C8;border-left:4px solid ${steel};">
+            <tr>
+              <td style="padding:16px 20px;font-family:system-ui,sans-serif">
+                <p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${steel}">
+                  Announcement
+                </p>
+                ${
+                  announcement.title.trim()
+                    ? `<h3 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.35;font-weight:600;color:${plum}">${escapeHtml(announcement.title.trim())}</h3>`
+                    : ""
+                }
+                <div style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.55;color:${plum};white-space:pre-wrap">${escapeHtml(announcement.body.trim())}</div>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     `);

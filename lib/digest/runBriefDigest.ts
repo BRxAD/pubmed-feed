@@ -1,6 +1,9 @@
 import "server-only";
 import { getBriefItems, type BriefItem } from "@/lib/brief/items";
-import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
+import {
+  BRIEF_ARTICLE_WINDOW_DAYS,
+  DIGEST_SUMMARY_LOOKBACK_DAYS,
+} from "@/lib/brief/priority";
 import { buildBriefDigestEmail } from "@/lib/digest/briefEmailFormat";
 import {
   getPreviouslyEmailedPmids,
@@ -27,6 +30,11 @@ import {
 } from "@/lib/digest/unsubscribeToken";
 import { createEmailSaveToken } from "@/lib/digest/emailArticleAction";
 import { DEFAULT_USER_PREFERENCES } from "@/lib/userPreferences";
+import {
+  getUnsentApprovedNews,
+  recordBriefNewsEmailSends,
+} from "@/lib/digest/briefNewsSends";
+import { getActiveAnnouncement } from "@/lib/digest/announcements";
 
 export type BriefDigestResult = {
   sent: boolean;
@@ -47,9 +55,6 @@ function isBriefDigestEnabled(): boolean {
   if (raw === "0" || raw === "false" || raw === "no") return false;
   return true;
 }
-
-/** How far back to look for newly summarized items for the email (created_at). */
-const DIGEST_SUMMARY_LOOKBACK_DAYS = 2;
 
 /** Prefer article/pub date; exclude undated items from email. */
 function isPublishedWithinDays(item: BriefItem, days: number): boolean {
@@ -214,6 +219,11 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     }
   })();
 
+  const [unsentNews, announcement] = await Promise.all([
+    getUnsentApprovedNews(3),
+    getActiveAnnouncement(),
+  ]);
+
   // Fallback body (unused when personalize always returns content).
   const { subject, html, text } = buildBriefDigestEmail({
     items,
@@ -221,6 +231,8 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     dateLabel,
     logoUrl,
     logoLightUrl,
+    newsItems: unsentNews,
+    announcement,
   });
 
   const result = await sendDigestEmailToEach({
@@ -231,6 +243,10 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     from: getBriefDigestFromAddress(),
     personalize: (email) => {
       const recipientItems = itemsByEmail.get(email) ?? items;
+      const prefs =
+        prefsByEmail.get(email.trim().toLowerCase()) ?? DEFAULT_USER_PREFERENCES;
+      const recipientNews = prefs.includeNews !== false ? unsentNews : [];
+
       let unsubscribePageUrl: string | undefined;
       let unsubscribeApiUrl: string | undefined;
       try {
@@ -259,6 +275,8 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         logoLightUrl,
         unsubscribeUrl: unsubscribePageUrl,
         saveUrlForPmid,
+        newsItems: recipientNews,
+        announcement,
       });
       const headers: Record<string, string> = {
         "List-Id": `The Stewardship Brief <brief.${listIdHost}>`,
@@ -279,8 +297,13 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     },
   });
 
-  if (result.sent > 0 && items.length > 0) {
-    await recordBriefEmailSends(items.map((i) => i.pmid));
+  if (result.sent > 0) {
+    if (items.length > 0) {
+      await recordBriefEmailSends(items.map((i) => i.pmid));
+    }
+    if (unsentNews.length > 0) {
+      await recordBriefNewsEmailSends(unsentNews.map((n) => n.id));
+    }
   }
 
   return {

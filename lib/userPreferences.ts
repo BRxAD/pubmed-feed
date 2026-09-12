@@ -8,6 +8,7 @@ export type UserPreferences = {
   settingsTags: string[];
   topicsTags: string[];
   highImpactOnly: boolean;
+  includeNews: boolean;
 };
 
 export const EMAIL_FREQUENCY_OPTIONS: {
@@ -42,12 +43,13 @@ export const TOPICS_TAG_OPTIONS = BRIEF_TOPIC_OPTIONS.filter(
   (opt) => opt.value !== ""
 );
 
-/** New accounts: Daily, All settings, All topics, All curated articles. */
+/** New accounts: Daily, All settings, All topics, All curated articles, In the News included. */
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   emailFrequency: "daily",
   settingsTags: [],
   topicsTags: [],
   highImpactOnly: false,
+  includeNews: true,
 };
 
 const ALLOWED_FREQUENCIES = new Set<EmailFrequency>(
@@ -70,6 +72,7 @@ export function sanitizeUserPreferences(input: {
   settingsTags?: unknown;
   topicsTags?: unknown;
   highImpactOnly?: unknown;
+  includeNews?: unknown;
 }): UserPreferences {
   const settingsTags = Array.isArray(input.settingsTags)
     ? input.settingsTags
@@ -87,6 +90,7 @@ export function sanitizeUserPreferences(input: {
     settingsTags: [...new Set(settingsTags)],
     topicsTags: [...new Set(topicsTags)],
     highImpactOnly: Boolean(input.highImpactOnly),
+    includeNews: input.includeNews !== false,
   };
 }
 

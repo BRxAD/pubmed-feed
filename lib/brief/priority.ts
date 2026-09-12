@@ -4,6 +4,9 @@ export const BRIEF_MIN_PRIORITY = 5;
 /** Article date window for what appears on the brief / Top 10 (release/pub date). */
 export const BRIEF_ARTICLE_WINDOW_DAYS = 28;
 
+/** Maximum age (in days) of AI summary generation for inclusion in daily digest. */
+export const DIGEST_SUMMARY_LOOKBACK_DAYS = 2;
+
 /** Saved admin rating wins; otherwise use ML-predicted priority. */
 export function effectivePriority(
   adminPriority: number | null | undefined,

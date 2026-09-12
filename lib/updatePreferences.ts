@@ -14,6 +14,7 @@ type AuthUserRow = {
   settings_tags: string[] | null;
   topics_tags: string[] | null;
   high_impact_only: boolean | null;
+  include_news: boolean | null;
 };
 
 function getResendClient(): Resend {
@@ -31,6 +32,7 @@ function preferencesFromRow(row: AuthUserRow | null): UserPreferences {
     settingsTags: row.settings_tags ?? [],
     topicsTags: row.topics_tags ?? [],
     highImpactOnly: row.high_impact_only ?? false,
+    includeNews: row.include_news ?? true,
   });
 }
 
@@ -67,7 +69,7 @@ export async function getUserPreferences(userId: string): Promise<{
     const { data, error } = await supabase
       .from("auth_users")
       .select(
-        "id, email, email_frequency, settings_tags, topics_tags, high_impact_only"
+        "id, email, email_frequency, settings_tags, topics_tags, high_impact_only, include_news"
       )
       .eq("id", userId)
       .maybeSingle();
@@ -158,6 +160,7 @@ export async function updateUserPreferences(
         settings_tags: preferences.settingsTags,
         topics_tags: preferences.topicsTags,
         high_impact_only: preferences.highImpactOnly,
+        include_news: preferences.includeNews,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId)

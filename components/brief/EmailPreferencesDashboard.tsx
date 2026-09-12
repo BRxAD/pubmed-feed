@@ -246,6 +246,31 @@ export default function EmailPreferencesDashboard({
         </div>
       </section>
 
+      <section>
+        <h2 className={`${brief.kicker} mb-3`}>In the News</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CheckboxCard
+            name="includeNews"
+            checked={preferences.includeNews}
+            onChange={() =>
+              setPreferences((prev) => ({ ...prev, includeNews: true }))
+            }
+            label='Include "In the News" Roundup'
+            hint="Recent approved news from WHO, CIDRAP, and global outlets."
+            badge="Default"
+          />
+          <CheckboxCard
+            name="includeNews"
+            checked={!preferences.includeNews}
+            onChange={() =>
+              setPreferences((prev) => ({ ...prev, includeNews: false }))
+            }
+            label="Studies Only"
+            hint="Skip news stories and receive only peer-reviewed literature."
+          />
+        </div>
+      </section>
+
       <div className="flex flex-wrap items-center gap-4 border-t border-[#D8D4C8] pt-6">
         <button
           type="submit"
