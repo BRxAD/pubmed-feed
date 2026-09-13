@@ -1,6 +1,7 @@
 import "server-only";
 import OpenAI from "openai";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
+import { cleanAntistaphPenicillinAbbreviations } from "@/lib/brief/antistaphPenicillins";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -34,6 +35,7 @@ Requirements:
 - One complete, grammatical sentence that stands alone — must not feel cut off mid-thought
 - Pithy and interesting: lead with THIS paper's finding or (for reviews without original data) THIS paper's scope — NOT the paper title, framework name, or acronyms
 - High-quality science journalism: precise, readable, no hype
+- Abbreviations: ASP / ASPs universally means Antimicrobial Stewardship Program(s). NEVER use "ASP" or "ASPs" as an abbreviation for antistaphylococcal penicillins — write out "antistaphylococcal penicillins" (or "anti-staph penicillins" / specific drug names like nafcillin or oxacillin) so readers never confuse the drug class with stewardship programs
 - Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
 - Name the key subject and the measured outcome in full so an expert knows what changed — never a bare "rates", "outcomes", or "use" when the abstract names what was measured (cure rates, mortality, antibiotic days, resistance). "Higher rates" is invalid; "higher cure rates" is valid
 - Never end on a bare number, preposition, or unfinished phrase ("across 118" is invalid — say "across 118 VA hospitals")
@@ -167,6 +169,7 @@ function sanitizeHeadline(raw: string): string {
     h = h.replace(HYPE_WORDS, "").replace(/\s+/g, " ").trim();
     h = h.replace(/\u0000(\d+)\u0000/g, (_, i) => kept[Number(i)] ?? "");
   }
+  h = cleanAntistaphPenicillinAbbreviations(h, { isHeadline: true });
   return h;
 }
 
@@ -263,6 +266,17 @@ export function validateHeadlineQuality(
   if (opts?.requireNamedRates && hasUnspecifiedRateNoun(h)) {
     issues.push(
       "name the measured outcome (e.g. cure rates, mortality rates) — do not say only rates"
+    );
+  }
+
+  if (
+    /\bASPs?\b/.test(h) &&
+    /\b(antistaph|antistaphylococcal|anti-staphylococcal|anti-staph|cefazolin|mssa|nafcillin|oxacillin|flucloxacillin|cloxacillin)\b/i.test(
+      `${h} ${abstract}`
+    )
+  ) {
+    issues.push(
+      'do not use "ASP" or "ASPs" for antistaphylococcal penicillins — spell out "antistaphylococcal penicillins" or "anti-staph penicillins"'
     );
   }
 

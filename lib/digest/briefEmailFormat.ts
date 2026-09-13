@@ -50,7 +50,7 @@ function storyActionsMarkup(
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save on Brief</a>${sep}<a href="${read}" style="${link}">View on Pubmed</a>${sep}<a href="${email}" style="${link}">Email</a>
+          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save</a>${sep}<a href="${read}" style="${link}">View on Pubmed</a>${sep}<a href="${email}" style="${link}">Email</a>
         </p>`;
 }
 
@@ -191,7 +191,7 @@ export function buildBriefDigestEmail(options: {
       journal,
       item.bottomLine ?? "",
       `Read on Brief: ${articleUrl}`,
-      `Save on Brief: ${saveUrl}`,
+      `Save: ${saveUrl}`,
       `View on Pubmed: ${item.pubmedUrl}`,
       ""
     );

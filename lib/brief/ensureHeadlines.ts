@@ -6,6 +6,7 @@ import {
   headlineNeedsGeneration,
 } from "@/lib/brief/generateHeadline";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
+import { cleanAntistaphPenicillinAbbreviations } from "@/lib/brief/antistaphPenicillins";
 
 const CONCURRENCY = 4;
 
@@ -89,8 +90,14 @@ export function resolveStoredHeadline(
   summaryText: string,
   title: string
 ): string {
-  if (storedHeadline?.trim()) return decodeHtmlEntities(storedHeadline.trim());
-  const fromSummary = headlineFromSummaryText(summaryText);
-  if (fromSummary) return decodeHtmlEntities(fromSummary);
-  return decodeHtmlEntities(title.trim());
+  let h = "";
+  if (storedHeadline?.trim()) {
+    h = decodeHtmlEntities(storedHeadline.trim());
+  } else {
+    const fromSummary = headlineFromSummaryText(summaryText);
+    h = fromSummary
+      ? decodeHtmlEntities(fromSummary)
+      : decodeHtmlEntities(title.trim());
+  }
+  return cleanAntistaphPenicillinAbbreviations(h, { isHeadline: true });
 }

@@ -5,6 +5,7 @@ import {
   type ArticleSetting,
 } from "@/lib/classifySetting";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
+import { cleanAntistaphPenicillinAbbreviations } from "@/lib/brief/antistaphPenicillins";
 
 export type { ArticleSetting };
 
@@ -213,11 +214,19 @@ export function parseSummaryBullets(
 
   if (!whatIsKnown && !methods && !results && !bottomLine) return null;
   return {
-    whatIsKnown: whatIsKnown ? decodeHtmlEntities(whatIsKnown) : null,
-    methods: methods ? decodeHtmlEntities(methods) : null,
-    results: results ? decodeHtmlEntities(results) : null,
+    whatIsKnown: whatIsKnown
+      ? cleanAntistaphPenicillinAbbreviations(decodeHtmlEntities(whatIsKnown))
+      : null,
+    methods: methods
+      ? cleanAntistaphPenicillinAbbreviations(decodeHtmlEntities(methods))
+      : null,
+    results: results
+      ? cleanAntistaphPenicillinAbbreviations(decodeHtmlEntities(results))
+      : null,
     bottomLine: bottomLine
-      ? decodeHtmlEntities(cleanBottomLine(bottomLine, methods))
+      ? cleanAntistaphPenicillinAbbreviations(
+          decodeHtmlEntities(cleanBottomLine(bottomLine, methods))
+        )
       : null,
   };
 }
