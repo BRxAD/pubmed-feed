@@ -1,6 +1,10 @@
 import "server-only";
 import OpenAI from "openai";
 import { cleanAntistaphPenicillinAbbreviations } from "@/lib/brief/antistaphPenicillins";
+import {
+  expandUncommonAcronyms,
+  ID_ACRONYM_PROMPT_RULE,
+} from "@/lib/brief/idAcronyms";
 
 const SYSTEM_PROMPT = `You summarize biomedical research abstracts for "The Stewardship Brief" — a literature feed for infectious diseases and antimicrobial-stewardship experts.
 
@@ -10,6 +14,7 @@ Audience:
 - Prefer the stewardship-relevant angle over a generic biomedical restatement
 - Do not over-explain foundational concepts
 - Abbreviations: ASP / ASPs stands for Antimicrobial Stewardship Program(s). NEVER use "ASP" or "ASPs" as an abbreviation for antistaphylococcal penicillin(s) — write out "antistaphylococcal penicillins" (or specific agents: nafcillin, oxacillin, flucloxacillin, cloxacillin) to avoid confusion with stewardship programs.
+- ${ID_ACRONYM_PROMPT_RULE}
 - If it is not obvious why the paper matters for antimicrobial stewardship (e.g. a drug, device, or pathway for a non-infectious condition), BOTTOM LINE must still name the stewardship hook that is actually in the abstract — typically antibiotic use, prescribing, duration, spectrum, resistance, or diagnostics stewardship. Do not invent a hook that the abstract does not support. When the paper is already clearly about antibiotics or stewardship, do not tack on a redundant AMS clause.
 
 Format your response using exactly these section labels (one per line):
@@ -72,9 +77,13 @@ export function parseSummaryResponse(content: string): ParsedSummary {
   }
 
   const rawSummary = bodyLines.join("\n").trim();
-  const cleanedSummary = cleanAntistaphPenicillinAbbreviations(rawSummary);
+  const cleanedSummary = expandUncommonAcronyms(
+    cleanAntistaphPenicillinAbbreviations(rawSummary)
+  );
   const cleanedHeadline = headline
-    ? cleanAntistaphPenicillinAbbreviations(headline, { isHeadline: true })
+    ? expandUncommonAcronyms(
+        cleanAntistaphPenicillinAbbreviations(headline, { isHeadline: true })
+      )
     : null;
 
   return {

@@ -2,6 +2,11 @@ import "server-only";
 import OpenAI from "openai";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 import { cleanAntistaphPenicillinAbbreviations } from "@/lib/brief/antistaphPenicillins";
+import {
+  expandUncommonAcronyms,
+  findUncommonAcronyms,
+  ID_ACRONYM_PROMPT_RULE,
+} from "@/lib/brief/idAcronyms";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -36,6 +41,7 @@ Requirements:
 - Pithy and interesting: lead with THIS paper's finding or (for reviews without original data) THIS paper's scope — NOT the paper title, framework name, or acronyms
 - High-quality science journalism: precise, readable, no hype
 - Abbreviations: ASP / ASPs universally means Antimicrobial Stewardship Program(s). NEVER use "ASP" or "ASPs" as an abbreviation for antistaphylococcal penicillins — write out "antistaphylococcal penicillins" (or "anti-staph penicillins" / specific drug names like nafcillin or oxacillin) so readers never confuse the drug class with stewardship programs
+- ${ID_ACRONYM_PROMPT_RULE}
 - Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
 - Name the key subject and the measured outcome in full so an expert knows what changed — never a bare "rates", "outcomes", or "use" when the abstract names what was measured (cure rates, mortality, antibiotic days, resistance). "Higher rates" is invalid; "higher cure rates" is valid
 - Never end on a bare number, preposition, or unfinished phrase ("across 118" is invalid — say "across 118 VA hospitals")
@@ -169,7 +175,9 @@ function sanitizeHeadline(raw: string): string {
     h = h.replace(HYPE_WORDS, "").replace(/\s+/g, " ").trim();
     h = h.replace(/\u0000(\d+)\u0000/g, (_, i) => kept[Number(i)] ?? "");
   }
-  h = cleanAntistaphPenicillinAbbreviations(h, { isHeadline: true });
+  h = expandUncommonAcronyms(
+    cleanAntistaphPenicillinAbbreviations(h, { isHeadline: true })
+  );
   return h;
 }
 
@@ -228,7 +236,11 @@ function looksTruncated(headline: string): boolean {
 export function validateHeadlineQuality(
   headline: string,
   abstract: string,
-  opts?: { requireNamedRates?: boolean }
+  opts?: {
+    requireNamedRates?: boolean;
+    /** Only for new generation — do not use for stale checks (avoids mass rewrites). */
+    enforceAcronymAllowlist?: boolean;
+  }
 ): HeadlineValidation {
   const h = headline.trim();
   const issues: string[] = [];
@@ -278,6 +290,15 @@ export function validateHeadlineQuality(
     issues.push(
       'do not use "ASP" or "ASPs" for antistaphylococcal penicillins — spell out "antistaphylococcal penicillins" or "anti-staph penicillins"'
     );
+  }
+
+  if (opts?.enforceAcronymAllowlist) {
+    const uncommon = findUncommonAcronyms(h);
+    if (uncommon.length > 0) {
+      issues.push(
+        `uncommon acronym(s) ${uncommon.join(", ")} — write out in plain English unless it is a common ID/AMS term (CAP, MRSA, CRP, RCT, ICU, etc.)`
+      );
+    }
   }
 
   return { ok: issues.length === 0, issues };
@@ -399,6 +420,7 @@ export async function generateBriefHeadline(options: {
 
     const validation = validateHeadlineQuality(headline, abstract, {
       requireNamedRates: true,
+      enforceAcronymAllowlist: true,
     });
     if (validation.ok) return headline;
 
