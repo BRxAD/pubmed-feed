@@ -215,11 +215,6 @@ export default function ArticlePermalinkView({
               onError={() => setImageBroken(true)}
             />
           </div>
-          {image.label && (
-            <p className="px-3 py-1.5 text-right font-sans text-[0.6875rem] text-[#72705B]">
-              {image.label}
-            </p>
-          )}
         </div>
       )}
 
