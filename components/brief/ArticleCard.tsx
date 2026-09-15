@@ -39,6 +39,18 @@ type StoryProps = {
   onImageError?: () => void;
 };
 
+function JournalLine({ journal }: { journal: string | null }) {
+  const label = journal?.trim() ? formatJournalTitle(journal) : "";
+  if (!label) return null;
+  return (
+    <p
+      className={`${brief.sans} mt-1 text-[0.75rem] font-normal leading-snug ${brief.muted} sm:text-[0.8125rem]`}
+    >
+      {label}
+    </p>
+  );
+}
+
 function MetaLine({ item }: { item: BriefItem }) {
   const settings =
     item.settings && item.settings.length > 0
@@ -351,6 +363,7 @@ export function LeadStory({
               {item.headline}
             </a>
           </h2>
+          <JournalLine journal={item.journal} />
           {item.bottomLine && (
             <p
               className={`mt-3 ${brief.deck} text-[0.9375rem] leading-[1.55] sm:text-[1.0125rem] sm:leading-[1.55]`}
@@ -448,6 +461,7 @@ export function FeaturedStory({
           {item.headline}
         </a>
       </h2>
+      <JournalLine journal={item.journal} />
       {item.bottomLine && (
         <p className={`mt-1.5 ${brief.deck} text-[0.875rem] leading-[1.5] sm:text-[0.9375rem]`}>
           {item.bottomLine}
