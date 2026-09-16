@@ -1,14 +1,19 @@
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
-import { formatPubmedCitation } from "@/lib/brief/citation";
+import { citationYear, formatLeadAuthorLine } from "@/lib/brief/citation";
+import { formatJournalTitle } from "@/lib/brief/formatJournal";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
 const WIDTH = 1600;
 const HEIGHT = 900;
-const BRAND_URL = "via www.stewardshipbrief.com";
 const LOGO_SRC = "/stewardship-brief-logo.png";
-/** Dark left shade over photo (classic graphic takeaway). */
-const SHADE = "#1C0B19";
+const LOGO_LIGHT_SRC = "/stewardship-brief-logo-light.png";
+const PLUM = "#1C0B19";
+const SALMON = "#FFA69E";
+const SKY = "#7BC1D4";
+const SKY_LIGHT = "#D2F1F6";
+const PAPER = "#F6F4EF";
+const TAB_RADIUS = 12;
 
 const LOCAL_GENERICS = [
   "/brief-images/generic-01.png",
@@ -22,6 +27,45 @@ const LOCAL_GENERICS = [
   "/brief-images/generic-09.png",
   "/brief-images/generic-10.png",
 ] as const;
+
+/** Lucide paths used on the dashboard preview (viewBox 0 0 24 24). */
+const ICONS = {
+  sparkles: [
+    [
+      "path",
+      "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z",
+    ],
+    ["path", "M20 2v4"],
+    ["path", "M22 4h-4"],
+    ["circle", "4 20 2"],
+  ],
+  users: [
+    ["path", "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"],
+    ["path", "M16 3.128a4 4 0 0 1 0 7.744"],
+    ["path", "M22 21v-2a4 4 0 0 0-3-3.87"],
+    ["circle", "9 7 4"],
+  ],
+  chart: [
+    ["path", "M3 3v16a2 2 0 0 0 2 2h16"],
+    ["path", "M18 17V9"],
+    ["path", "M13 17V5"],
+    ["path", "M8 17v-3"],
+  ],
+  scan: [
+    ["path", "M3 7V5a2 2 0 0 1 2-2h2"],
+    ["path", "M17 3h2a2 2 0 0 1 2 2v2"],
+    ["path", "M21 17v2a2 2 0 0 1-2 2h-2"],
+    ["path", "M7 21H5a2 2 0 0 1-2-2v-2"],
+    ["path", "M7 12h10"],
+  ],
+  book: [
+    ["path", "M12 5v16"],
+    [
+      "path",
+      "M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z",
+    ],
+  ],
+} as const;
 
 export type VisualSummaryInput = {
   item: BriefItem;
@@ -43,7 +87,7 @@ export function resolveVisualSummaryImageSrc(
   return pickFallbackImage(item.pmid);
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+function loadImage(src: string, timeoutMs = 10000): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
     const absolute =
@@ -51,10 +95,50 @@ function loadImage(src: string): Promise<HTMLImageElement> {
       src.startsWith("https://") ||
       src.startsWith("data:");
     if (absolute) img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    const timer = window.setTimeout(() => {
+      img.onload = null;
+      img.onerror = null;
+      reject(new Error(`Timed out loading image: ${src}`));
+    }, timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error(`Failed to load image: ${src}`));
+    };
     img.src = src;
   });
+}
+
+function lucideDataUrl(
+  nodes: readonly (readonly [string, string])[],
+  color: string,
+  size = 64
+): string {
+  const inner = nodes
+    .map(([tag, data]) => {
+      if (tag === "circle") {
+        const [cx, cy, r] = data.split(" ");
+        return `<circle cx="${cx}" cy="${cy}" r="${r}"/>`;
+      }
+      return `<path d="${data}"/>`;
+    })
+    .join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function loadIcon(
+  nodes: readonly (readonly [string, string])[],
+  color: string
+): Promise<HTMLImageElement | null> {
+  try {
+    return await loadImage(lucideDataUrl(nodes, color));
+  } catch {
+    return null;
+  }
 }
 
 function wrapLines(
@@ -108,17 +192,6 @@ function wrapLines(
   return lines.slice(0, maxLines);
 }
 
-/** Wrap to full width with no truncation / ellipsis. */
-function wrapLinesFull(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string[] {
-  return wrapLines(ctx, text, maxWidth, Number.MAX_SAFE_INTEGER, {
-    ellipsis: false,
-  });
-}
-
 function drawCoverImage(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -128,22 +201,9 @@ function drawCoverImage(
   const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
   const dw = img.naturalWidth * scale;
   const dh = img.naturalHeight * scale;
-  // Bias crop so subject leans right (matches sample composition).
-  const dx = w - dw;
+  const dx = (w - dw) / 2;
   const dy = (h - dh) / 2;
   ctx.drawImage(img, dx, dy, dw, dh);
-}
-
-function drawLeftShade(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Cover ~2/3 of the card so full headlines/bottom lines stay readable.
-  const grad = ctx.createLinearGradient(0, 0, w * 0.78, 0);
-  grad.addColorStop(0, hexAlpha(SHADE, 0.98));
-  grad.addColorStop(0.42, hexAlpha(SHADE, 0.94));
-  grad.addColorStop(0.62, hexAlpha(SHADE, 0.78));
-  grad.addColorStop(0.82, hexAlpha(SHADE, 0.32));
-  grad.addColorStop(1, hexAlpha(SHADE, 0));
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
 }
 
 function hexAlpha(hex: string, alpha: number): string {
@@ -155,12 +215,27 @@ function hexAlpha(hex: string, alpha: number): string {
 }
 
 async function loadQrImage(url: string): Promise<HTMLImageElement | null> {
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&color=1C0B19&bgcolor=F6F4EF&data=${encodeURIComponent(url)}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&color=1C0B19&bgcolor=FFFFFF&data=${encodeURIComponent(url)}`;
   try {
     return await loadImage(qrSrc);
   } catch {
     return null;
   }
+}
+
+function clampRadii(
+  w: number,
+  h: number,
+  r: number | [number, number, number, number]
+): [number, number, number, number] {
+  const cap = Math.max(0, Math.min(w, h) / 2);
+  const list = typeof r === "number" ? [r, r, r, r] : r;
+  return [
+    Math.max(0, Math.min(list[0] ?? 0, cap)),
+    Math.max(0, Math.min(list[1] ?? 0, cap)),
+    Math.max(0, Math.min(list[2] ?? 0, cap)),
+    Math.max(0, Math.min(list[3] ?? 0, cap)),
+  ];
 }
 
 function roundRect(
@@ -169,15 +244,148 @@ function roundRect(
   y: number,
   w: number,
   h: number,
-  r: number
+  r: number | [number, number, number, number]
 ) {
+  const [tl, tr, br, bl] = clampRadii(w, h, r);
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + w - tr, y);
+  if (tr > 0) ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+  else ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + h - br);
+  if (br > 0) ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+  else ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x + bl, y + h);
+  if (bl > 0) ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+  else ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + tl);
+  if (tl > 0) ctx.quadraticCurveTo(x, y, x + tl, y);
+  else ctx.lineTo(x, y);
   ctx.closePath();
+}
+
+function drawIcon(
+  ctx: CanvasRenderingContext2D,
+  icon: HTMLImageElement | null,
+  x: number,
+  y: number,
+  size: number
+) {
+  if (!icon) return;
+  ctx.drawImage(icon, x, y, size, size);
+}
+
+function drawLabelWithIcon(
+  ctx: CanvasRenderingContext2D,
+  opts: {
+    x: number;
+    y: number;
+    icon: HTMLImageElement | null;
+    label: string;
+    color: string;
+  }
+) {
+  const iconSize = 16;
+  if (opts.icon) {
+    drawIcon(ctx, opts.icon, opts.x, opts.y, iconSize);
+  }
+  ctx.fillStyle = opts.color;
+  ctx.font = "700 13px 'Libre Franklin', system-ui, sans-serif";
+  ctx.fillText(
+    opts.label,
+    opts.x + (opts.icon ? iconSize + 8 : 0),
+    opts.y + 1
+  );
+}
+
+function drawColumnBox(
+  ctx: CanvasRenderingContext2D,
+  opts: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    icon: HTMLImageElement | null;
+    label: string;
+    lines: string[];
+    fontSize: number;
+    lineHeight: number;
+  }
+) {
+  roundRect(ctx, opts.x, opts.y, opts.width, opts.height, 10);
+  ctx.fillStyle = "rgba(246,244,239,0.14)";
+  ctx.fill();
+  drawLabelWithIcon(ctx, {
+    x: opts.x + 20,
+    y: opts.y + 14,
+    icon: opts.icon,
+    label: opts.label,
+    color: SKY_LIGHT,
+  });
+  ctx.fillStyle = PAPER;
+  ctx.font = `400 ${opts.fontSize}px 'Libre Franklin', system-ui, sans-serif`;
+  let ly = opts.y + 40;
+  for (const line of opts.lines) {
+    ctx.fillText(line, opts.x + 20, ly);
+    ly += opts.lineHeight;
+  }
+}
+
+function drawQrBadge(
+  ctx: CanvasRenderingContext2D,
+  qr: HTMLImageElement,
+  scanIcon: HTMLImageElement | null,
+  bottom: number
+) {
+  const qrSize = 72;
+  const pad = 14;
+  const gap = 14;
+  const textW = 200;
+  const badgeH = pad + qrSize + pad;
+  const innerW = pad + qrSize + gap + textW + pad;
+  const x = WIDTH - innerW;
+  const y = bottom - badgeH;
+
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+
+  roundRect(ctx, x, y, WIDTH - x + 24, badgeH, [TAB_RADIUS, 0, 0, TAB_RADIUS]);
+  ctx.fillStyle = hexAlpha(SALMON, 0.2);
+  ctx.fill();
+
+  const qx = x + pad;
+  const qy = y + pad;
+  roundRect(ctx, qx - 4, qy - 4, qrSize + 8, qrSize + 8, 6);
+  ctx.fillStyle = PAPER;
+  ctx.fill();
+  ctx.drawImage(qr, qx, qy, qrSize, qrSize);
+
+  const tx = qx + qrSize + gap;
+  drawLabelWithIcon(ctx, {
+    x: tx,
+    y: qy + (qrSize - 16) / 2,
+    icon: scanIcon,
+    label: "SCAN TO READ ARTICLE",
+    color: SALMON,
+  });
+  ctx.restore();
+}
+
+async function loadBrandLogo(): Promise<{
+  img: HTMLImageElement;
+  invert: boolean;
+} | null> {
+  try {
+    return { img: await loadImage(LOGO_LIGHT_SRC), invert: false };
+  } catch {
+    try {
+      return { img: await loadImage(LOGO_SRC), invert: true };
+    } catch {
+      return null;
+    }
+  }
 }
 
 async function renderToBlob(
@@ -190,133 +398,237 @@ async function renderToBlob(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported");
 
-  ctx.fillStyle = "#E8E4DC";
+  ctx.fillStyle = PLUM;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   try {
     const photo = await loadImage(photoSrc);
     drawCoverImage(ctx, photo, WIDTH, HEIGHT);
   } catch {
-    // Keep paper base.
+    // Plum base remains.
   }
 
-  drawLeftShade(ctx, WIDTH, HEIGHT);
+  const wash = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  wash.addColorStop(0, hexAlpha(PLUM, 0.95));
+  wash.addColorStop(0.4, hexAlpha(PLUM, 0.95));
+  wash.addColorStop(1, hexAlpha(PLUM, 0.75));
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const padX = 72;
-  // ~2/3 of the card for copy; no ellipsis truncation on headline/bottom line.
-  const textMax = WIDTH * (2 / 3) - padX;
-  const brandLogoH = 36;
-  const brandGap = 36;
-  const bottomPad = 48;
-  const citeLh = 25;
+  const padX = 56;
+  const contentRight = Math.round(WIDTH * 0.75);
+  const contentW = contentRight - padX;
+  const journal = formatJournalTitle(item.journal);
   const headline = decodeHtmlEntities(
     (item.headline || item.title || "").trim()
   );
-  const bottom = decodeHtmlEntities(item.bottomLine?.trim() ?? "");
-  const citation = formatPubmedCitation({
-    authors: item.authors,
-    title: item.title ? decodeHtmlEntities(item.title) : item.title,
-    journal: item.journal,
-    date: item.date,
-    pmid: item.pmid,
-  });
+  const fullTitle = decodeHtmlEntities((item.title || "").trim());
+  const takeaway = decodeHtmlEntities(item.bottomLine?.trim() ?? "");
+  const methods = decodeHtmlEntities(item.methods?.trim() ?? "");
+  const findings = decodeHtmlEntities(item.results?.trim() ?? "");
+  const leadAuthor = formatLeadAuthorLine(item.authors);
+  const year = citationYear(item.date);
+  const journalLine = [journal, year].filter(Boolean).join(". ");
 
-  // Shrink fonts only if needed so full text fits above the citation block.
-  let headSize = 68;
-  let bodySize = 34;
-  let headLh = 80;
-  let bodyLh = 48;
-  let headLines: string[] = [];
-  let bodyLines: string[] = [];
-  let citeLines: string[] = [];
-  for (let attempt = 0; attempt < 6; attempt++) {
-    ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
-    headLines = wrapLinesFull(ctx, headline, textMax);
-    ctx.font = `400 ${bodySize}px Newsreader, Georgia, 'Times New Roman', serif`;
-    bodyLines = bottom ? wrapLinesFull(ctx, bottom, textMax) : [];
-    ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
-    citeLines = wrapLinesFull(ctx, citation, textMax);
-    const citeBlockH = citeLines.length * citeLh + brandGap + brandLogoH;
-    const topY = 88;
-    const gapBeforeBody = bottom ? 28 : 0;
-    const copyH =
-      headLines.length * headLh +
-      gapBeforeBody +
-      bodyLines.length * bodyLh;
-    const available =
-      HEIGHT - bottomPad - citeBlockH - topY - 20;
-    if (copyH <= available || headSize <= 44) break;
-    headSize -= 4;
-    bodySize -= 2;
-    headLh = Math.round(headSize * 1.18);
-    bodyLh = Math.round(bodySize * 1.4);
+  const [
+    logoImg,
+    sparklesIcon,
+    usersIcon,
+    chartIcon,
+    scanIcon,
+    bookIcon,
+    qr,
+  ] = await Promise.all([
+    loadBrandLogo(),
+    loadIcon(ICONS.sparkles, SALMON),
+    loadIcon(ICONS.users, SKY_LIGHT),
+    loadIcon(ICONS.chart, SKY_LIGHT),
+    loadIcon(ICONS.scan, SALMON),
+    loadIcon(ICONS.book, SKY),
+    loadQrImage(item.pubmedUrl),
+  ]);
+
+  const logoH = 48;
+  const logoY = 36;
+  if (logoImg) {
+    const logoW =
+      (logoImg.img.naturalWidth / Math.max(1, logoImg.img.naturalHeight)) *
+      logoH;
+    const logoX = WIDTH - padX - logoW;
+    if (logoImg.invert) {
+      ctx.save();
+      ctx.filter = "brightness(0) invert(1)";
+      ctx.drawImage(logoImg.img, logoX, logoY, logoW, logoH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(logoImg.img, logoX, logoY, logoW, logoH);
+    }
+  } else {
+    ctx.fillStyle = PAPER;
+    ctx.font = "600 22px 'Libre Franklin', system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText("The Stewardship Brief", WIDTH - padX - 240, logoY + logoH / 2);
   }
 
-  let y = 88;
-  ctx.fillStyle = "#FFFFFF";
   ctx.textBaseline = "top";
+  ctx.fillStyle = SKY;
+  ctx.font = "600 18px 'Libre Franklin', system-ui, sans-serif";
+  const journalIconSize = 18;
+  const journalTextX = padX + (bookIcon ? journalIconSize + 8 : 0);
+  const journalLabel = wrapLines(
+    ctx,
+    journal.toUpperCase(),
+    contentW - (journalTextX - padX),
+    1
+  );
+  if (bookIcon) {
+    drawIcon(ctx, bookIcon, padX, 48, journalIconSize);
+  }
+  ctx.fillStyle = SKY;
+  ctx.fillText(journalLabel[0] ?? "", journalTextX, 48);
+
+  let headSize = 42;
+  let headLh = 50;
+  let takeSize = 24;
+  let takeLh = 34;
+  let colSize = 20;
+  let colLh = 28;
+  let headLines: string[] = [];
+  let takeLines: string[] = [];
+  let methodLines: string[] = [];
+  let findingLines: string[] = [];
+
+  const colGap = 20;
+  const colW = (contentW - colGap) / 2;
+  const footerH = 148;
+  const topAfterLogo = 98;
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
+    headLines = wrapLines(ctx, headline, contentW, 3);
+    ctx.font = `400 ${takeSize}px 'Libre Franklin', system-ui, sans-serif`;
+    takeLines = takeaway ? wrapLines(ctx, takeaway, contentW - 48, 4) : [];
+    ctx.font = `400 ${colSize}px 'Libre Franklin', system-ui, sans-serif`;
+    methodLines = methods ? wrapLines(ctx, methods, colW - 40, 6) : [];
+    findingLines = findings ? wrapLines(ctx, findings, colW - 40, 6) : [];
+
+    const takeBoxH = takeaway ? 40 + takeLines.length * takeLh + 24 : 0;
+    const colBoxH =
+      42 +
+      Math.max(methodLines.length, findingLines.length) * colLh +
+      24;
+    const used =
+      topAfterLogo +
+      headLines.length * headLh +
+      20 +
+      takeBoxH +
+      18 +
+      colBoxH;
+    if (used <= HEIGHT - footerH - 16 || headSize <= 32) break;
+    headSize -= 2;
+    headLh = Math.round(headSize * 1.18);
+    takeSize = Math.max(18, takeSize - 1);
+    takeLh = Math.round(takeSize * 1.38);
+    colSize = Math.max(16, colSize - 1);
+    colLh = Math.round(colSize * 1.36);
+  }
+
+  let y = topAfterLogo;
+  ctx.fillStyle = PAPER;
   ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
   for (const line of headLines) {
     ctx.fillText(line, padX, y);
     y += headLh;
   }
 
-  if (bottom) {
-    y += 28;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.font = `400 ${bodySize}px Newsreader, Georgia, 'Times New Roman', serif`;
-    for (const line of bodyLines) {
-      ctx.fillText(line, padX, y);
-      y += bodyLh;
+  y += 18;
+  if (takeaway) {
+    const takeBoxH = 40 + takeLines.length * takeLh + 22;
+    roundRect(ctx, padX, y, contentW, takeBoxH, 10);
+    ctx.fillStyle = hexAlpha(SALMON, 0.2);
+    ctx.fill();
+    ctx.fillStyle = SALMON;
+    ctx.fillRect(padX, y, 6, takeBoxH);
+    drawLabelWithIcon(ctx, {
+      x: padX + 24,
+      y: y + 14,
+      icon: sparklesIcon,
+      label: "KEY TAKEAWAY",
+      color: SALMON,
+    });
+    ctx.fillStyle = PAPER;
+    ctx.font = `400 ${takeSize}px 'Libre Franklin', system-ui, sans-serif`;
+    let ty = y + 40;
+    for (const line of takeLines) {
+      ctx.fillText(line, padX + 24, ty);
+      ty += takeLh;
+    }
+    y += takeBoxH + 18;
+  }
+
+  const colBoxH =
+    42 +
+    Math.max(methodLines.length, findingLines.length, 1) * colLh +
+    22;
+
+  if (methods || findings) {
+    drawColumnBox(ctx, {
+      x: padX,
+      y,
+      width: colW,
+      height: colBoxH,
+      icon: usersIcon,
+      label: "METHODS",
+      lines: methodLines,
+      fontSize: colSize,
+      lineHeight: colLh,
+    });
+    drawColumnBox(ctx, {
+      x: padX + colW + colGap,
+      y,
+      width: colW,
+      height: colBoxH,
+      icon: chartIcon,
+      label: "STUDY FINDINGS",
+      lines: findingLines,
+      fontSize: colSize,
+      lineHeight: colLh,
+    });
+  }
+
+  ctx.font = "400 16px 'Libre Franklin', system-ui, sans-serif";
+  const titleLines = fullTitle
+    ? wrapLines(ctx, fullTitle.replace(/\.$/, ""), contentW - 28, 2)
+    : [];
+  const citeBlockH =
+    (leadAuthor ? 26 : 0) +
+    titleLines.length * 22 +
+    (journalLine ? 26 : 0);
+  let citeY = HEIGHT - 40 - citeBlockH;
+
+  if (leadAuthor) {
+    ctx.fillStyle = PAPER;
+    ctx.font = "600 20px 'Libre Franklin', system-ui, sans-serif";
+    ctx.fillText(leadAuthor, padX, citeY);
+    citeY += 26;
+  }
+  if (titleLines.length > 0) {
+    ctx.fillStyle = hexAlpha(PAPER, 0.92);
+    ctx.font = "400 16px 'Libre Franklin', system-ui, sans-serif";
+    for (const line of titleLines) {
+      const isLast = line === titleLines[titleLines.length - 1];
+      ctx.fillText(`${line}${isLast ? "." : ""}`, padX, citeY);
+      citeY += 22;
     }
   }
-
-  const citeBlockH = citeLines.length * citeLh + brandGap + brandLogoH;
-  let citeY = Math.max(y + 24, HEIGHT - bottomPad - citeBlockH);
-
-  ctx.fillStyle = "rgba(255,255,255,0.78)";
-  ctx.font = "400 19px 'Libre Franklin', system-ui, sans-serif";
-  ctx.textBaseline = "top";
-  for (const line of citeLines) {
-    ctx.fillText(line, padX, citeY);
-    citeY += citeLh;
+  if (journalLine) {
+    ctx.fillStyle = hexAlpha(SKY, 0.95);
+    ctx.font = "500 17px 'Libre Franklin', system-ui, sans-serif";
+    ctx.fillText(`${journalLine}.`, padX, citeY);
   }
 
-  // Logo + site below citation, inverted (white) for the dark shade.
-  citeY += brandGap;
-  ctx.fillStyle = "#FFFFFF";
-  const brandGapX = 12;
-  let brandX = padX;
-
-  try {
-    const logo = await loadImage(LOGO_SRC);
-    const logoH = brandLogoH;
-    const logoW = (logo.naturalWidth / Math.max(1, logo.naturalHeight)) * logoH;
-    ctx.save();
-    // Force light mark on dark background.
-    ctx.filter = "brightness(0) invert(1)";
-    ctx.drawImage(logo, brandX, citeY, logoW, logoH);
-    ctx.restore();
-    brandX += logoW + brandGapX;
-  } catch {
-    // Text-only fallback.
-  }
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.textBaseline = "middle";
-  ctx.font = "600 22px 'Libre Franklin', system-ui, sans-serif";
-  ctx.fillText(BRAND_URL, brandX, citeY + brandLogoH / 2);
-
-  // QR stays bottom-right on the photo.
-  const qr = await loadQrImage(item.pubmedUrl);
   if (qr) {
-    const qrSize = 108;
-    const qx = WIDTH - 56 - qrSize;
-    const qy = HEIGHT - 48 - qrSize;
-    ctx.fillStyle = "rgba(246,244,239,0.95)";
-    roundRect(ctx, qx - 8, qy - 8, qrSize + 16, qrSize + 16, 8);
-    ctx.fill();
-    ctx.drawImage(qr, qx, qy, qrSize, qrSize);
+    drawQrBadge(ctx, qr, scanIcon, HEIGHT - 24);
   }
 
   const blob = await new Promise<Blob | null>((resolve) =>
@@ -327,7 +639,8 @@ async function renderToBlob(
 }
 
 /**
- * Compose a shareable graphic takeaway PNG matching the Stewardship Brief card style.
+ * Graphic takeaway 2.0: shareable 16:9 dashboard PNG.
+ * 1.0 was the 4:5 navy photo card; restore from git if we offer it again.
  */
 export async function composeVisualSummary(
   input: VisualSummaryInput

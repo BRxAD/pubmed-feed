@@ -11,6 +11,7 @@ const DISALLOW_TOOLS = [
   "/settings",
   "/brief/unsubscribe",
   "/author-outreach/opt-out",
+  "/graphic-takeaway-preview",
 ];
 
 /**

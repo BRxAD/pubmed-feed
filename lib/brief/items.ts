@@ -251,6 +251,7 @@ type BodyHydration = {
   summaryText: string;
   abstract: string;
   headline: string | null;
+  authors: string[];
 };
 
 /** Load summary_text + abstract for Brief survivors only. */
@@ -263,21 +264,32 @@ async function hydrateBriefBodies(
   const unique = [...new Set(pmids.filter(Boolean))];
   for (let i = 0; i < unique.length; i += HYDRATE_CHUNK) {
     const chunk = unique.slice(i, i + HYDRATE_CHUNK);
-    const { data, error } = await supabase
+    let data: unknown[] | null = null;
+    const withAuthors = await supabase
       .from("summaries")
-      .select("pmid, summary_text, headline, articles!inner(abstract)")
+      .select("pmid, summary_text, headline, articles!inner(abstract, authors)")
       .eq("topic_id", topicId)
       .in("pmid", chunk);
-    if (error) {
-      console.warn("[brief] body hydrate failed:", error.message);
-      continue;
+    if (withAuthors.error) {
+      const fallback = await supabase
+        .from("summaries")
+        .select("pmid, summary_text, headline, articles!inner(abstract)")
+        .eq("topic_id", topicId)
+        .in("pmid", chunk);
+      if (fallback.error) {
+        console.warn("[brief] body hydrate failed:", fallback.error.message);
+        continue;
+      }
+      data = fallback.data ?? [];
+    } else {
+      data = withAuthors.data ?? [];
     }
     for (const row of data ?? []) {
       const r = row as {
         pmid?: string;
         summary_text?: string | null;
         headline?: string | null;
-        articles?: { abstract?: string | null } | null;
+        articles?: { abstract?: string | null; authors?: string[] | null } | null;
       };
       const pmid = String(r.pmid ?? "").trim();
       const summaryText = r.summary_text?.trim() ?? "";
@@ -286,6 +298,9 @@ async function hydrateBriefBodies(
         summaryText,
         abstract: r.articles?.abstract?.trim() ?? "",
         headline: r.headline ?? null,
+        authors: (r.articles?.authors ?? [])
+          .map((a) => String(a).trim())
+          .filter(Boolean),
       });
     }
   }
@@ -895,6 +910,7 @@ export async function getBriefItems(options?: {
       item.methods = bullets?.methods ?? null;
       item.results = bullets?.results ?? null;
       item.bottomLine = bullets?.bottomLine ?? null;
+      if (body.authors.length > 0) item.authors = body.authors;
       item.headline = resolveStoredHeadline(
         body.headline,
         body.summaryText,
