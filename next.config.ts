@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
         hostname: "upload.wikimedia.org",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "api.qrserver.com",
+        pathname: "/**",
+      },
     ],
   },
 };
