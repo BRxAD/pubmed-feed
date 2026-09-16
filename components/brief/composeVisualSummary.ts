@@ -15,7 +15,7 @@ const SKY_LIGHT = "#D2F1F6";
 const PAPER = "#F6F4EF";
 const PAGE_PAD = 56;
 const SUBHEAD_SIZE = 16; // 13px + 20%
-const SUBHEAD_ICON = 19;
+const SUBHEAD_ICON = 23; // 19px + 20%
 
 const LOCAL_GENERICS = [
   "/brief-images/generic-01.png",
@@ -318,7 +318,7 @@ function drawColumnBox(
   }
 ) {
   roundRect(ctx, opts.x, opts.y, opts.width, opts.height, 10);
-  ctx.fillStyle = "rgba(246,244,239,0.14)";
+  ctx.fillStyle = "rgba(246,244,239,0.44)";
   ctx.fill();
   drawLabelWithIcon(ctx, {
     x: opts.x + 20,
@@ -329,7 +329,7 @@ function drawColumnBox(
   });
   ctx.fillStyle = PAPER;
   ctx.font = `400 ${opts.fontSize}px 'Libre Franklin', system-ui, sans-serif`;
-  let ly = opts.y + 44;
+  let ly = opts.y + 48;
   for (const line of opts.lines) {
     ctx.fillText(line, opts.x + 20, ly);
     ly += opts.lineHeight;
@@ -419,7 +419,7 @@ async function renderToBlob(
 
   const wash = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   wash.addColorStop(0, hexAlpha(PLUM, 0.95));
-  wash.addColorStop(0.4, hexAlpha(PLUM, 0.95));
+  wash.addColorStop(0.2, hexAlpha(PLUM, 0.95));
   wash.addColorStop(1, hexAlpha(PLUM, 0.5));
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -482,7 +482,7 @@ async function renderToBlob(
   ctx.textBaseline = "top";
   ctx.fillStyle = SKY;
   ctx.font = "600 18px 'Libre Franklin', system-ui, sans-serif";
-  const journalIconSize = 18;
+  const journalIconSize = 22;
   const journalTextX = padX + (bookIcon ? journalIconSize + 8 : 0);
   const journalLabel = wrapLines(
     ctx,
@@ -635,7 +635,7 @@ async function renderToBlob(
     }
   }
   if (journalLine) {
-    ctx.fillStyle = hexAlpha(SKY, 0.95);
+    ctx.fillStyle = PAPER;
     ctx.font = "500 17px 'Libre Franklin', system-ui, sans-serif";
     ctx.fillText(`${journalLine}.`, padX, citeY);
   }
