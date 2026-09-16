@@ -13,6 +13,7 @@ const SALMON = "#FFA69E";
 const SKY = "#7BC1D4";
 const SKY_LIGHT = "#D2F1F6";
 const PAPER = "#F6F4EF";
+const GREY = "#2E2E2E";
 const PAGE_PAD = 56;
 const SUBHEAD_SIZE = 16; // 13px + 20%
 const SUBHEAD_ICON = 23; // 19px + 20%
@@ -194,6 +195,15 @@ function wrapLines(
   return lines.slice(0, maxLines);
 }
 
+/** Wrap the full string. Never ellipsize. */
+function wrapAllLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  return wrapLines(ctx, text, maxWidth, 40, { ellipsis: false });
+}
+
 function drawCoverImage(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -318,7 +328,7 @@ function drawColumnBox(
   }
 ) {
   roundRect(ctx, opts.x, opts.y, opts.width, opts.height, 10);
-  ctx.fillStyle = "rgba(246,244,239,0.44)";
+  ctx.fillStyle = hexAlpha(GREY, 0.7);
   ctx.fill();
   drawLabelWithIcon(ctx, {
     x: opts.x + 20,
@@ -509,23 +519,34 @@ async function renderToBlob(
 
   const colGap = 20;
   const colW = (contentW - colGap) / 2;
+  const colInnerW = colW - 40;
+  const colHeaderH = 48;
+  const colBottomPad = 22;
   const footerH = 120;
   const topAfterLogo = 98;
+  const available = HEIGHT - footerH - 16;
 
-  for (let attempt = 0; attempt < 8; attempt++) {
+  const wrapColumns = () => {
+    ctx.font = `400 ${colSize}px 'Libre Franklin', system-ui, sans-serif`;
+    methodLines = methods ? wrapAllLines(ctx, methods, colInnerW) : [];
+    findingLines = findings ? wrapAllLines(ctx, findings, colInnerW) : [];
+  };
+
+  const columnBoxHeight = () =>
+    colHeaderH +
+    Math.max(methodLines.length, findingLines.length, 1) * colLh +
+    colBottomPad;
+
+  wrapColumns();
+
+  for (let attempt = 0; attempt < 12; attempt++) {
     ctx.font = `700 ${headSize}px Newsreader, Georgia, 'Times New Roman', serif`;
     headLines = wrapLines(ctx, headline, contentW, 3);
     ctx.font = `400 ${takeSize}px 'Libre Franklin', system-ui, sans-serif`;
     takeLines = takeaway ? wrapLines(ctx, takeaway, contentW - 48, 4) : [];
-    ctx.font = `400 ${colSize}px 'Libre Franklin', system-ui, sans-serif`;
-    methodLines = methods ? wrapLines(ctx, methods, colW - 40, 6) : [];
-    findingLines = findings ? wrapLines(ctx, findings, colW - 40, 6) : [];
 
     const takeBoxH = takeaway ? 40 + takeLines.length * takeLh + 24 : 0;
-    const colBoxH =
-      42 +
-      Math.max(methodLines.length, findingLines.length) * colLh +
-      24;
+    const colBoxH = columnBoxHeight();
     const used =
       topAfterLogo +
       headLines.length * headLh +
@@ -533,13 +554,20 @@ async function renderToBlob(
       takeBoxH +
       18 +
       colBoxH;
-    if (used <= HEIGHT - footerH - 16 || headSize <= 32) break;
-    headSize -= 2;
-    headLh = Math.round(headSize * 1.18);
-    takeSize = Math.max(18, takeSize - 1);
-    takeLh = Math.round(takeSize * 1.38);
-    colSize = Math.max(16, colSize - 1);
+    if (used <= available) break;
+
+    if (headSize > 28) {
+      headSize -= 2;
+      headLh = Math.round(headSize * 1.18);
+      takeSize = Math.max(16, takeSize - 1);
+      takeLh = Math.round(takeSize * 1.38);
+      continue;
+    }
+
+    if (colSize <= 14) break;
+    colSize -= 1;
     colLh = Math.round(colSize * 1.36);
+    wrapColumns();
   }
 
   let y = topAfterLogo;
@@ -575,10 +603,7 @@ async function renderToBlob(
     y += takeBoxH + 18;
   }
 
-  const colBoxH =
-    42 +
-    Math.max(methodLines.length, findingLines.length, 1) * colLh +
-    22;
+  const colBoxH = columnBoxHeight();
 
   if (methods || findings) {
     drawColumnBox(ctx, {
