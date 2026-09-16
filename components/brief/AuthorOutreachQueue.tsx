@@ -203,7 +203,7 @@ export default function AuthorOutreachQueue({
         </h2>
         <p className="mt-1.5 max-w-2xl font-sans text-xs leading-relaxed text-[#72705B]">
           Queued when you rate a paper 5 or higher. Unheld drafts send around
-          17:30 Eastern. Hold skips until you undo. Never send is permanent.
+          9:00 PM Eastern. Hold skips until you undo. Never send is permanent.
         </p>
       </div>
 

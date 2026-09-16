@@ -6,7 +6,7 @@
 |-----|-----|----------|--------|
 | PubMed ingest + summarize | 06:00, 17:00 | `0 10 * * *` / `0 21 * * *` | `/api/cron/daily-digest` |
 | Stewardship Brief email | 08:30 | `30 12 * * *` | `/api/cron/brief-digest` |
-| Author recognition emails (human 5+) | 17:30 | `30 21 * * *` | `/api/cron/author-outreach` |
+| Author recognition emails (human 5+) | 21:00 | `0 1 * * *` | `/api/cron/author-outreach` |
 | Priority model retrain check | 18:00 | `0 22 * * *` | `/api/cron/retrain-priority` (weekly gate) |
 
 OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (no `DIGEST_SEND_LEGACY`, no abstract digests on the ingest cron).
@@ -45,7 +45,7 @@ https://YOUR_HOST/api/cron/author-outreach?secret=YOUR_CRON_SECRET
 
 ## Author recognition emails (human rating 5+)
 
-When an editor first rates a paper **5 or higher**, a corresponding-author draft is queued (going forward only; no historical backfill). Review or hold drafts on `/email_preview`. Unheld drafts send via Resend at **17:30 Eastern** (cap 25/night). Opt-out is a separate list from Brief subscribers.
+When an editor first rates a paper **5 or higher**, a corresponding-author draft is queued (going forward only; no historical backfill). Review or hold drafts on `/email_preview`. Unheld drafts send via Resend at **9:00 PM Eastern** (cap 25/night). Opt-out is a separate list from Brief subscribers.
 
 **You must run** `scripts/add_author_outreach.sql` in the Supabase SQL Editor before this can store emails or send.
 

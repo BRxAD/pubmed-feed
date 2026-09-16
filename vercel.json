@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/author-outreach",
-      "schedule": "30 21 * * *"
+      "schedule": "0 1 * * *"
     }
   ]
 }

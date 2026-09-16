@@ -6,7 +6,7 @@ export const maxDuration = 120;
 
 /**
  * Send pending corresponding-author recognition emails (human rating 5+).
- * Schedule: 21:30 UTC (17:30 Eastern during EDT), after afternoon ingest.
+ * Schedule: 01:00 UTC (21:00 Eastern during EDT).
  *
  * GET /api/cron/author-outreach?secret=YOUR_CRON_SECRET
  */
