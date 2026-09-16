@@ -21,7 +21,7 @@ const demoItem = {
   headline:
     "Paediatric bloodstream infection trials lack standardised outcomes and patient-reported measures.",
   title:
-    "Outcome measures in paediatric bloodstream infection trials: a scoping review",
+    "Outcome measures in paediatric bloodstream infection trials: a scoping review of clinical, microbiological, and patient-reported endpoints, outcome subcategories, and reporting variability across 58 studies involving 14,424 paediatric and neonatal patients",
   journal: "Clinical Microbiology and Infection",
   jif: null,
   jifIsHigh: false,
