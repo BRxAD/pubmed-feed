@@ -587,12 +587,17 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       if (error) {
         const msg = error.message.toLowerCase();
         if (msg.includes("corresponding_author")) {
-          const slim = chunk.map((row) => {
-            const rest = { ...row };
-            delete rest.corresponding_author_email;
-            delete rest.corresponding_author_name;
-            return rest;
-          });
+          const slim = chunk.map(
+            ({
+              corresponding_author_email,
+              corresponding_author_name,
+              ...rest
+            }) => {
+              void corresponding_author_email;
+              void corresponding_author_name;
+              return rest;
+            }
+          );
           const retry = await supabase
             .from("articles")
             .upsert(slim, { onConflict: "pmid" });
