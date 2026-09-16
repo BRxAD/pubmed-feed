@@ -152,6 +152,8 @@ async function runOneTopic(
       authors: r.authors ?? [],
       fetched_at: fetchedAt,
       source: "pubmed",
+      corresponding_author_email: r.correspondingAuthorEmail ?? null,
+      corresponding_author_name: r.correspondingAuthorName ?? null,
     };
   });
 

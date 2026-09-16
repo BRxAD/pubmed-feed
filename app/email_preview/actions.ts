@@ -16,6 +16,11 @@ import { getUnsentApprovedNews } from "@/lib/digest/briefNewsSends";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
 import { getBriefDigestFromAddress } from "@/lib/digest/config";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
+import {
+  saveAuthorOutreachEdits,
+  updateAuthorOutreachStatus,
+} from "@/lib/digest/authorOutreach";
+import type { AuthorOutreachStatus } from "@/lib/digest/authorOutreachTypes";
 
 function isPublishedWithinDays(item: BriefItem, days: number): boolean {
   if (!item.date) return false;
@@ -123,4 +128,38 @@ export async function sendTestBriefEmailAction(input: {
       error: err instanceof Error ? err.message : "Failed to send test email",
     };
   }
+}
+
+export async function saveAuthorOutreachEditsAction(input: {
+  secret: string;
+  pmid: string;
+  subject: string;
+  bodyText: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!verifyBriefAdminSecret(input.secret)) {
+    return { ok: false, error: "Unauthorized — invalid admin secret." };
+  }
+  return saveAuthorOutreachEdits({
+    pmid: input.pmid,
+    subject: input.subject,
+    bodyText: input.bodyText,
+  });
+}
+
+export async function setAuthorOutreachStatusAction(input: {
+  secret: string;
+  pmid: string;
+  status: Extract<AuthorOutreachStatus, "pending" | "held" | "never">;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!verifyBriefAdminSecret(input.secret)) {
+    return { ok: false, error: "Unauthorized — invalid admin secret." };
+  }
+  if (
+    input.status !== "pending" &&
+    input.status !== "held" &&
+    input.status !== "never"
+  ) {
+    return { ok: false, error: "Invalid status." };
+  }
+  return updateAuthorOutreachStatus(input.pmid, input.status);
 }

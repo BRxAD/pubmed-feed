@@ -81,6 +81,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_news_items.sql` | **Run in Supabase** (In the news RSS approve queue) |
 | `scripts/add_news_items_image_url.sql` | **Run in Supabase** if table already exists (adds `image_url`) |
 | `scripts/add_survey_prompts.sql` | **Run in Supabase** (anonymous homepage survey · hashed IP · max 2 prompts) |
+| `scripts/add_author_outreach.sql` | **Run in Supabase** (corresponding-author email columns + author_outreach queue / opt-outs) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -177,6 +178,7 @@ Main topic animal exclusion must be:
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
 - **Brief digest email** — headline links to **PubMed**; article date sits tightly **above** the headline; journal name sits in smaller type **below** the headline. Under each story: **Read article** plus Email. Do **not** add LinkedIn, X, Facebook, or a “via stewardshipbrief.com” line in the email (that credit is for copied / outbound shares only). Copy, native Share, and Graphic takeaway do not appear in email. “Open today’s brief” / footer still point at the site.
+- **Author recognition email** — queued on first human `admin_priority` ≥ 5 (not ML; going forward only). Corresponding author only. No PubMed email → skip send, still listed on `/email_preview`. Unheld drafts send 17:30 ET via Resend (`BRIEF_FROM_EMAIL`). Opt-out is **not** the Brief subscriber list (`/author-outreach/opt-out`). Feature link: `/article/{pmid}`.
 - **In the news** — WHO / CIDRAP (general + ASP topic `news/48/rss`) / Google News RSS polled daily (`/api/cron/news-rss`). Items need a real **http(s)** link to be stored, approved, or shown. **Rolling 7-day window** (`NEWS_MAX_AGE_DAYS` in `lib/news/store.ts`): ingest skips older RSS items; Brief + approval lists filter to last 7 days and sort **newest → oldest** by `published_at` (fallback `created_at`). Editors approve on **`/feed`** (collapsible accordion, collapsed by default). Homepage shell matches broadsheet gutters (`brief.shell`: ~5vw sides, `max-w-[1570px]`). Masthead uses date-left / logo-center + double rule. Lead between news + tools (floats). Sidebars use a shared cream `SidebarCard` (hairline + accent top rule: steel / salmon / sky / olive) with Lead-style eyebrows — not solid steel fills. Scripts: `scripts/add_news_items.sql`, `scripts/add_news_items_image_url.sql`.
 - **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** Default **Ingested** = newest `fetched_at`, then stored `ml_priority`, then PMID. **Published** = newest article/release date, then ML, then PMID. **Relevance** = `rank_score` (+ ML boost only — not admin). Human rating must **not** reshuffle order; **Unrated only** may drop a card after save. `/feed` is always **dark** (`.dark` shell); Brief stays cream.
@@ -261,6 +263,7 @@ Main topic animal exclusion must be:
 
 - `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
 - `/api/cron/brief-digest` daily 12:30 UTC (**08:30** ET) — after 06:00 ingest so editors have time to screen and score before email.
+- `/api/cron/author-outreach` daily 21:30 UTC (**17:30** ET) — send pending corresponding-author notices (human rating 5+, cap 25/night). Review/hold on `/email_preview`. SQL: `scripts/add_author_outreach.sql`.
 - `/api/cron/news-rss` daily 12:00 UTC — poll WHO / CIDRAP / CIDRAP ASP / Google News into `news_items` as pending (approve before homepage).
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
