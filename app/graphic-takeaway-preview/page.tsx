@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import GraphicTakeawayVariants from "@/components/brief/GraphicTakeawayVariants";
 
 export const metadata: Metadata = {
-  title: "Graphic takeaway options — The Stewardship Brief",
+  title: "Graphic takeaway 2.0 — The Stewardship Brief",
   robots: { index: false, follow: false },
 };
 

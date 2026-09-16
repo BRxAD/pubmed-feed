@@ -193,7 +193,7 @@ export default function GraphicTakeawayButton({
               className="absolute inset-0 bg-[#1C0B19]/45"
               onClick={close}
             />
-            <div className="relative z-[201] w-full max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] p-5 shadow-[0_16px_40px_rgba(28,11,25,0.2)] sm:p-6">
+            <div className="relative z-[201] w-full max-w-3xl max-h-[min(90vh,860px)] overflow-y-auto rounded-sm border border-[#D8D4C8] bg-[#F6F4EF] p-5 shadow-[0_16px_40px_rgba(28,11,25,0.2)] sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <h2
                   id={titleId}
@@ -225,7 +225,7 @@ export default function GraphicTakeawayButton({
                   />
                 ) : (
                   <div
-                    className={`flex aspect-[4/5] items-center justify-center px-4 ${brief.sans} text-sm ${brief.muted}`}
+                    className={`flex aspect-video items-center justify-center px-4 ${brief.sans} text-sm ${brief.muted}`}
                   >
                     {busy ? "Preparing graphic…" : "Preview unavailable"}
                   </div>
