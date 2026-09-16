@@ -13,7 +13,9 @@ const SALMON = "#FFA69E";
 const SKY = "#7BC1D4";
 const SKY_LIGHT = "#D2F1F6";
 const PAPER = "#F6F4EF";
-const TAB_RADIUS = 12;
+const PAGE_PAD = 56;
+const SUBHEAD_SIZE = 16; // 13px + 20%
+const SUBHEAD_ICON = 19;
 
 const LOCAL_GENERICS = [
   "/brief-images/generic-01.png",
@@ -283,14 +285,17 @@ function drawLabelWithIcon(
     icon: HTMLImageElement | null;
     label: string;
     color: string;
+    fontSize?: number;
+    iconSize?: number;
   }
 ) {
-  const iconSize = 16;
+  const iconSize = opts.iconSize ?? SUBHEAD_ICON;
+  const fontSize = opts.fontSize ?? SUBHEAD_SIZE;
   if (opts.icon) {
     drawIcon(ctx, opts.icon, opts.x, opts.y, iconSize);
   }
   ctx.fillStyle = opts.color;
-  ctx.font = "700 13px 'Libre Franklin', system-ui, sans-serif";
+  ctx.font = `700 ${fontSize}px 'Libre Franklin', system-ui, sans-serif`;
   ctx.fillText(
     opts.label,
     opts.x + (opts.icon ? iconSize + 8 : 0),
@@ -324,53 +329,57 @@ function drawColumnBox(
   });
   ctx.fillStyle = PAPER;
   ctx.font = `400 ${opts.fontSize}px 'Libre Franklin', system-ui, sans-serif`;
-  let ly = opts.y + 40;
+  let ly = opts.y + 44;
   for (const line of opts.lines) {
     ctx.fillText(line, opts.x + 20, ly);
     ly += opts.lineHeight;
   }
 }
 
-function drawQrBadge(
+function drawFooterBar(
   ctx: CanvasRenderingContext2D,
-  qr: HTMLImageElement,
-  scanIcon: HTMLImageElement | null,
-  bottom: number
-) {
+  qr: HTMLImageElement | null,
+  scanIcon: HTMLImageElement | null
+): { y: number; height: number; qrReserve: number } {
   const qrSize = 72;
-  const pad = 14;
+  const pad = 16;
   const gap = 14;
-  const textW = 200;
-  const badgeH = pad + qrSize + pad;
-  const innerW = pad + qrSize + gap + textW + pad;
-  const x = WIDTH - innerW;
-  const y = bottom - badgeH;
+  const height = pad + qrSize + pad;
+  const y = HEIGHT - height;
 
   ctx.save();
-  ctx.globalAlpha = 1;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
+  ctx.fillStyle = hexAlpha(PLUM, 0.72);
+  ctx.fillRect(0, y, WIDTH, height);
+  ctx.fillStyle = hexAlpha(SALMON, 0.42);
+  ctx.fillRect(0, y, WIDTH, height);
 
-  roundRect(ctx, x, y, WIDTH - x + 24, badgeH, [TAB_RADIUS, 0, 0, TAB_RADIUS]);
-  ctx.fillStyle = hexAlpha(SALMON, 0.2);
-  ctx.fill();
+  let qrReserve = PAGE_PAD;
+  if (qr) {
+    const qx = WIDTH - pad - qrSize;
+    const qy = y + pad;
+    roundRect(ctx, qx - 4, qy - 4, qrSize + 8, qrSize + 8, 6);
+    ctx.fillStyle = PAPER;
+    ctx.fill();
+    ctx.drawImage(qr, qx, qy, qrSize, qrSize);
 
-  const qx = x + pad;
-  const qy = y + pad;
-  roundRect(ctx, qx - 4, qy - 4, qrSize + 8, qrSize + 8, 6);
-  ctx.fillStyle = PAPER;
-  ctx.fill();
-  ctx.drawImage(qr, qx, qy, qrSize, qrSize);
-
-  const tx = qx + qrSize + gap;
-  drawLabelWithIcon(ctx, {
-    x: tx,
-    y: qy + (qrSize - 16) / 2,
-    icon: scanIcon,
-    label: "SCAN TO READ ARTICLE",
-    color: SALMON,
-  });
+    ctx.font = `700 ${SUBHEAD_SIZE}px 'Libre Franklin', system-ui, sans-serif`;
+    const label = "SCAN TO READ ARTICLE";
+    const labelW = ctx.measureText(label).width;
+    const iconW = scanIcon ? SUBHEAD_ICON + 8 : 0;
+    const tx = qx - gap - iconW - labelW;
+    drawLabelWithIcon(ctx, {
+      x: tx,
+      y: qy + (qrSize - SUBHEAD_ICON) / 2,
+      icon: scanIcon,
+      label,
+      color: SALMON,
+    });
+    qrReserve = WIDTH - tx + 24;
+  }
   ctx.restore();
+  return { y, height, qrReserve };
 }
 
 async function loadBrandLogo(): Promise<{
@@ -411,11 +420,11 @@ async function renderToBlob(
   const wash = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   wash.addColorStop(0, hexAlpha(PLUM, 0.95));
   wash.addColorStop(0.4, hexAlpha(PLUM, 0.95));
-  wash.addColorStop(1, hexAlpha(PLUM, 0.75));
+  wash.addColorStop(1, hexAlpha(PLUM, 0.5));
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const padX = 56;
+  const padX = PAGE_PAD;
   const contentRight = Math.round(WIDTH * 0.75);
   const contentW = contentRight - padX;
   const journal = formatJournalTitle(item.journal);
@@ -500,7 +509,7 @@ async function renderToBlob(
 
   const colGap = 20;
   const colW = (contentW - colGap) / 2;
-  const footerH = 148;
+  const footerH = 120;
   const topAfterLogo = 98;
 
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -558,7 +567,7 @@ async function renderToBlob(
     });
     ctx.fillStyle = PAPER;
     ctx.font = `400 ${takeSize}px 'Libre Franklin', system-ui, sans-serif`;
-    let ty = y + 40;
+    let ty = y + 44;
     for (const line of takeLines) {
       ctx.fillText(line, padX + 24, ty);
       ty += takeLh;
@@ -596,15 +605,19 @@ async function renderToBlob(
     });
   }
 
+  const footer = drawFooterBar(ctx, qr, scanIcon);
+
+  ctx.textBaseline = "top";
   ctx.font = "400 16px 'Libre Franklin', system-ui, sans-serif";
+  const citeMaxW = Math.max(240, WIDTH - PAGE_PAD - footer.qrReserve);
   const titleLines = fullTitle
-    ? wrapLines(ctx, fullTitle.replace(/\.$/, ""), contentW - 28, 2)
+    ? wrapLines(ctx, fullTitle.replace(/\.$/, ""), citeMaxW, 2)
     : [];
   const citeBlockH =
     (leadAuthor ? 26 : 0) +
     titleLines.length * 22 +
     (journalLine ? 26 : 0);
-  let citeY = HEIGHT - 40 - citeBlockH;
+  let citeY = footer.y + Math.max(12, (footer.height - citeBlockH) / 2);
 
   if (leadAuthor) {
     ctx.fillStyle = PAPER;
@@ -613,7 +626,7 @@ async function renderToBlob(
     citeY += 26;
   }
   if (titleLines.length > 0) {
-    ctx.fillStyle = hexAlpha(PAPER, 0.92);
+    ctx.fillStyle = hexAlpha(PAPER, 0.95);
     ctx.font = "400 16px 'Libre Franklin', system-ui, sans-serif";
     for (const line of titleLines) {
       const isLast = line === titleLines[titleLines.length - 1];
@@ -625,10 +638,6 @@ async function renderToBlob(
     ctx.fillStyle = hexAlpha(SKY, 0.95);
     ctx.font = "500 17px 'Libre Franklin', system-ui, sans-serif";
     ctx.fillText(`${journalLine}.`, padX, citeY);
-  }
-
-  if (qr) {
-    drawQrBadge(ctx, qr, scanIcon, HEIGHT - 24);
   }
 
   const blob = await new Promise<Blob | null>((resolve) =>
