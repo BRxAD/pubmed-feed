@@ -189,7 +189,7 @@ function SocialCard({ data }: { data: StudyData }) {
         </h2>
 
         <div className="mt-5 grid min-h-0 flex-1 grid-cols-5 gap-3">
-          <section className="col-span-3 flex flex-col rounded-2xl bg-white p-4 text-slate-900 shadow-lg">
+          <section className="col-span-3 flex h-fit flex-col rounded-2xl bg-white p-4 text-slate-900 shadow-lg">
             <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-600">
               <CheckCircle2 className="size-4" aria-hidden />
               Results
