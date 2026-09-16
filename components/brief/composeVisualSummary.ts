@@ -330,8 +330,10 @@ function drawColumnBox(
   roundRect(ctx, opts.x, opts.y, opts.width, opts.height, 10);
   ctx.fillStyle = hexAlpha(GREY, 0.7);
   ctx.fill();
+  ctx.fillStyle = SKY_LIGHT;
+  ctx.fillRect(opts.x, opts.y, 6, opts.height);
   drawLabelWithIcon(ctx, {
-    x: opts.x + 20,
+    x: opts.x + 24,
     y: opts.y + 14,
     icon: opts.icon,
     label: opts.label,
@@ -341,7 +343,7 @@ function drawColumnBox(
   ctx.font = `400 ${opts.fontSize}px 'Libre Franklin', system-ui, sans-serif`;
   let ly = opts.y + 48;
   for (const line of opts.lines) {
-    ctx.fillText(line, opts.x + 20, ly);
+    ctx.fillText(line, opts.x + 24, ly);
     ly += opts.lineHeight;
   }
 }
@@ -519,7 +521,7 @@ async function renderToBlob(
 
   const colGap = 20;
   const colW = (contentW - colGap) / 2;
-  const colInnerW = colW - 40;
+  const colInnerW = colW - 48;
   const colHeaderH = 48;
   const colBottomPad = 22;
   const footerH = 120;
