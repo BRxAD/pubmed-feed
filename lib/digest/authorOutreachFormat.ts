@@ -21,14 +21,40 @@ export type AuthorOutreachCopyInput = {
   title?: string | null;
   journal?: string | null;
   articleUrl: string;
+  takeawayUrl?: string;
   optOutUrl?: string;
   logoUrl?: string;
   /** Custom letter body (plain text). Footer is always appended. */
   bodyText?: string;
 };
 
-export const AUTHOR_OUTREACH_SIGN_OFF =
-  "Congratulations on publishing this important work.\nBrad Langford PharmD MPH";
+export function authorOutreachClosing(takeawayUrl?: string): string {
+  const lines: string[] = [];
+  if (takeawayUrl) {
+    lines.push(
+      `Here is a link ${takeawayUrl} to your article graphic takeaway, to assist with knowledge dissemination - e.g., in slide decks or for social media.`
+    );
+    lines.push("");
+  }
+  lines.push("Congratulations on publishing this important work.");
+  lines.push("Brad Langford PharmD MPH");
+  return lines.join("\n");
+}
+
+export const AUTHOR_OUTREACH_SIGN_OFF = authorOutreachClosing();
+
+function withoutTrailingSignOff(body: string): string {
+  return body
+    .replace(
+      /\n*Here is a link \S+ to your article graphic takeaway[\s\S]*$/i,
+      ""
+    )
+    .replace(
+      /\n*Congratulations on publishing this important work\.\s*(Brad Langford PharmD MPH)?\s*$/i,
+      ""
+    )
+    .trim();
+}
 
 function defaultLetterBody(input: {
   headline: string;
@@ -83,9 +109,8 @@ export function buildAuthorOutreachEmail(input: AuthorOutreachCopyInput): {
       articleUrl: input.articleUrl,
     })).trim();
 
-  const signedBody = bodyText.includes("Congratulations on publishing this important work")
-    ? bodyText
-    : `${bodyText}\n\n${AUTHOR_OUTREACH_SIGN_OFF}`;
+  const letter = withoutTrailingSignOff(bodyText);
+  const signedBody = `${letter}\n\n${authorOutreachClosing(input.takeawayUrl)}`;
 
   const optOutLine =
     "If you prefer not to receive notifications when your papers are featured, click here to opt out.";

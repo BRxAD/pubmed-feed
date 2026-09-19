@@ -39,6 +39,10 @@ function articleUrlForPmid(pmid: string): string {
   return `${publicAppBaseUrl()}/article/${pmid}`;
 }
 
+function takeawayUrlForPmid(pmid: string): string {
+  return `${publicAppBaseUrl()}/article/${pmid}?takeaway=1`;
+}
+
 type ArticleCorrRow = {
   pmid: string;
   title?: string | null;
@@ -173,6 +177,7 @@ function builtCopy(params: {
     title: params.title,
     journal: params.journal,
     articleUrl: articleUrlForPmid(params.pmid),
+    takeawayUrl: takeawayUrlForPmid(params.pmid),
     optOutUrl,
     logoUrl: `${base}/stewardship-brief-logo.png`,
     bodyText: params.bodyText ?? undefined,

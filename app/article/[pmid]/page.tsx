@@ -12,7 +12,7 @@ import ArticlePermalinkView from "@/components/brief/ArticlePermalinkView";
 
 type Props = {
   params: Promise<{ pmid: string }>;
-  searchParams: Promise<{ save?: string; token?: string }>;
+  searchParams: Promise<{ save?: string; token?: string; takeaway?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ArticlePage({ params, searchParams }: Props) {
   const { pmid } = await params;
-  const { save, token } = await searchParams;
+  const { save, token, takeaway } = await searchParams;
 
   const item = await getBriefItemByPmid(pmid);
   if (!item) {
@@ -108,7 +108,12 @@ export default async function ArticlePage({ params, searchParams }: Props) {
 
   return (
     <BriefSitePage>
-      <ArticlePermalinkView item={item} image={image} autoSaved={autoSaved} />
+      <ArticlePermalinkView
+        item={item}
+        image={image}
+        autoSaved={autoSaved}
+        openTakeaway={takeaway === "1"}
+      />
     </BriefSitePage>
   );
 }
