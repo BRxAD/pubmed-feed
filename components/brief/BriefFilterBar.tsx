@@ -140,7 +140,7 @@ export default function BriefFilterBar({
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder="Search title & abstract…"
-            className="w-full rounded-sm border border-[#D8D4C8] bg-white px-2.5 py-1 text-xs text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-1 focus:ring-[#2A79A7]"
+            className="w-full rounded-sm border border-[#D8D4C8] bg-white px-2.5 py-1 pr-7 text-xs text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-1 focus:ring-[#2A79A7] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             aria-label="Search articles by title and abstract"
           />
           {searchValue && (

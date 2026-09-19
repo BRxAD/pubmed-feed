@@ -27,6 +27,9 @@ export type AuthorOutreachCopyInput = {
   bodyText?: string;
 };
 
+export const AUTHOR_OUTREACH_SIGN_OFF =
+  "Congratulations on publishing this important work.\nBrad Langford PharmD MPH";
+
 function defaultLetterBody(input: {
   headline: string;
   journalLine: string;
@@ -80,10 +83,14 @@ export function buildAuthorOutreachEmail(input: AuthorOutreachCopyInput): {
       articleUrl: input.articleUrl,
     })).trim();
 
+  const signedBody = bodyText.includes("Congratulations on publishing this important work")
+    ? bodyText
+    : `${bodyText}\n\n${AUTHOR_OUTREACH_SIGN_OFF}`;
+
   const optOutLine =
     "If you prefer not to receive notifications when your papers are featured, click here to opt out.";
 
-  const textParts = [bodyText, ""];
+  const textParts = [signedBody, ""];
   if (input.optOutUrl) {
     textParts.push(optOutLine, input.optOutUrl);
   } else {
@@ -117,7 +124,7 @@ export function buildAuthorOutreachEmail(input: AuthorOutreachCopyInput): {
           </tr>
           <tr>
             <td style="padding:24px;background:#fff;border:1px solid ${hairline}">
-              ${letterHtmlFromText(bodyText, steel)}
+              ${letterHtmlFromText(signedBody, steel)}
             </td>
           </tr>
           <tr>

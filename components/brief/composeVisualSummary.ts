@@ -15,8 +15,9 @@ const SKY_LIGHT = "#D2F1F6";
 const PAPER = "#F6F4EF";
 const GREY = "#2E2E2E";
 const PAGE_PAD = 56;
-const SUBHEAD_SIZE = 16; // 13px + 20%
-const SUBHEAD_ICON = 23; // 19px + 20%
+const SUBHEAD_SIZE = 18;
+const SUBHEAD_ICON = 25;
+const QR_SIZE = 128;
 
 const LOCAL_GENERICS = [
   "/brief-images/generic-01.png",
@@ -257,7 +258,7 @@ function hexAlpha(hex: string, alpha: number): string {
 }
 
 async function loadQrImage(url: string): Promise<HTMLImageElement | null> {
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&color=1C0B19&bgcolor=FFFFFF&data=${encodeURIComponent(url)}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&margin=8&color=1C0B19&bgcolor=FFFFFF&data=${encodeURIComponent(url)}`;
   try {
     return await loadImage(qrSrc);
   } catch {
@@ -384,13 +385,12 @@ function footerQrReserve(
   scanIcon: HTMLImageElement | null
 ): number {
   if (!qr) return PAGE_PAD;
-  const qrSize = 72;
   const pad = 16;
   const gap = 14;
   ctx.font = `700 ${SUBHEAD_SIZE}px 'Libre Franklin', system-ui, sans-serif`;
   const labelW = ctx.measureText("SCAN TO READ ARTICLE").width;
   const iconW = scanIcon ? SUBHEAD_ICON + 8 : 0;
-  const tx = WIDTH - pad - qrSize - gap - iconW - labelW;
+  const tx = WIDTH - pad - QR_SIZE - gap - iconW - labelW;
   return WIDTH - tx + 24;
 }
 
@@ -400,10 +400,9 @@ function drawFooterBar(
   scanIcon: HTMLImageElement | null,
   minHeight = 0
 ): { y: number; height: number; qrReserve: number } {
-  const qrSize = 72;
   const pad = 16;
   const gap = 14;
-  const height = Math.max(pad + qrSize + pad, minHeight);
+  const height = Math.max(pad + QR_SIZE + pad, minHeight);
   const y = HEIGHT - height;
 
   ctx.save();
@@ -416,12 +415,12 @@ function drawFooterBar(
 
   let qrReserve = PAGE_PAD;
   if (qr) {
-    const qx = WIDTH - pad - qrSize;
+    const qx = WIDTH - pad - QR_SIZE;
     const qy = y + pad;
-    roundRect(ctx, qx - 4, qy - 4, qrSize + 8, qrSize + 8, 6);
+    roundRect(ctx, qx - 4, qy - 4, QR_SIZE + 8, QR_SIZE + 8, 6);
     ctx.fillStyle = PAPER;
     ctx.fill();
-    ctx.drawImage(qr, qx, qy, qrSize, qrSize);
+    ctx.drawImage(qr, qx, qy, QR_SIZE, QR_SIZE);
 
     ctx.font = `700 ${SUBHEAD_SIZE}px 'Libre Franklin', system-ui, sans-serif`;
     const label = "SCAN TO READ ARTICLE";
@@ -430,7 +429,7 @@ function drawFooterBar(
     const tx = qx - gap - iconW - labelW;
     drawLabelWithIcon(ctx, {
       x: tx,
-      y: qy + (qrSize - SUBHEAD_ICON) / 2,
+      y: qy + (QR_SIZE - SUBHEAD_ICON) / 2,
       icon: scanIcon,
       label,
       color: SALMON,
@@ -484,7 +483,7 @@ async function renderToBlob(
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   const padX = PAGE_PAD;
-  const contentRight = Math.round(WIDTH * 0.75);
+  const contentRight = Math.round(WIDTH * 0.9);
   const contentW = contentRight - padX;
   const journal = formatJournalTitle(item.journal);
   const headline = decodeHtmlEntities(
@@ -555,12 +554,12 @@ async function renderToBlob(
   ctx.fillStyle = SKY;
   ctx.fillText(journalLabel[0] ?? "", journalTextX, 48);
 
-  let headSize = 48; // 42px + 15%
-  let headLh = 57;
-  let takeSize = 24;
-  let takeLh = 34;
-  let colSize = 20;
-  let colLh = 28;
+  let headSize = 52;
+  let headLh = 61;
+  let takeSize = 26;
+  let takeLh = 36;
+  let colSize = 22;
+  let colLh = 30;
   let headLines: string[] = [];
   let takeLines: string[] = [];
   let methodLines: string[] = [];
@@ -572,11 +571,11 @@ async function renderToBlob(
   const colHeaderH = 48;
   const colBottomPad = 22;
   const topAfterLogo = 98;
-  const AUTHOR_LH = 26;
-  const TITLE_LH = 22;
+  const AUTHOR_LH = 28;
+  const TITLE_LH = 24;
   const JOURNAL_LH = 26;
-  const TITLE_FONT = "400 16px 'Libre Franklin', system-ui, sans-serif";
-  const AUTHOR_FONT = "600 20px 'Libre Franklin', system-ui, sans-serif";
+  const TITLE_FONT = "400 18px 'Libre Franklin', system-ui, sans-serif";
+  const AUTHOR_FONT = "600 22px 'Libre Franklin', system-ui, sans-serif";
   const titleRaw = fullTitle.replace(/\.$/, "");
   const citeMaxW = Math.max(240, WIDTH - PAGE_PAD - footerQrReserve(ctx, qr, scanIcon));
   ctx.font = TITLE_FONT;
@@ -601,7 +600,7 @@ async function renderToBlob(
     : (leadAuthor ? AUTHOR_LH : 0) +
       titleLines.length * TITLE_LH +
       (journalLine ? JOURNAL_LH : 0);
-  const footerH = Math.max(104, citeBlockH + 24);
+  const footerH = Math.max(16 + QR_SIZE + 16, citeBlockH + 24);
   const available = HEIGHT - footerH - 16;
 
   const wrapColumns = () => {
@@ -758,7 +757,7 @@ async function renderToBlob(
   }
   if (journalLine) {
     ctx.fillStyle = PAPER;
-    ctx.font = "500 17px 'Libre Franklin', system-ui, sans-serif";
+    ctx.font = "500 18px 'Libre Franklin', system-ui, sans-serif";
     ctx.fillText(`${journalLine}.`, padX, citeY);
   }
 
