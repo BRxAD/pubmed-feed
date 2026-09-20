@@ -24,6 +24,7 @@ import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
 import { OPENALEX_JOURNAL_LABELS } from "@/lib/openalex/journals";
+import { refineOpenAlexRecordDates, toDateOnly } from "@/lib/openalex/dates";
 
 export const OPENALEX_INGEST_MAX_ARTICLES = 200;
 
@@ -38,16 +39,6 @@ function getSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-}
-
-function toDateOnly(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  const d = new Date(value.trim());
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 function clampToToday(dateStr: string | null): string | null {
@@ -179,6 +170,7 @@ export async function runOpenAlexIngest(options: {
   });
 
   const records = searchResult.records;
+  await refineOpenAlexRecordDates(records);
   const dois = records
     .map((r) => r.doi)
     .filter((d): d is string => Boolean(d));
@@ -196,6 +188,7 @@ export async function runOpenAlexIngest(options: {
   const fetchedAt = new Date().toISOString();
   const todayStr = getTodayISO();
   const toInsert: OpenAlexRecord[] = [];
+  const summarizeCandidates: OpenAlexRecord[] = [];
   let stampedExisting = 0;
   let rekeyed = 0;
 
@@ -234,10 +227,12 @@ export async function runOpenAlexIngest(options: {
       }
       stampedExisting += 1;
       rec.pmid = existing.pmid;
+      summarizeCandidates.push(rec);
       continue;
     }
 
     toInsert.push(rec);
+    summarizeCandidates.push(rec);
   }
 
   const articleRows = toInsert.map((r) => {
@@ -285,18 +280,18 @@ export async function runOpenAlexIngest(options: {
   let mlPriorityGe5Count = 0;
   let summarizeErrors: string[] | undefined;
 
-  if (summarize && toInsert.length > 0) {
+  if (summarize && summarizeCandidates.length > 0) {
     const already = await fetchAlreadySummarizedPmids(
       supabase,
       topic.id,
-      toInsert.map((r) => r.pmid)
+      summarizeCandidates.map((r) => r.pmid)
     );
     const batch = await summarizeNewRecords({
       supabase,
       topicId: topic.id,
       queryString: topic.query_string,
       rankingWeights: topic.ranking_weights,
-      records: toInsert,
+      records: summarizeCandidates,
       maxSummaries,
       alreadySummarized: already,
     });

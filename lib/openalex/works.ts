@@ -10,6 +10,7 @@ export type OpenAlexWork = {
   display_name?: string;
   abstract_inverted_index?: Record<string, number[]>;
   publication_date?: string;
+  created_date?: string;
   type?: string;
   primary_location?: {
     landing_page_url?: string | null;
@@ -66,6 +67,7 @@ export type OpenAlexRecord = PubMedRecord & {
   openalexId: string;
   landingUrl: string | null;
   pubmedPmid: string | null;
+  createdDate: string | null;
 };
 
 export function openAlexWorkToRecord(work: OpenAlexWork): OpenAlexRecord | null {
@@ -126,5 +128,6 @@ export function openAlexWorkToRecord(work: OpenAlexWork): OpenAlexRecord | null 
     openalexId: workId,
     landingUrl,
     pubmedPmid,
+    createdDate: work.created_date?.trim()?.slice(0, 10) || null,
   };
 }

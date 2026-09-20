@@ -1,5 +1,9 @@
 import { openAlexFetch } from "@/lib/openalex/client";
-import { openAlexJournalFilter } from "@/lib/openalex/journals";
+import { OPENALEX_JOURNAL_ISSNS, openAlexJournalFilter } from "@/lib/openalex/journals";
+import {
+  isCoarseOpenAlexDate,
+  listCrossrefOnlineDois,
+} from "@/lib/openalex/dates";
 import {
   openAlexIdFromUrl,
   openAlexWorkToRecord,
@@ -7,6 +11,7 @@ import {
   type OpenAlexWork,
 } from "@/lib/openalex/works";
 import { passesClinicalInclusionFilter } from "@/lib/openalex/filter";
+import { normalizeDoi } from "@/lib/doi";
 
 const PER_PAGE = 200;
 const PAGE_DELAY_MS = 120;
@@ -25,6 +30,7 @@ const SELECT_FIELDS = [
   "doi",
   "display_name",
   "publication_date",
+  "created_date",
   "type",
   "primary_location",
   "best_oa_location",
@@ -35,8 +41,24 @@ const SELECT_FIELDS = [
   "concepts",
 ].join(",");
 
+async function fetchOpenAlexWorkByDoi(
+  doi: string
+): Promise<OpenAlexWork | null> {
+  try {
+    return (await openAlexFetch(`/works/doi:${doi}`)) as OpenAlexWork;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("404")) {
+      console.warn("[openalex search] DOI lookup failed:", doi, msg);
+    }
+    return null;
+  }
+}
+
 /**
  * Page OpenAlex works for the CID / OFID / ASHE / ICHE / CMI journal allowlist.
+ * Also pulls Crossref published-online DOIs in the same window so year-stamped
+ * FirstView papers (OpenAlex YYYY-01-01) are not skipped.
  */
 export async function searchOpenAlexJournalWorks(options: {
   mindate: string;
@@ -55,7 +77,8 @@ export async function searchOpenAlexJournalWorks(options: {
     `to_publication_date:${maxdate}`,
   ].join(",");
 
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenDois = new Set<string>();
   const workIds: string[] = [];
   const records: OpenAlexRecord[] = [];
   let cursor: string | null = "*";
@@ -82,11 +105,12 @@ export async function searchOpenAlexJournalWorks(options: {
     for (const raw of results) {
       const work = raw as OpenAlexWork;
       const id = openAlexIdFromUrl(work.id);
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
       workIds.push(id);
       const rec = openAlexWorkToRecord(work);
       if (rec && passesClinicalInclusionFilter(rec, true)) {
+        if (rec.doi) seenDois.add(rec.doi);
         records.push(rec);
       }
       if (workIds.length >= maxTotal) break;
@@ -97,5 +121,38 @@ export async function searchOpenAlexJournalWorks(options: {
     await delay(PAGE_DELAY_MS);
   }
 
-  return { workIds, records, count: totalCount, pages };
+  const onlineByDoi = await listCrossrefOnlineDois({
+    issns: OPENALEX_JOURNAL_ISSNS,
+    mindate,
+    maxdate,
+  });
+
+  for (const rec of records) {
+    const online = rec.doi ? onlineByDoi.get(rec.doi) : undefined;
+    if (
+      online &&
+      isCoarseOpenAlexDate(rec.pubDate, rec.createdDate)
+    ) {
+      rec.pubDate = online;
+    }
+  }
+
+  for (const [doi, onlineDate] of onlineByDoi) {
+    if (workIds.length >= maxTotal) break;
+    if (seenDois.has(doi)) continue;
+    const work = await fetchOpenAlexWorkByDoi(doi);
+    await delay(PAGE_DELAY_MS);
+    if (!work) continue;
+    const id = openAlexIdFromUrl(work.id);
+    if (!id || seenIds.has(id)) continue;
+    const rec = openAlexWorkToRecord(work);
+    if (!rec || !passesClinicalInclusionFilter(rec, true)) continue;
+    rec.pubDate = onlineDate;
+    seenIds.add(id);
+    seenDois.add(doi);
+    workIds.push(id);
+    records.push(rec);
+  }
+
+  return { workIds, records, count: workIds.length, pages };
 }

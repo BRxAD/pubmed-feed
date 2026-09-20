@@ -42,7 +42,14 @@ npx tsx scripts/run-openalex-ingest-now.ts
 
 Backfill is capped at **28 days**. Do not raise that unless asked.
 
-## 4. How merge works
+## 4. Dates
+
+OpenAlex often stamps Cambridge FirstView as `2026-01-01` (volume year). The DOI / Crossref **published-online** date is the real online date. Ingest:
+
+- Polls Crossref published-online for the same journals and 28-day window, then loads those DOIs from OpenAlex, so year-stamped papers are not skipped.
+- Stores the Crossref published-online date (else OpenAlex created date), not the Jan 1 year stamp.
+
+## 5. How merge works
 
 - OpenAlex-first: insert once (PMID if OpenAlex already has one, else work id `W…`). Summarize now. Public link is the publisher/DOI until a PMID exists.
 - PubMed later: match DOI, rewrite the id to the PMID, keep the OpenAlex summary/headline and original `fetched_at`, switch the public link to PubMed.

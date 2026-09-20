@@ -172,7 +172,7 @@ Main topic animal exclusion must be:
 
 ## Surfaces
 
-- **PubMed + OpenAlex.** Same 2× daily ingest. OpenAlex covers **CID, OFID, ASHE, ICHE, CMI** journal articles only (no preprints; same letter/editorial/case-report/animal-only drops). Other journals stay PubMed-only. Merge on DOI: one row. OpenAlex-first uses work id until a PMID exists, then rewrite PK, keep summary/headline/`fetched_at`, switch the public link to PubMed. PubMed-first: stamp `openalex_id`, do not summarize again. `/feed` shows one list with tags `OpenAlex` / `OpenAlex · PubMed` / `PubMed`. No source switcher. Brief / email / Top 10: one card, no API label. GET `/api/ingest/openalex` is a health probe (`enabled: true`); POST runs ingest.
+- **PubMed + OpenAlex.** Same 2× daily ingest. OpenAlex covers **CID, OFID, ASHE, ICHE, CMI** journal articles only (no preprints; same letter/editorial/case-report/animal-only drops). Other journals stay PubMed-only. Merge on DOI: one row. OpenAlex-first uses work id until a PMID exists, then rewrite PK, keep summary/headline/`fetched_at`, switch the public link to PubMed. PubMed-first: stamp `openalex_id`, do not summarize again. Also poll **Crossref published-online** for those ISSNs in the same 28-day window — Cambridge FirstView papers that OpenAlex stamps as `YYYY-01-01` are missed by OpenAlex publication-date search. Store the DOI online date, not the year stamp. `/feed` shows one list with tags `OpenAlex` / `OpenAlex · PubMed` / `PubMed`. No source switcher. Brief / email / Top 10: one card, no API label. GET `/api/ingest/openalex` is a health probe (`enabled: true`); POST runs ingest.
 - **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v9`): All → sticky lead → images; filter setting + **topic** tabs in memory.
   - Setting + Topic: compact text menus (default All), Flickr-style attached list. Topic keeps color swatches. URL `?setting=` / `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
@@ -217,7 +217,7 @@ Main topic animal exclusion must be:
 - Story images assigned on All pool (stable across setting tabs); skip URL health probes for curated CDN hosts.
 - Dog stock photo (`vet-care` / photo-1548199973) only when text says dog/dogs.
 - Top 10: 365 days, scan ≥ 6, human > ML on ties; cache ~**3 days** All-pool (tabs filter in memory).
-- PubMed + OpenAlex (CID / OFID / ASHE / ICHE / CMI; DOI merge; `/feed` tags only).
+- PubMed + OpenAlex (CID / OFID / ASHE / ICHE / CMI; DOI merge; `/feed` tags only). Year-only OpenAlex dates use DOI Crossref published-online; Crossref online-date poll finds FirstView papers OpenAlex dated Jan 1.
 - Legacy ASP Literature Feed emails **retired**; Brief email only via `brief-digest`.
 - CI smoke: OpenAlex health GET **200** + `enabled: true` (must not run ingest); PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
 - Hot-path indexes + RLS + `auto_settings` applied in Supabase.
