@@ -1,16 +1,19 @@
+import type { ReactNode } from "react";
 import Image from "next/image";
 import { brief } from "@/components/brief/briefTheme";
 
 type Props = {
   dateLabel: string;
+  /** Guest email-signup card — desktop right column + mobile strip below the rules. */
+  aside?: ReactNode;
 };
 
 /** Centered brand mark with date on the left — broadsheet masthead rhythm. */
-export default function Masthead({ dateLabel }: Props) {
+export default function Masthead({ dateLabel, aside }: Props) {
   return (
     <header className={`${brief.bg} ${brief.ink}`}>
       <div
-        className={`${brief.shell} grid grid-cols-1 items-end gap-3 pt-3 pb-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 sm:pt-4 sm:pb-4`}
+        className={`${brief.shell} grid grid-cols-1 items-end gap-3 pt-3 pb-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 sm:pt-4 sm:pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)_minmax(15rem,1fr)]`}
       >
         <p
           className={`${brief.sans} order-2 text-center text-[0.6875rem] leading-snug text-[#72705B] sm:order-1 sm:justify-self-start sm:text-left sm:text-[0.75rem]`}
@@ -39,13 +42,21 @@ export default function Masthead({ dateLabel }: Props) {
           </p>
         </div>
 
-        <span className="order-3 hidden sm:block" aria-hidden />
+        <div className="order-3 hidden min-w-0 lg:block lg:max-w-[260px] lg:justify-self-end empty:hidden">
+          {aside}
+        </div>
       </div>
 
       <div className={brief.shell} aria-hidden>
         <div className="border-t border-[#1C0B19]" />
         <div className="mt-[3px] border-t border-[#1C0B19]" />
       </div>
+
+      {aside ? (
+        <div className={`${brief.shell} pt-3 empty:hidden lg:hidden`}>
+          {aside}
+        </div>
+      ) : null}
     </header>
   );
 }

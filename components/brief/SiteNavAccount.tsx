@@ -56,15 +56,15 @@ export default function SiteNavAccount({ active }: { active?: boolean }) {
   return (
     <li>
       <Link
-        href="/settings"
+        href="/settings?tab=email"
         aria-current={active ? "page" : undefined}
-        className={`${brief.sans} inline-block border-b border-transparent px-2 py-1.5 text-[0.6875rem] font-medium tracking-[0.02em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:px-2.5 sm:text-[0.8125rem] ${
+        className={`${brief.sans} inline-flex items-center rounded-sm border px-2 py-1 text-[0.6875rem] font-semibold tracking-[0.02em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:px-2.5 sm:py-1 sm:text-[0.8125rem] ${
           active
-            ? "border-[#1C0B19] text-[#1C0B19]"
-            : "text-[#72705B] hover:border-[#1C0B19]/40 hover:text-[#1C0B19]"
+            ? "border-[#1C0B19] bg-[#1C0B19]/5 text-[#1C0B19]"
+            : "border-[#2A79A7]/40 bg-[#2A79A7]/5 text-[#2A79A7] hover:border-[#2A79A7] hover:bg-[#2A79A7]/10"
         } ${status === "loading" ? "opacity-50" : ""}`}
       >
-        Sign in
+        Email alerts
       </Link>
     </li>
   );

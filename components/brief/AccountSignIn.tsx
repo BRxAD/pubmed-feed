@@ -78,7 +78,7 @@ export default function AccountSignIn({
       <p
         className={`mt-2 text-center ${brief.sans} text-sm leading-relaxed ${brief.muted}`}
       >
-        Save articles and manage your email brief.
+        Get the daily email and save articles.
       </p>
 
       {error ? (

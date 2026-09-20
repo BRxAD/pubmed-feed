@@ -5,7 +5,7 @@ const EXPLORE = [
   { href: "/", label: "Daily brief" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
-  { href: "/settings", label: "Sign in" },
+  { href: "/settings?tab=email", label: "Email alerts" },
 ] as const;
 
 export default function SiteFooter() {

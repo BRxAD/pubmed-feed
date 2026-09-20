@@ -13,6 +13,7 @@ import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
 import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
+import { MastheadEmailAlert } from "@/components/brief/EmailAlertCta";
 import BriefStoryLayout from "@/components/brief/BriefStoryLayout";
 import { SidebarCard } from "@/components/brief/SidebarCard";
 import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
@@ -79,7 +80,10 @@ export default function BriefPage({
   return (
     <div className={`min-h-screen ${brief.bg} ${brief.ink}`}>
       <SiteNav active="/" showLogo={false} />
-      <Masthead dateLabel={formatToday()} />
+      <Masthead
+        dateLabel={formatToday()}
+        aside={<MastheadEmailAlert googleEnabled={googleEnabled} />}
+      />
 
       <div className={`${brief.shell} py-4 sm:py-5`}>
         <BriefFilterBar setting={setting} topic={topic} region={region} q={q} />

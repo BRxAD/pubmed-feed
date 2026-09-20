@@ -18,14 +18,18 @@ export function SidebarCard({
   accent,
   children,
   className = "",
+  compact = false,
 }: {
   accent: SidebarAccent;
   children: ReactNode;
   className?: string;
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`rounded-sm border border-[#D8D4C8] border-t-2 bg-[#F6F4EF] px-4 py-5 ${ACCENT_TOP[accent]} ${className}`}
+      className={`rounded-sm border border-[#D8D4C8] border-t-2 bg-[#F6F4EF] ${
+        compact ? "px-3 py-3" : "px-4 py-5"
+      } ${ACCENT_TOP[accent]} ${className}`}
     >
       {children}
     </div>
