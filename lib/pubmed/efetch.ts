@@ -1,5 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
+import { extractCorrespondingAuthor } from "@/lib/pubmed/correspondingAuthor";
 
 export type PubMedRecord = {
   pmid: string;
@@ -20,6 +21,10 @@ export type PubMedRecord = {
   authors: string[];
   /** Author affiliation strings (country / WHO region). Not persisted. */
   affiliations?: string[];
+  /** Corresponding author email from affiliation / Identifier. */
+  correspondingAuthorEmail?: string | null;
+  /** Corresponding author display name (ForeName LastName). */
+  correspondingAuthorName?: string | null;
 };
 
 const EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
@@ -298,6 +303,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
     const authorList = (medline?.Article as Record<string, unknown>)?.AuthorList;
     const authors = extractAuthors(authorList);
     const affiliations = extractAffiliations(authorList);
+    const corresponding = extractCorrespondingAuthor(authorList);
     const meshTerms = extractMeshTerms(medline?.MeshHeadingList);
     const keywords = extractKeywords(medline?.KeywordList);
     const { epubDate, pubmedDate } = extractHistoryDates(art.PubmedData);
@@ -316,6 +322,8 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
       keywords,
       authors,
       affiliations,
+      correspondingAuthorEmail: corresponding.email,
+      correspondingAuthorName: corresponding.name,
     };
   }).filter((r) => r.pmid && /^\d+$/.test(r.pmid));
 }

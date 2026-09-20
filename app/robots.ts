@@ -10,6 +10,8 @@ const DISALLOW_TOOLS = [
   "/stewardshipbrief/settings",
   "/settings",
   "/brief/unsubscribe",
+  "/author-outreach/opt-out",
+  "/graphic-takeaway-preview",
 ];
 
 /**

@@ -34,13 +34,15 @@ export default function ArticlePermalinkView({
   item,
   image,
   autoSaved = false,
+  openTakeaway = false,
 }: {
   item: BriefItem;
   image?: StoryImageMatch | null;
   autoSaved?: boolean;
+  openTakeaway?: boolean;
 }) {
   const { saved, toggleSave, signedIn } = useBriefSaved();
-  const [takeawayOpen, setTakeawayOpen] = useState(false);
+  const [takeawayOpen, setTakeawayOpen] = useState(openTakeaway);
   const [imageBroken, setImageBroken] = useState(false);
   const [showSavedBanner, setShowSavedBanner] = useState(autoSaved);
 

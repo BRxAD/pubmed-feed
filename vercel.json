@@ -20,6 +20,10 @@
     {
       "path": "/api/cron/news-rss",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/author-outreach",
+      "schedule": "0 1 * * *"
     }
   ]
 }

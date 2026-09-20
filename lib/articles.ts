@@ -36,6 +36,8 @@ export async function upsertArticles(
     keywords: r.keywords,
     authors: r.authors,
     source: "pubmed" as const,
+    corresponding_author_email: r.correspondingAuthorEmail ?? null,
+    corresponding_author_name: r.correspondingAuthorName ?? null,
   }));
 
   const { data, error } = await supabase

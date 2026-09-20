@@ -172,28 +172,59 @@ function prioritizeUnsummarizedPmids(
 }
 
 /** Which PMIDs already exist in articles, with their fetched_at (slim lookup). */
+type ExistingArticleMeta = {
+  fetchedAt: string | null;
+  correspondingEmail: string | null;
+  correspondingName: string | null;
+};
+
 async function fetchExistingArticleMeta(
   supabase: SupabaseClient,
   pmids: string[]
-): Promise<Map<string, string | null>> {
-  const existing = new Map<string, string | null>();
+): Promise<Map<string, ExistingArticleMeta>> {
+  const existing = new Map<string, ExistingArticleMeta>();
   const CHUNK = 200;
   for (let i = 0; i < pmids.length; i += CHUNK) {
     const chunk = pmids.slice(i, i + CHUNK);
-    const { data, error } = await supabase
+    let data: Record<string, unknown>[] | null = null;
+    const withCorr = await supabase
       .from("articles")
-      .select("pmid, fetched_at")
+      .select(
+        "pmid, fetched_at, corresponding_author_email, corresponding_author_name"
+      )
       .in("pmid", chunk);
-    if (error) {
-      console.warn("[ingest] existing articles lookup failed:", error.message);
-      continue;
+    if (withCorr.error) {
+      const msg = withCorr.error.message.toLowerCase();
+      if (msg.includes("corresponding_author")) {
+        const fallback = await supabase
+          .from("articles")
+          .select("pmid, fetched_at")
+          .in("pmid", chunk);
+        if (fallback.error) {
+          console.warn("[ingest] existing articles lookup failed:", fallback.error.message);
+          continue;
+        }
+        data = (fallback.data ?? []) as Record<string, unknown>[];
+      } else {
+        console.warn("[ingest] existing articles lookup failed:", withCorr.error.message);
+        continue;
+      }
+    } else {
+      data = (withCorr.data ?? []) as Record<string, unknown>[];
     }
     for (const row of data ?? []) {
       if (!row?.pmid) continue;
-      existing.set(
-        String(row.pmid),
-        typeof row.fetched_at === "string" ? row.fetched_at : null
-      );
+      existing.set(String(row.pmid), {
+        fetchedAt: typeof row.fetched_at === "string" ? row.fetched_at : null,
+        correspondingEmail:
+          typeof row.corresponding_author_email === "string"
+            ? row.corresponding_author_email
+            : null,
+        correspondingName:
+          typeof row.corresponding_author_name === "string"
+            ? row.corresponding_author_name
+            : null,
+      });
     }
   }
   return existing;
@@ -501,6 +532,8 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       source: string;
       /** Always set — PostgREST upsert nulls omitted NOT NULL columns on update. */
       fetched_at: string;
+      corresponding_author_email: string | null;
+      corresponding_author_name: string | null;
     };
 
     const articleRows: ArticleRow[] = records.map((r) => {
@@ -510,7 +543,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       const pubmedDate = toDateOnly((r as PubMedRecord & { pubmedDate?: string | null }).pubmedDate ?? null);
       const releaseDateRaw = articleDate ?? epubDate ?? pubmedDate ?? pubDate ?? todayStr;
       const releaseDate = clampToToday(releaseDateRaw) ?? todayStr;
-      const priorFetched = existingMeta.get(r.pmid);
+      const prior = existingMeta.get(r.pmid);
+      const parsedEmail = r.correspondingAuthorEmail?.trim() || null;
+      const parsedName = r.correspondingAuthorName?.trim() || null;
 
       return {
         pmid: r.pmid,
@@ -528,7 +563,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         authors: r.authors ?? [],
         source: "pubmed",
         // Preserve first-seen stamp on refresh; stamp now only for brand-new PMIDs.
-        fetched_at: priorFetched ?? fetchedAt,
+        fetched_at: prior?.fetchedAt ?? fetchedAt,
+        corresponding_author_email: parsedEmail ?? prior?.correspondingEmail ?? null,
+        corresponding_author_name: parsedName ?? prior?.correspondingName ?? null,
       };
     });
 
@@ -547,7 +584,32 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         .from("articles")
         .upsert(chunk, { onConflict: "pmid" });
 
-      if (error) throw new Error(`Articles upsert failed (chunk ${i}): ${error.message}`);
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes("corresponding_author")) {
+          const slim = chunk.map(
+            ({
+              corresponding_author_email,
+              corresponding_author_name,
+              ...rest
+            }) => {
+              void corresponding_author_email;
+              void corresponding_author_name;
+              return rest;
+            }
+          );
+          const retry = await supabase
+            .from("articles")
+            .upsert(slim, { onConflict: "pmid" });
+          if (retry.error) {
+            throw new Error(
+              `Articles upsert failed (chunk ${i}): ${retry.error.message}`
+            );
+          }
+        } else {
+          throw new Error(`Articles upsert failed (chunk ${i}): ${error.message}`);
+        }
+      }
       storedArticles += chunk.length;
     }
 

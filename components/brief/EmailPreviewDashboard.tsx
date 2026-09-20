@@ -11,6 +11,8 @@ import {
   sendTestBriefEmailAction,
 } from "@/app/email_preview/actions";
 import { buildBriefDigestEmail } from "@/lib/digest/briefEmailFormat";
+import AuthorOutreachQueue from "@/components/brief/AuthorOutreachQueue";
+import type { AuthorOutreachRow } from "@/lib/digest/authorOutreachTypes";
 
 export default function EmailPreviewDashboard({
   secret,
@@ -19,6 +21,7 @@ export default function EmailPreviewDashboard({
   initialAnnouncement,
   userEmail,
   briefBaseUrl,
+  authorOutreach,
 }: {
   secret: string;
   upcomingItems: BriefItem[];
@@ -26,6 +29,13 @@ export default function EmailPreviewDashboard({
   initialAnnouncement: BriefAnnouncement;
   userEmail?: string | null;
   briefBaseUrl: string;
+  authorOutreach: {
+    pending: AuthorOutreachRow[];
+    noEmail: AuthorOutreachRow[];
+    held: AuthorOutreachRow[];
+    never: AuthorOutreachRow[];
+    sent: AuthorOutreachRow[];
+  };
 }) {
   // Announcement state
   const [announcementTitle, setAnnouncementTitle] = useState(
@@ -466,6 +476,8 @@ export default function EmailPreviewDashboard({
           </div>
         </div>
       </section>
+
+      <AuthorOutreachQueue secret={secret} lists={authorOutreach} />
     </div>
   );
 }

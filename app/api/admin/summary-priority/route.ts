@@ -6,6 +6,7 @@ import {
   type FeatureSnapshot,
 } from "@/lib/relevanceLearning";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
+import { syncAuthorOutreachAfterRating } from "@/lib/digest/authorOutreach";
 
 export const runtime = "nodejs";
 
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
       snapshot,
       supabase,
     });
+
+    // Queue a corresponding-author note when a human rates 5+ (going forward).
+    // Never fail the rating if the outreach table is missing.
+    await syncAuthorOutreachAfterRating({ pmid, priority });
 
     // Brief only — feed slim index refreshes on ingest / TTL (egress).
     revalidateTag(BRIEF_HOMEPAGE_CACHE_TAG, "max");

@@ -36,7 +36,17 @@ export function formatPubmedCitation(input: {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
-function citationYear(date: string | null | undefined): string | null {
+/** First author for graphic takeaway, e.g. "Langford BJ, et al." */
+export function formatLeadAuthorLine(
+  authors?: string[] | null
+): string | null {
+  const list = (authors ?? []).map((a) => a.trim()).filter(Boolean);
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0] ?? null;
+  return `${list[0]}, et al.`;
+}
+
+export function citationYear(date: string | null | undefined): string | null {
   if (!date) return null;
   const m = String(date).match(/^(\d{4})/);
   return m?.[1] ?? null;

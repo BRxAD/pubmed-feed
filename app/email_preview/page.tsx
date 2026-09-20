@@ -15,6 +15,7 @@ import { getPreviouslyEmailedPmids } from "@/lib/digest/briefEmailSends";
 import { getUnsentApprovedNews } from "@/lib/digest/briefNewsSends";
 import { getAnnouncementConfig } from "@/lib/digest/announcements";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
+import { listAuthorOutreachForPreview } from "@/lib/digest/authorOutreach";
 
 export const metadata: Metadata = {
   title: "Email Brief Preview & Announcements — The Stewardship Brief",
@@ -65,7 +66,7 @@ export default async function EmailPreviewPage({
     );
   }
 
-  const [rawFeed, previouslySent, unsentNews, announcementConfig, session] =
+  const [rawFeed, previouslySent, unsentNews, announcementConfig, session, outreach] =
     await Promise.all([
       getBriefItems({
         maxItems: 40,
@@ -78,6 +79,7 @@ export default async function EmailPreviewPage({
       getUnsentApprovedNews(3),
       getAnnouncementConfig(),
       getServerSession(authOptions),
+      listAuthorOutreachForPreview(),
     ]);
 
   const upcomingItems = rawFeed.items
@@ -115,7 +117,7 @@ export default async function EmailPreviewPage({
             </div>
           </div>
           <p className="mt-2.5 font-sans text-xs sm:text-sm text-[#72705B] max-w-2xl leading-relaxed">
-            Inspect tomorrow&apos;s automated morning email digest before delivery. Add or edit an announcement section, verify the &ldquo;In the News&rdquo; roundup, and send a test run to your personal inbox.
+            Inspect tomorrow&apos;s automated morning email digest before delivery. Add or edit an announcement section, review corresponding-author notices (human rating 5+), and send a test run to your personal inbox.
           </p>
         </header>
 
@@ -126,6 +128,7 @@ export default async function EmailPreviewPage({
           initialAnnouncement={announcementConfig}
           userEmail={session?.user?.email}
           briefBaseUrl={briefBaseUrl}
+          authorOutreach={outreach}
         />
       </div>
     </div>
