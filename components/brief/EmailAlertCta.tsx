@@ -1,9 +1,40 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarCard } from "@/components/brief/SidebarCard";
+
+const MASTHEAD_ALERTS_DISMISS_KEY = "stewardship-brief-masthead-alerts-dismissed";
+const MASTHEAD_ALERTS_DISMISS_EVENT =
+  "stewardship-brief-masthead-alerts-dismissed";
+
+function subscribeDismissed(onStoreChange: () => void) {
+  window.addEventListener(MASTHEAD_ALERTS_DISMISS_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(MASTHEAD_ALERTS_DISMISS_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
+
+function getDismissedSnapshot() {
+  try {
+    return window.localStorage.getItem(MASTHEAD_ALERTS_DISMISS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissMastheadAlerts() {
+  try {
+    window.localStorage.setItem(MASTHEAD_ALERTS_DISMISS_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new Event(MASTHEAD_ALERTS_DISMISS_EVENT));
+}
 
 function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -113,14 +144,29 @@ export function MastheadEmailAlert({
   googleEnabled?: boolean;
 }) {
   const { data: session, status } = useSession();
+  const dismissed = useSyncExternalStore(
+    subscribeDismissed,
+    getDismissedSnapshot,
+    () => false
+  );
   const signedIn =
     status === "authenticated" &&
     Boolean(session?.user?.email || session?.user?.id);
 
-  if (status === "loading" || signedIn) return null;
+  if (status === "loading" || signedIn || dismissed) return null;
 
   return (
-    <SidebarCard accent="steel" compact>
+    <SidebarCard accent="steel" compact className="relative pr-8">
+      <button
+        type="button"
+        onClick={dismissMastheadAlerts}
+        aria-label="Close email alerts"
+        className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-sm text-[#72705B] transition-colors hover:bg-[#1C0B19]/5 hover:text-[#1C0B19] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7]"
+      >
+        <span aria-hidden className="text-sm leading-none">
+          ×
+        </span>
+      </button>
       <EmailAlertCta googleEnabled={googleEnabled} variant="masthead" />
     </SidebarCard>
   );

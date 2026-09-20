@@ -24,7 +24,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
         className={`${brief.shell} flex items-center gap-3 py-1.5 sm:gap-6 sm:py-2`}
       >
         {showLogo ? (
-          <Link
+          <a
             href="/"
             className="min-w-0 shrink transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7]"
           >
@@ -36,7 +36,7 @@ export default function SiteNav({ active, showLogo = true }: Props) {
               priority
               className="h-7 w-auto max-w-[102px] object-contain object-left sm:h-[34px] sm:max-w-[204px]"
             />
-          </Link>
+          </a>
         ) : (
           <span className="flex-1" aria-hidden />
         )}

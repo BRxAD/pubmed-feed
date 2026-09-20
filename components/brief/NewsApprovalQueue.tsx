@@ -191,7 +191,7 @@ export default function NewsApprovalQueue({ secret }: Props) {
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-base font-semibold text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
+                        className="break-words text-base font-semibold text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
                       >
                         {item.title}
                       </a>

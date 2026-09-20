@@ -26,7 +26,10 @@ export default function Masthead({ dateLabel, aside }: Props) {
           </span>
         </p>
 
-        <div className="brief-masthead-settle order-1 flex w-full max-w-[520px] flex-col justify-self-center sm:order-2">
+        <a
+          href="/"
+          className="brief-masthead-settle order-1 flex w-full max-w-[520px] flex-col justify-self-center transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2A79A7] sm:order-2"
+        >
           <Image
             src="/stewardship-brief-logo.png"
             alt="The Stewardship Brief"
@@ -40,7 +43,7 @@ export default function Masthead({ dateLabel, aside }: Props) {
           >
             High Priority Antimicrobial Stewardship, Delivered Daily.
           </p>
-        </div>
+        </a>
 
         <div className="order-3 hidden min-w-0 lg:block lg:max-w-[260px] lg:justify-self-end empty:hidden">
           {aside}

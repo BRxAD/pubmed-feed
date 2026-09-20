@@ -259,7 +259,7 @@ function ArticleCard({
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-xl border border-zinc-200/70 bg-white pl-5 pr-5 pt-5 pb-4 shadow-sm transition-all duration-200 hover:shadow-lg hover:border-zinc-300 dark:border-zinc-700/60 dark:bg-zinc-900/80 dark:hover:border-zinc-600 dark:hover:shadow-zinc-900/60 border-l-4 ${accentClass}`}
+      className={`group relative min-w-0 overflow-hidden break-words rounded-xl border border-zinc-200/70 bg-white pl-5 pr-5 pt-5 pb-4 shadow-sm transition-all duration-200 hover:shadow-lg hover:border-zinc-300 dark:border-zinc-700/60 dark:bg-zinc-900/80 dark:hover:border-zinc-600 dark:hover:shadow-zinc-900/60 border-l-4 ${accentClass}`}
     >
       {/* Title */}
       <h2 className="text-xl font-bold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50">
@@ -405,7 +405,7 @@ function ArticleCard({
       {/* Admin panel */}
       {isAdmin && (
         <div className="mt-4 rounded-lg border border-amber-200/60 bg-amber-50/60 p-3 text-xs dark:border-amber-800/40 dark:bg-amber-950/30">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
             <p className="font-semibold text-amber-700 dark:text-amber-400">
               Admin · Priority model
             </p>
@@ -472,7 +472,7 @@ function ArticleCard({
                           key={f.name}
                           className="border-t border-zinc-200/60 dark:border-zinc-700/50"
                         >
-                          <td className="px-2 py-1 text-zinc-600 dark:text-zinc-300">
+                          <td className="break-words px-2 py-1 text-zinc-600 dark:text-zinc-300">
                             {f.label}
                           </td>
                           <td className="px-2 py-1 text-right tabular-nums text-zinc-500 dark:text-zinc-400">
@@ -727,7 +727,7 @@ export default async function FeedPage({
   const lastIngestLabel = formatIngestEastern(ingestStats.lastAt);
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-6">
+    <div className="mx-auto min-w-0 max-w-[1200px] overflow-x-hidden px-4 py-6">
       {/* Header: logo + rating total + admin toggle */}
       <header className="mb-4 flex items-start justify-between gap-4">
         {/* Logo — plain <a> so clicking always triggers a full reload */}
@@ -813,7 +813,7 @@ export default async function FeedPage({
           <input type="hidden" name="secret" value={feedSecret} />
           <input type="hidden" name="admin" value="1" />
 
-          <div className="flex flex-wrap items-end gap-5">
+          <div className="flex min-w-0 flex-wrap items-end gap-5">
             {/* Sort */}
             <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <span className="font-medium">Sort</span>
@@ -958,9 +958,9 @@ export default async function FeedPage({
         </form>
       </section>
 
-      <div className="flex flex-col gap-8 lg:flex-row">
+      <div className="flex min-w-0 flex-col gap-8 lg:flex-row">
         {/* Main feed */}
-        <main className="min-w-0 flex-1 lg:max-w-[720px]">
+        <main className="min-w-0 flex-1">
           {list.length === 0 ? (
             <p className="rounded-xl border border-zinc-200 bg-zinc-50/50 py-12 text-center text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/30 dark:text-zinc-400">
               No PubMed summaries found for this topic.{" "}
@@ -1083,7 +1083,7 @@ export default async function FeedPage({
         </main>
 
         {/* Sidebar */}
-        <aside className="w-full shrink-0 lg:w-52">
+        <aside className="w-full min-w-0 shrink-0 overflow-hidden lg:w-52">
           <div className="sticky top-4">
             <div className="rounded-xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-900/60">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
@@ -1112,9 +1112,12 @@ export default async function FeedPage({
                         source,
                         secret: feedSecret,
                       })}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium leading-none transition hover:opacity-90 ${keywordColorClasses(kw)}`}
+                      className={`max-w-full truncate rounded-full px-2.5 py-1 text-xs font-medium leading-none transition hover:opacity-90 ${keywordColorClasses(kw)}`}
+                      title={kw}
                     >
-                      {kw}
+                      {kw.length > KEYWORD_TRUNCATE_LEN
+                        ? kw.slice(0, KEYWORD_TRUNCATE_LEN - 1) + "…"
+                        : kw}
                     </a>
                   ))}
                 </div>
