@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 import { extractCorrespondingAuthor } from "@/lib/pubmed/correspondingAuthor";
+import { normalizeDoi } from "@/lib/doi";
 
 export type PubMedRecord = {
   pmid: string;
@@ -25,6 +26,8 @@ export type PubMedRecord = {
   correspondingAuthorEmail?: string | null;
   /** Corresponding author display name (ForeName LastName). */
   correspondingAuthorName?: string | null;
+  /** Normalized DOI (`10.xxxx/...`) when PubMed/OpenAlex provided one. */
+  doi?: string | null;
 };
 
 const EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
@@ -155,6 +158,21 @@ function extractHistoryDates(pubmedData: unknown): {
   }
 
   return { epubDate, pubmedDate };
+}
+
+function extractDoi(pubmedData: unknown): string | null {
+  const data = (pubmedData ?? {}) as Record<string, unknown>;
+  const idList = data.ArticleIdList as Record<string, unknown> | undefined;
+  const ids = toArray(idList?.ArticleId, (x) => x);
+  for (const raw of ids) {
+    const idType =
+      textVal((raw as Record<string, unknown>)["@_IdType"]) ??
+      textVal((raw as Record<string, unknown>)["IdType"]);
+    if (String(idType ?? "").toLowerCase() !== "doi") continue;
+    const value = textVal(raw);
+    if (value) return value;
+  }
+  return null;
 }
 
 function extractAuthors(authorList: unknown): string[] {
@@ -307,6 +325,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
     const meshTerms = extractMeshTerms(medline?.MeshHeadingList);
     const keywords = extractKeywords(medline?.KeywordList);
     const { epubDate, pubmedDate } = extractHistoryDates(art.PubmedData);
+    const doi = extractDoi(art.PubmedData);
 
     return {
       pmid: pmid ?? "unknown",
@@ -324,6 +343,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
       affiliations,
       correspondingAuthorEmail: corresponding.email,
       correspondingAuthorName: corresponding.name,
+      doi: normalizeDoi(doi),
     };
   }).filter((r) => r.pmid && /^\d+$/.test(r.pmid));
 }

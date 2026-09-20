@@ -21,9 +21,6 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { searchPubMedAllPages } from "@/lib/pubmed/esearch";
 import { fetchPubMedRecords } from "@/lib/pubmed/efetch";
-import { summarizeAbstract } from "@/lib/summarize";
-import { generateBriefHeadline } from "@/lib/brief/generateHeadline";
-import { classifyStudyAbstract } from "@/lib/classifyStudy";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
   getTopicWatermark,
@@ -32,16 +29,19 @@ import {
   getDateNDaysAgo,
   getTodayISO,
 } from "@/lib/pubmed/watermark";
-import { mergeLearnedWeights, mergeStoredFeedSettings } from "@/lib/relevanceLearning";
-import { toPenaltyWeights } from "@/lib/brief/feedSettings";
-import { computeStoredRankScore } from "@/lib/rankScore";
-import { scoreFirstMlPriorities } from "@/lib/brief/firstRating";
-import { classifyArticleSettings } from "@/lib/classifySetting";
-import { classifyArticleTopics } from "@/lib/classifyTopic";
-import { classifyArticleWhoRegions } from "@/lib/classifyWhoRegion";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
+import {
+  fetchAlreadySummarizedPmids,
+  summarizeNewRecords,
+} from "@/lib/ingest/summarizeRecords";
+import {
+  fetchArticlesByDois,
+  fetchArticlesByPmids,
+  resolvePubmedMergePmid,
+} from "@/lib/ingest/mergeArticle";
+import { normalizeDoi } from "@/lib/doi";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -66,9 +66,6 @@ const HARD_MAX_PMID_SCAN = 5000;
 const DEFAULT_MAX_SUMMARIES = 5;
 /** Raised so a year backfill can summarize in fewer passes. */
 const HARD_MAX_SUMMARIES = 250;
-
-/** How many articles to summarize in parallel. */
-const SUMMARIZE_CONCURRENCY = 5;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -120,35 +117,6 @@ type TopicRow = {
   ranking_weights?: Record<string, unknown> | null;
 };
 
-
-type SupabaseClient = ReturnType<typeof getSupabase>;
-
-/** Look up which PMIDs already have a summary for this topic (chunked .in()). */
-async function fetchAlreadySummarizedPmids(
-  supabase: SupabaseClient,
-  topicId: string,
-  pmids: string[]
-): Promise<Set<string>> {
-  const already = new Set<string>();
-  const CHUNK = 200;
-  for (let i = 0; i < pmids.length; i += CHUNK) {
-    const chunk = pmids.slice(i, i + CHUNK);
-    const { data, error } = await supabase
-      .from("summaries")
-      .select("pmid")
-      .eq("topic_id", topicId)
-      .in("pmid", chunk);
-    if (error) {
-      console.warn("[ingest] existing summaries lookup failed:", error.message);
-      continue;
-    }
-    for (const row of data ?? []) {
-      if (row?.pmid) already.add(String(row.pmid));
-    }
-  }
-  return already;
-}
-
 /**
  * Only fetch PMIDs that still need a summary — skip already-summarized hits
  * so later cron slots report genuinely new work, not refreshes.
@@ -171,65 +139,6 @@ function prioritizeUnsummarizedPmids(
   };
 }
 
-/** Which PMIDs already exist in articles, with their fetched_at (slim lookup). */
-type ExistingArticleMeta = {
-  fetchedAt: string | null;
-  correspondingEmail: string | null;
-  correspondingName: string | null;
-};
-
-async function fetchExistingArticleMeta(
-  supabase: SupabaseClient,
-  pmids: string[]
-): Promise<Map<string, ExistingArticleMeta>> {
-  const existing = new Map<string, ExistingArticleMeta>();
-  const CHUNK = 200;
-  for (let i = 0; i < pmids.length; i += CHUNK) {
-    const chunk = pmids.slice(i, i + CHUNK);
-    let data: Record<string, unknown>[] | null = null;
-    const withCorr = await supabase
-      .from("articles")
-      .select(
-        "pmid, fetched_at, corresponding_author_email, corresponding_author_name"
-      )
-      .in("pmid", chunk);
-    if (withCorr.error) {
-      const msg = withCorr.error.message.toLowerCase();
-      if (msg.includes("corresponding_author")) {
-        const fallback = await supabase
-          .from("articles")
-          .select("pmid, fetched_at")
-          .in("pmid", chunk);
-        if (fallback.error) {
-          console.warn("[ingest] existing articles lookup failed:", fallback.error.message);
-          continue;
-        }
-        data = (fallback.data ?? []) as Record<string, unknown>[];
-      } else {
-        console.warn("[ingest] existing articles lookup failed:", withCorr.error.message);
-        continue;
-      }
-    } else {
-      data = (withCorr.data ?? []) as Record<string, unknown>[];
-    }
-    for (const row of data ?? []) {
-      if (!row?.pmid) continue;
-      existing.set(String(row.pmid), {
-        fetchedAt: typeof row.fetched_at === "string" ? row.fetched_at : null,
-        correspondingEmail:
-          typeof row.corresponding_author_email === "string"
-            ? row.corresponding_author_email
-            : null,
-        correspondingName:
-          typeof row.corresponding_author_name === "string"
-            ? row.corresponding_author_name
-            : null,
-      });
-    }
-  }
-  return existing;
-}
-
 // ── Request params ────────────────────────────────────────────────────────────
 
 interface IngestParams {
@@ -240,6 +149,7 @@ interface IngestParams {
   maxArticles: number;
   maxSummaries: number;
   summarize: boolean;
+  persistStats: boolean;
 }
 
 async function getParams(request: NextRequest): Promise<IngestParams> {
@@ -261,7 +171,8 @@ async function getParams(request: NextRequest): Promise<IngestParams> {
     );
     const summarize =
       source.summarize === "true" || source.summarize === "1";
-    return { topicId, topicName, daysBack, maxArticles, maxSummaries, summarize };
+    const persistStats = source.persistStats !== "0" && source.persistStats !== "false";
+    return { topicId, topicName, daysBack, maxArticles, maxSummaries, summarize, persistStats };
   };
 
   const fromQuery: Record<string, string | undefined> = {};
@@ -288,6 +199,7 @@ async function getParams(request: NextRequest): Promise<IngestParams> {
       maxArticles: DEFAULT_MAX_ARTICLES,
       maxSummaries: DEFAULT_MAX_SUMMARIES,
       summarize: false,
+      persistStats: true,
     };
   }
 }
@@ -310,7 +222,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
 
   try {
     const params = await getParams(request);
-    const { topicId, topicName, daysBack, maxArticles, maxSummaries, summarize } = params;
+    const { topicId, topicName, daysBack, maxArticles, maxSummaries, summarize, persistStats } = params;
 
     const supabase = getSupabase();
 
@@ -361,14 +273,6 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     if (!queryString) {
       return NextResponse.json({ ok: false, error: "Topic has no query_string" }, { status: 400 });
     }
-
-    const learnedWeights = mergeLearnedWeights(topic.ranking_weights);
-    const feedSettings = mergeStoredFeedSettings(topic.ranking_weights);
-    const scoringOptions = {
-      ...toPenaltyWeights(feedSettings),
-      smallSampleMax: feedSettings.brief.smallSampleMax,
-      largeStudyThreshold: feedSettings.brief.largeStudyThreshold,
-    };
 
     // ── 2. Compute search window ──────────────────────────────────────────────
 
@@ -458,13 +362,15 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       // No genuinely new records — still advance watermark.
       await setTopicWatermark(topic.id, maxdate, supabase);
       const completedAt = new Date().toISOString();
-      await saveLastIngestRunStats(supabase, {
-        topicId: topic.id,
-        ranAt: completedAt,
-        newArticles: 0,
-        newSummaries: 0,
-        mlPriorityGe5: 0,
-      });
+      if (persistStats) {
+        await saveLastIngestRunStats(supabase, {
+          topicId: topic.id,
+          ranAt: completedAt,
+          newArticles: 0,
+          newSummaries: 0,
+          mlPriorityGe5: 0,
+        });
+      }
       return NextResponse.json({
         ok: true,
         topicId: topic.id,
@@ -505,14 +411,34 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     const recordsParsed = records.length;
     console.log("[ingest] Records parsed after dedupe", recordsParsed);
 
-    // ── 5. Build article rows ─────────────────────────────────────────────────
+    // ── 5. Merge OpenAlex-first rows on DOI, then build article rows ──────────
 
     const fetchedAt = new Date().toISOString();
     const todayStr = getTodayISO();
-    const existingMeta = await fetchExistingArticleMeta(
-      supabase,
-      records.map((r) => r.pmid)
-    );
+    const dois = records
+      .map((r) => normalizeDoi(r.doi ?? null))
+      .filter((d): d is string => Boolean(d));
+    const [existingMeta, byDoi] = await Promise.all([
+      fetchArticlesByPmids(
+        supabase,
+        records.map((r) => r.pmid)
+      ),
+      fetchArticlesByDois(supabase, dois),
+    ]);
+
+    let rekeyed = 0;
+    for (const r of records) {
+      const doi = normalizeDoi(r.doi ?? null);
+      const merged = await resolvePubmedMergePmid({
+        supabase,
+        pubmedPmid: r.pmid,
+        doi,
+        byPmid: existingMeta,
+        byDoi,
+      });
+      if (merged.rekeyed) rekeyed += 1;
+    }
+
     const newArticleCount = records.filter((r) => !existingMeta.has(r.pmid)).length;
 
     type ArticleRow = {
@@ -534,18 +460,22 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       fetched_at: string;
       corresponding_author_email: string | null;
       corresponding_author_name: string | null;
+      doi: string | null;
+      openalex_id: string | null;
+      landing_url: string | null;
     };
 
     const articleRows: ArticleRow[] = records.map((r) => {
       const pubDate = toDateOnly(r.pubDate);
-      const articleDate = toDateOnly((r as PubMedRecord & { articleDate?: string | null }).articleDate ?? null);
-      const epubDate = toDateOnly((r as PubMedRecord & { epubDate?: string | null }).epubDate ?? null);
-      const pubmedDate = toDateOnly((r as PubMedRecord & { pubmedDate?: string | null }).pubmedDate ?? null);
+      const articleDate = toDateOnly(r.articleDate ?? null);
+      const epubDate = toDateOnly(r.epubDate ?? null);
+      const pubmedDate = toDateOnly(r.pubmedDate ?? null);
       const releaseDateRaw = articleDate ?? epubDate ?? pubmedDate ?? pubDate ?? todayStr;
       const releaseDate = clampToToday(releaseDateRaw) ?? todayStr;
-      const prior = existingMeta.get(r.pmid);
+      const prior = existingMeta.get(r.pmid) ?? (r.doi ? byDoi.get(normalizeDoi(r.doi) ?? "") : undefined);
       const parsedEmail = r.correspondingAuthorEmail?.trim() || null;
       const parsedName = r.correspondingAuthorName?.trim() || null;
+      const doi = normalizeDoi(r.doi ?? null) ?? prior?.doi ?? null;
 
       return {
         pmid: r.pmid,
@@ -566,6 +496,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         fetched_at: prior?.fetchedAt ?? fetchedAt,
         corresponding_author_email: parsedEmail ?? prior?.correspondingEmail ?? null,
         corresponding_author_name: parsedName ?? prior?.correspondingName ?? null,
+        doi,
+        openalex_id: prior?.openalexId ?? null,
+        landing_url: prior?.landingUrl ?? null,
       };
     });
 
@@ -574,6 +507,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     console.log("[ingest] Upserting articles", {
       count: articleRows.length,
       newArticles: newArticleCount,
+      rekeyed,
     });
     const UPSERT_CHUNK = 100;
     let storedArticles = 0;
@@ -624,183 +558,24 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     let summarizeAttempted = 0;
     let summarizeFailed = 0;
     let mlPriorityGe5Count = 0;
-    const summarizeErrors: string[] = [];
+    let summarizeErrors: string[] | undefined;
 
     if (summarize && maxSummaries > 0) {
-      // Only attempt articles that have an abstract
-      const withAbstract = records.filter((r) => Boolean(r.abstract?.trim()));
-
-      // Skip PMIDs that already have a summary for this topic
-      const candidatePmids = withAbstract.map((r) => r.pmid);
-      const alreadySummarized = await fetchAlreadySummarizedPmids(
+      const batch = await summarizeNewRecords({
         supabase,
-        topic.id,
-        candidatePmids
-      );
-
-      const toSummarize = withAbstract
-        .filter((r) => !alreadySummarized.has(r.pmid))
-        .slice(0, maxSummaries);
-
-      summarizeAttempted = toSummarize.length;
-      console.log(
-        "[ingest] Summarizing",
-        toSummarize.length,
-        "new records",
-        `(skipping ${alreadySummarized.size} already done; ${withAbstract.length} with abstract)`
-      );
-
-      // ── Parallel batches ──────────────────────────────────────────────────
-      // Process SUMMARIZE_CONCURRENCY articles at a time to stay well within
-      // Vercel's 300 s limit: 5 parallel × ~4 s each = ~4 s per batch.
-      // 100 articles / 5 = 20 batches × 4 s ≈ 80 s total.
-
-      for (let i = 0; i < toSummarize.length; i += SUMMARIZE_CONCURRENCY) {
-        const batch = toSummarize.slice(i, i + SUMMARIZE_CONCURRENCY);
-
-        // First ML rating with embeddings once per new article (not on page load).
-        const mlScores = await scoreFirstMlPriorities(
-          supabase,
-          topic.id,
-          batch.map((r) => ({
-            rec: r,
-            queryString,
-            weights: learnedWeights,
-          }))
-        );
-
-        const batchResults = await Promise.allSettled(
-          batch.map(async (r, batchIdx) => {
-            const { summaryText } = await summarizeAbstract(r.abstract!);
-            let headline: string | null = null;
-            try {
-              headline = await generateBriefHeadline({
-                title: r.title!,
-                abstract: r.abstract!,
-                publicationTypes: r.publicationTypes,
-              });
-            } catch (headlineErr) {
-              console.warn(
-                `[ingest] headline ${r.pmid}:`,
-                headlineErr instanceof Error ? headlineErr.message : headlineErr
-              );
-            }
-            const classification = await classifyStudyAbstract({
-              title: r.title,
-              abstract: r.abstract,
-              publicationTypes: r.publicationTypes,
-            });
-
-            const rank_score = computeStoredRankScore({
-              queryString,
-              rec: r,
-              weights: learnedWeights,
-              scoringOptions,
-            });
-
-            const row: Record<string, unknown> = {
-              topic_id: topic.id,
-              pmid: r.pmid,
-              summary_text: summaryText,
-              subheading: classification.study_subheading,
-              label: classification.study_label,
-              rank_score,
-              auto_settings: classifyArticleSettings({
-                title: r.title,
-                abstract: r.abstract,
-                keywords: r.keywords,
-                meshTerms: r.meshTerms,
-              }),
-              auto_topics: classifyArticleTopics({
-                title: r.title,
-                abstract: r.abstract,
-                keywords: r.keywords,
-                meshTerms: r.meshTerms,
-              }),
-              auto_who_regions: classifyArticleWhoRegions({
-                title: r.title,
-                abstract: r.abstract,
-                keywords: r.keywords,
-                meshTerms: r.meshTerms,
-                affiliations: r.affiliations,
-              }),
-            };
-            if (headline) row.headline = headline;
-            const ml = mlScores[batchIdx];
-            if (ml != null) {
-              row.ml_priority = ml;
-              if (ml >= 5) mlPriorityGe5Count += 1;
-            }
-
-            const { error: sumErr } = await supabase.from("summaries").upsert(
-              row,
-              { onConflict: "topic_id,pmid" }
-            );
-
-            if (sumErr) {
-              // Column not migrated yet — retry without new columns.
-              const missingMl = /ml_priority/i.test(sumErr.message);
-              const missingAuto = /auto_settings/i.test(sumErr.message);
-              const missingTopics = /auto_topics/i.test(sumErr.message);
-              const missingWho = /auto_who_regions/i.test(sumErr.message);
-              if (missingMl || missingAuto || missingTopics || missingWho) {
-                if (missingMl) delete row.ml_priority;
-                if (missingAuto) delete row.auto_settings;
-                if (missingTopics) delete row.auto_topics;
-                if (missingWho) delete row.auto_who_regions;
-                const retry = await supabase.from("summaries").upsert(row, {
-                  onConflict: "topic_id,pmid",
-                });
-                if (retry.error) {
-                  throw new Error(`upsert failed: ${retry.error.message}`);
-                }
-                if (missingMl) {
-                  console.warn(
-                    "[ingest] ml_priority column missing; run scripts/add_ml_priority.sql"
-                  );
-                }
-                if (missingAuto) {
-                  console.warn(
-                    "[ingest] auto_settings column missing; run scripts/add_auto_settings.sql"
-                  );
-                }
-                if (missingTopics) {
-                  console.warn(
-                    "[ingest] auto_topics column missing; run scripts/add_auto_topics.sql"
-                  );
-                }
-                if (missingWho) {
-                  console.warn(
-                    "[ingest] auto_who_regions column missing; run scripts/add_auto_who_regions.sql"
-                  );
-                }
-                return r.pmid;
-              }
-              throw new Error(`upsert failed: ${sumErr.message}`);
-            }
-            return r.pmid;
-          })
-        );
-
-        for (const res of batchResults) {
-          if (res.status === "fulfilled") {
-            storedSummaries++;
-          } else {
-            summarizeFailed++;
-            const reason =
-              res.reason instanceof Error
-                ? res.reason.message
-                : String(res.reason);
-            console.warn("[ingest] Summary batch error:", reason);
-            if (summarizeErrors.length < 5) summarizeErrors.push(reason);
-          }
-        }
-
-        console.log(
-          `[ingest] Summaries: batch ${Math.floor(i / SUMMARIZE_CONCURRENCY) + 1} done`,
-          `(${storedSummaries} / ${toSummarize.length} so far)`
-        );
-      }
+        topicId: topic.id,
+        queryString,
+        rankingWeights: topic.ranking_weights,
+        records,
+        maxSummaries,
+      });
+      storedSummaries = batch.storedSummaries;
+      summarizeAttempted = batch.summarizeAttempted;
+      summarizeFailed = batch.summarizeFailed;
+      mlPriorityGe5Count = batch.mlPriorityGe5Count;
+      summarizeErrors = batch.summarizeErrors.length
+        ? batch.summarizeErrors
+        : undefined;
     }
 
     const completedAt = new Date().toISOString();
@@ -809,15 +584,18 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       newArticles: newArticleCount,
       storedSummaries,
       mlPriorityGe5Count,
+      rekeyed,
     });
 
-    await saveLastIngestRunStats(supabase, {
-      topicId: topic.id,
-      ranAt: completedAt,
-      newArticles: newArticleCount,
-      newSummaries: storedSummaries,
-      mlPriorityGe5: mlPriorityGe5Count,
-    });
+    if (persistStats) {
+      await saveLastIngestRunStats(supabase, {
+        topicId: topic.id,
+        ranAt: completedAt,
+        newArticles: newArticleCount,
+        newSummaries: storedSummaries,
+        mlPriorityGe5: mlPriorityGe5Count,
+      });
+    }
 
     // Cache bust is best-effort — durable ingest already succeeded. Outside a
     // Next request context (scripts) revalidateTag throws; never fail the run.
@@ -854,11 +632,12 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       newArticles: newArticleCount,
       storedSummaries,
       mlPriorityGe5Count,
+      rekeyed,
       summarize,
       maxSummaries,
       summarizeAttempted,
       summarizeFailed,
-      summarizeErrors: summarizeErrors.length ? summarizeErrors : undefined,
+      summarizeErrors,
       // Flags
       watermarkAdvanced: true,
       pages: searchResult.pages,

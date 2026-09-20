@@ -58,10 +58,10 @@ You do not need to stay on `localhost` to try feed changes.
 1. **Push a branch** — Vercel creates a **Preview** deployment per push (same env vars as Production unless you scoped them differently).
 2. **Open the feed** on that deployment:
    - Production: `https://pubmedfeed.vercel.app/feed`
-   - OpenAlex: `https://pubmedfeed.vercel.app/feed?source=openalex`
    - Preview: use the deployment URL from the Vercel dashboard (e.g. `https://pubmed-feed-git-<branch>-<team>.vercel.app/feed`).
 3. **Trigger ingest on production** (after env vars are set):
-   - PubMed: `curl -X POST "https://pubmedfeed.vercel.app/api/ingest?topicName=main"`
+   - Daily job (OpenAlex then PubMed): cron `/api/cron/daily-digest`
+   - PubMed only: `curl -X POST "https://pubmedfeed.vercel.app/api/ingest?topicName=main"`
    - OpenAlex: `curl -X POST "https://pubmedfeed.vercel.app/api/ingest/openalex?topicName=main&summarize=1"`
 4. **Local dev against production APIs** (optional): set `NEXT_PUBLIC_APP_URL=https://pubmedfeed.vercel.app` and run `npx tsx scripts/run-openalex-ingest-now.ts` to hit the live ingest route without deploying UI changes.
 

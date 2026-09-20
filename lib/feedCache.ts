@@ -19,13 +19,11 @@ function applySourceFilter<T extends { eq: Function; or: Function }>(
   query: T,
   source: FeedSourceFilter
 ): T {
-  if (source === "all") return query;
-  if (source === "pubmed") {
-    return query.or("source.eq.pubmed,source.is.null", {
-      foreignTable: "articles",
-    }) as T;
-  }
-  return query.eq("articles.source", source) as T;
+  void source;
+  return query.or(
+    "source.eq.pubmed,source.is.null,doi.not.is.null,openalex_id.not.is.null",
+    { foreignTable: "articles" }
+  ) as T;
 }
 
 async function fetchSlimSummaryRowsUncached(

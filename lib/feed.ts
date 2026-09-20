@@ -146,6 +146,9 @@ export type FeedItem = {
     keywords: string[] | null;
     mesh_terms: string[] | null;
     source: string | null;
+    doi: string | null;
+    openalex_id: string | null;
+    landing_url: string | null;
   } | null;
 };
 
@@ -176,14 +179,12 @@ function applySourceFilter<T extends { eq: Function; or: Function }>(
   query: T,
   source: FeedSourceFilter
 ): T {
-  if (source === "all") return query;
-  // Older rows may have null source (pre–OpenAlex column); treat as PubMed.
-  if (source === "pubmed") {
-    return query.or("source.eq.pubmed,source.is.null", {
-      foreignTable: "articles",
-    }) as T;
-  }
-  return query.eq("articles.source", source) as T;
+  // Combined list: PubMed + new OpenAlex (doi / openalex_id). Hide legacy W-id dupes.
+  void source;
+  return query.or(
+    "source.eq.pubmed,source.is.null,doi.not.is.null,openalex_id.not.is.null",
+    { foreignTable: "articles" }
+  ) as T;
 }
 
 /**
@@ -287,6 +288,9 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
       keywords?: string[] | null;
       mesh_terms?: string[] | null;
       source?: string | null;
+      doi?: string | null;
+      openalex_id?: string | null;
+      landing_url?: string | null;
     } | null;
   };
   const articleSource =
@@ -308,6 +312,9 @@ function mapRawRowToFeedItem(it: SummaryRow): FeedItem {
           keywords: row.articles.keywords ?? null,
           mesh_terms: row.articles.mesh_terms ?? null,
           source: row.articles.source ?? null,
+          doi: row.articles.doi ?? null,
+          openalex_id: row.articles.openalex_id ?? null,
+          landing_url: row.articles.landing_url ?? null,
         }
       : null;
   const scimago = lookupScimago(row.articles?.journal);

@@ -1,9 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  computeSearchWindow,
-  getDateNDaysAgo,
-  getTodayISO,
-} from "@/lib/pubmed/watermark";
+import { getDateNDaysAgo, getTodayISO } from "@/lib/pubmed/watermark";
+
+/** Do not backfill more than 28 days on OpenAlex re-enable / cold start. */
+export const OPENALEX_MAX_BACKFILL_DAYS = 28;
 
 type IngestStateRow = { last_publication_max: string };
 
@@ -56,7 +55,23 @@ export function computeOpenAlexWindow(lastMax: string | null): {
   maxdate: string;
   isFirstRun: boolean;
 } {
-  return computeSearchWindow(lastMax);
+  const maxdate = getTodayISO();
+  const floor = getDateNDaysAgo(OPENALEX_MAX_BACKFILL_DAYS);
+
+  if (lastMax) {
+    const d = new Date(lastMax);
+    if (!Number.isNaN(d.getTime())) {
+      d.setUTCDate(d.getUTCDate() - 1);
+      const fromWatermark = d.toISOString().slice(0, 10);
+      return {
+        mindate: fromWatermark < floor ? floor : fromWatermark,
+        maxdate,
+        isFirstRun: false,
+      };
+    }
+  }
+
+  return { mindate: floor, maxdate, isFirstRun: true };
 }
 
 export { getDateNDaysAgo, getTodayISO };

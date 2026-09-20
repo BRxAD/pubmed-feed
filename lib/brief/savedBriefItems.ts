@@ -51,6 +51,9 @@ type SavedSummaryRow = {
     authors?: string[] | null;
     abstract?: string | null;
     source?: string | null;
+    doi?: string | null;
+    openalex_id?: string | null;
+    landing_url?: string | null;
   } | null;
 };
 
@@ -169,6 +172,9 @@ function rowToBriefItem(row: SavedSummaryRow): BriefItem | null {
       keywords,
       mesh_terms: meshTerms,
       source: row.articles?.source ?? null,
+      doi: row.articles?.doi ?? null,
+      openalex_id: row.articles?.openalex_id ?? null,
+      landing_url: row.articles?.landing_url ?? null,
     },
   };
 
@@ -214,7 +220,11 @@ function rowToBriefItem(row: SavedSummaryRow): BriefItem | null {
     adminPriority: row.admin_priority ?? null,
     effectivePriority: effectivePriority(row.admin_priority, predictedPriority),
     prioritySource,
-    pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
+    pubmedUrl: articleExternalUrl(row.pmid, "pubmed", {
+      doi: row.articles?.doi,
+      landingUrl: row.articles?.landing_url,
+      openalexId: row.articles?.openalex_id,
+    }),
     authors,
     keywords: keywords.slice(0, 8),
     meshTerms: meshTerms.slice(0, 12),
@@ -263,7 +273,7 @@ function fallbackBriefItem(saved: SavedBriefItem): BriefItem {
 }
 
 const SELECT =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, summary_text, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, abstract, source)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, summary_text, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, abstract, source, doi, openalex_id, landing_url)";
 
 /**
  * Fetch a single BriefItem by its PMID. Tries the default topic summary,
@@ -307,7 +317,7 @@ export async function getBriefItemByPmid(
 
   const { data: artData } = await supabase
     .from("articles")
-    .select("pmid, title, journal, pub_date, release_date, abstract, authors, keywords, mesh_terms, source")
+    .select("pmid, title, journal, pub_date, release_date, abstract, authors, keywords, mesh_terms, source, doi, openalex_id, landing_url")
     .eq("pmid", pmid)
     .maybeSingle();
 
@@ -323,6 +333,9 @@ export async function getBriefItemByPmid(
       keywords?: string[] | null;
       mesh_terms?: string[] | null;
       source?: string | null;
+      doi?: string | null;
+      openalex_id?: string | null;
+      landing_url?: string | null;
     };
     const title = decodeHtmlEntities(row.title?.trim() || `PMID ${pmid}`);
     const date = row.release_date || row.pub_date || null;
@@ -356,7 +369,11 @@ export async function getBriefItemByPmid(
       adminPriority: null,
       effectivePriority: 5,
       prioritySource: "fallback",
-      pubmedUrl: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      pubmedUrl: articleExternalUrl(pmid, "pubmed", {
+        doi: row.doi,
+        landingUrl: row.landing_url,
+        openalexId: row.openalex_id,
+      }),
       authors: (row.authors ?? []).map((a) => String(a).trim()).filter(Boolean),
       keywords: Array.isArray(row.keywords) ? row.keywords : [],
       meshTerms: Array.isArray(row.mesh_terms) ? row.mesh_terms : [],

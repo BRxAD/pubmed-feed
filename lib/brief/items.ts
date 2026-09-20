@@ -16,7 +16,7 @@ import type { WhoRegion } from "@/lib/classifyWhoRegion";
 import { isHighImpactJournal, lookupJif } from "@/lib/jif";
 import { isQ1Journal, lookupScimago } from "@/lib/scimago";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { articleExternalUrl } from "@/lib/feedSource";
+import { articleExternalUrl, isLiveFeedArticle } from "@/lib/feedSource";
 import type { PubMedRecord } from "@/lib/pubmed/efetch";
 import {
   BRIEF_ARTICLE_WINDOW_DAYS,
@@ -129,12 +129,20 @@ function isWithinHours(iso: string, hours: number): boolean {
   return Date.now() - t <= hours * 60 * 60 * 1000;
 }
 
-function isPubMedArticle(pmid: string, source: string | null | undefined): boolean {
-  const id = pmid.trim();
-  if (/^W\d+$/i.test(id)) return false;
-  if (source === "openalex") return false;
-  if (source === "pubmed") return true;
-  return /^\d+$/.test(id);
+function isLiveBriefArticle(row: {
+  pmid: string;
+  articles?: {
+    source?: string | null;
+    doi?: string | null;
+    openalex_id?: string | null;
+  } | null;
+}): boolean {
+  return isLiveFeedArticle({
+    pmid: row.pmid,
+    source: row.articles?.source,
+    doi: row.articles?.doi,
+    openalexId: row.articles?.openalex_id,
+  });
 }
 
 function parseTimestamp(raw: string | null | undefined): number {
@@ -197,10 +205,10 @@ function parseAdminSettingValue(
 
 /** Slim Brief index: no abstract / summary_text / keywords / mesh bodies. */
 const BRIEF_SELECT_SLIM =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url)";
 
 const BRIEF_SELECT_SLIM_NO_HEADLINE =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source)";
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url)";
 
 const HYDRATE_CHUNK = 80;
 
@@ -441,7 +449,10 @@ export async function getBriefItems(options?: {
         .from("summaries")
         .select(select, exactCount ? { count: "exact" } : undefined)
         .eq("topic_id", topicId)
-        .eq("articles.source", "pubmed")
+        .or(
+          "source.eq.pubmed,source.is.null,doi.not.is.null,openalex_id.not.is.null",
+          { foreignTable: "articles" }
+        )
         // Existence only — do not select summary_text body on the slim pass.
         .not("summary_text", "is", null)
         .neq("summary_text", "");
@@ -563,12 +574,15 @@ export async function getBriefItems(options?: {
       mesh_terms?: string[] | null;
       authors?: string[] | null;
       source?: string | null;
+      doi?: string | null;
+      openalex_id?: string | null;
+      landing_url?: string | null;
     } | null;
   };
 
   const slimRows = (slimResult.rows as SlimRow[]).filter((row) => {
     if (!row.articles?.title?.trim()) return false;
-    return isPubMedArticle(row.pmid, row.articles.source);
+    return isLiveBriefArticle(row);
   });
 
   // Legacy rows without ml_priority need abstracts for handcrafted predict only.
@@ -731,6 +745,9 @@ export async function getBriefItems(options?: {
         keywords,
         mesh_terms: meshTerms,
         source: row.articles?.source ?? null,
+        doi: row.articles?.doi ?? null,
+        openalex_id: row.articles?.openalex_id ?? null,
+        landing_url: row.articles?.landing_url ?? null,
       },
     };
 
@@ -776,7 +793,11 @@ export async function getBriefItems(options?: {
       adminPriority: row.admin_priority ?? null,
       effectivePriority: eff,
       prioritySource,
-      pubmedUrl: articleExternalUrl(row.pmid, "pubmed"),
+      pubmedUrl: articleExternalUrl(row.pmid, "pubmed", {
+        doi: row.articles?.doi,
+        landingUrl: row.articles?.landing_url,
+        openalexId: row.articles?.openalex_id,
+      }),
       authors,
       keywords: keywords.slice(0, 8),
       meshTerms: meshTerms.slice(0, 12),
@@ -960,6 +981,9 @@ export async function getBriefItems(options?: {
           keywords: item.keywords,
           mesh_terms: item.meshTerms,
           source: "pubmed",
+          doi: slim?.articles?.doi ?? null,
+          openalex_id: slim?.articles?.openalex_id ?? null,
+          landing_url: slim?.articles?.landing_url ?? null,
         },
       };
       item.setting = getItemSetting(feedLike);

@@ -40,6 +40,7 @@ import { loadLastIngestStats } from "@/lib/ingestStats";
 import { getCachedHumanRatedTotal } from "@/lib/humanRatingStats";
 import {
   articleExternalUrl,
+  feedSourceTag,
   parseFeedSource,
   type FeedSourceFilter,
 } from "@/lib/feedSource";
@@ -205,7 +206,11 @@ function ArticleCard({
     item.articles?.fetched_at ?? item.created_at
   );
   const dateStr = pubDateStr || ingestedStr;
-  const articleUrl = articleExternalUrl(item.pmid, item.source);
+  const articleUrl = articleExternalUrl(item.pmid, item.source, {
+    doi: item.articles?.doi,
+    landingUrl: item.articles?.landing_url,
+    openalexId: item.articles?.openalex_id,
+  });
 
   const jifEntry = lookupJif(item.articles?.journal);
   const jifIsHigh =
@@ -280,6 +285,12 @@ function ArticleCard({
             {journal}
           </span>
         )}
+        <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          {feedSourceTag({
+            pmid: item.pmid,
+            openalexId: item.articles?.openalex_id,
+          })}
+        </span>
         {pubDateStr && (
           <span className="text-sm text-zinc-400 dark:text-zinc-500">
             Pub {pubDateStr}

@@ -6,6 +6,7 @@ import { newsSourceLabel } from "@/lib/news/labels";
 import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 import type { BriefAnnouncement } from "@/lib/digest/announcements";
 import { formatJournalTitle } from "@/lib/brief/formatJournal";
+import { dedupeNewsStories } from "@/lib/news/dedupe";
 
 function escapeHtml(s: string): string {
   return s
@@ -47,10 +48,13 @@ function storyActionsMarkup(
   );
   const link = `color:${steel};text-decoration:none;font-weight:500`;
   const sep = `<span style="color:${olive}">&nbsp;&middot;&nbsp;</span>`;
+  const externalLabel = /pubmed\.ncbi\.nlm\.nih\.gov/i.test(item.pubmedUrl)
+    ? "View on Pubmed"
+    : "Read article";
 
   return `
         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,sans-serif">
-          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save</a>${sep}<a href="${read}" style="${link}">View on Pubmed</a>${sep}<a href="${email}" style="${link}">Email</a>
+          <a href="${escapeHtml(articleUrl)}" style="${link}">Read on Brief</a>${sep}<a href="${escapeHtml(saveUrl)}" style="${link}">Save</a>${sep}<a href="${read}" style="${link}">${externalLabel}</a>${sep}<a href="${email}" style="${link}">Email</a>
         </p>`;
 }
 
@@ -113,6 +117,7 @@ export function buildBriefDigestEmail(options: {
     newsItems = [],
     announcement,
   } = options;
+  const uniqueNewsItems = dedupeNewsStories(newsItems);
   const { plum, olive, steel, paper, paperWarm, hairline } = briefPalette;
 
   const subject =
@@ -192,7 +197,9 @@ export function buildBriefDigestEmail(options: {
       item.bottomLine ?? "",
       `Read on Brief: ${articleUrl}`,
       `Save: ${saveUrl}`,
-      `View on Pubmed: ${item.pubmedUrl}`,
+      /pubmed\.ncbi\.nlm\.nih\.gov/i.test(item.pubmedUrl)
+        ? `View on Pubmed: ${item.pubmedUrl}`
+        : `Read article: ${item.pubmedUrl}`,
       ""
     );
 
@@ -220,7 +227,7 @@ export function buildBriefDigestEmail(options: {
   }
 
   // 1. In The News section (if any unsent approved news is included)
-  if (newsItems.length > 0) {
+  if (uniqueNewsItems.length > 0) {
     textParts.push(
       "",
       "--- IN THE NEWS ---",
@@ -240,7 +247,7 @@ export function buildBriefDigestEmail(options: {
       </tr>
     `);
 
-    for (const news of newsItems) {
+    for (const news of uniqueNewsItems) {
       const source = newsSourceLabel(news.sourceId);
       const dateStr = formatDateLabel(news.publishedAt ?? news.createdAt);
       const cleanSummary = getMeaningfulNewsSummary(news.title, news.summary);

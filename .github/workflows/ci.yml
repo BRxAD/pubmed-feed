@@ -36,15 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: OpenAlex ingest is disabled (PubMed-only)
+      - name: OpenAlex ingest is enabled (health probe)
         run: |
-          url="https://pubmedfeed.vercel.app/api/ingest/openalex?topicName=main"
+          url="https://pubmedfeed.vercel.app/api/ingest/openalex"
           echo "GET $url"
           code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "$url")
           echo "HTTP $code"
           cat /tmp/body.json
-          test "$code" = "410"
-          grep -q '"ok":false' /tmp/body.json
+          test "$code" = "200"
+          grep -q '"enabled":true' /tmp/body.json
 
       - name: Check PubMed feed page
         run: |

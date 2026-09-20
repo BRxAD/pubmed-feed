@@ -34,7 +34,10 @@ export async function getBriefTrendingTerms(
     .from("summaries")
     .select("created_at, articles!inner(keywords, source)")
     .eq("topic_id", topicId)
-    .eq("articles.source", "pubmed")
+    .or(
+      "source.eq.pubmed,source.is.null,doi.not.is.null,openalex_id.not.is.null",
+      { foreignTable: "articles" }
+    )
     .gte("created_at", sixtyDaysAgo.toISOString())
     .limit(10000);
 

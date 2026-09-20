@@ -3,6 +3,9 @@ import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { GET as runPubmedIngest } from "@/app/api/ingest/route";
 import { NextRequest } from "next/server";
 import { DEFAULT_DIGEST_MAX_SUMMARIES } from "@/lib/digest/config";
+import { runOpenAlexIngest } from "@/lib/openalex/ingest";
+import { saveLastIngestRunStats } from "@/lib/ingestStats";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 /** Run ingest in-process — avoids Vercel Deployment Protection on self-fetch URLs. */
 async function triggerIngest(path: string): Promise<Record<string, unknown>> {
@@ -21,6 +24,10 @@ async function triggerIngest(path: string): Promise<Record<string, unknown>> {
   return data;
 }
 
+function asCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export type DailyDigestResult = {
   ok: boolean;
   topicId: string;
@@ -35,12 +42,11 @@ export type DailyDigestResult = {
 };
 
 /**
- * PubMed ingest + summarize only (2× daily).
+ * OpenAlex (CID/OFID/ASHE/ICHE/CMI) then PubMed, shared summarize cap.
  * Stewardship Brief email is sent separately by `/api/cron/brief-digest`.
- * Legacy ASP Literature Feed emails are retired.
  *
- * Throws if PubMed ingest fails so cron callers get a non-2xx and GitHub/Vercel
- * cannot report a false success (which left /feed "Last ingest" stuck).
+ * Throws if PubMed ingest fails so cron callers get a non-2xx.
+ * OpenAlex failure is recorded but does not block PubMed.
  */
 export async function runDailyDigest(): Promise<DailyDigestResult> {
   const topicId = await getDefaultTopicId();
@@ -59,20 +65,51 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     )
   );
 
+  let ingestOpenAlex: Record<string, unknown> = {
+    ok: false,
+    skipped: true,
+    reason: "not run",
+  };
+  try {
+    ingestOpenAlex = await runOpenAlexIngest({
+      topicName: "main",
+      summarize: true,
+      maxSummaries,
+      persistStats: false,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[daily-digest] OpenAlex ingest failed:", message);
+    ingestOpenAlex = { ok: false, error: message };
+  }
+
+  const used = asCount(ingestOpenAlex.storedSummaries);
+  const remaining = Math.max(0, maxSummaries - used);
+
   const ingestPubmed = await triggerIngest(
-    `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${maxSummaries}`
+    `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${remaining}&persistStats=0`
   );
+
+  const supabase = getSupabaseServerClient();
+  await saveLastIngestRunStats(supabase, {
+    topicId,
+    ranAt: new Date().toISOString(),
+    newArticles:
+      asCount(ingestOpenAlex.newArticles) + asCount(ingestPubmed.newArticles),
+    newSummaries:
+      asCount(ingestOpenAlex.storedSummaries) +
+      asCount(ingestPubmed.storedSummaries),
+    mlPriorityGe5:
+      asCount(ingestOpenAlex.mlPriorityGe5Count) +
+      asCount(ingestPubmed.mlPriorityGe5Count),
+  });
 
   return {
     ok: true,
     topicId,
     topicName: "Antimicrobial Stewardship",
     ingestPubmed,
-    ingestOpenAlex: {
-      ok: true,
-      skipped: true,
-      reason: "OpenAlex ingest disabled",
-    },
+    ingestOpenAlex,
     emailsRetired: true,
     briefEmailCron: "/api/cron/brief-digest",
     appUrl: publicAppBaseUrl(),

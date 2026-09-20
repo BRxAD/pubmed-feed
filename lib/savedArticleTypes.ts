@@ -4,12 +4,14 @@ export type SavedBriefItem = {
   pubmedUrl: string;
 };
 
-const PMID_RE = /^\d{1,20}$/;
+const ARTICLE_ID_RE = /^(?:\d{1,20}|W\d{1,20})$/i;
 const MAX_SAVED = 200;
 
 export function sanitizePmid(raw: unknown): string | null {
   const pmid = String(raw ?? "").trim();
-  return PMID_RE.test(pmid) ? pmid : null;
+  if (/^\d{1,20}$/.test(pmid)) return pmid;
+  if (/^W\d{1,20}$/i.test(pmid)) return pmid.toUpperCase();
+  return ARTICLE_ID_RE.test(pmid) ? pmid : null;
 }
 
 export function sanitizeSavedItem(raw: {

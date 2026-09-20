@@ -5,7 +5,7 @@ description: >-
   plain-language mental model, how to talk to the user, Brief/feed/ingest
   rules, egress, embeddings lifecycle, story images, admin setting overrides,
   summary/headline voice (ID/AMS experts, cautious claims), Postgres indexes/RLS,
-  PubMed-only, and hard change-control. Use when working on Brief, homepage,
+  PubMed + OpenAlex (CID/OFID/ASHE/ICHE/CMI), and hard change-control. Use when working on Brief, homepage,
   /feed, ingest, cron, summaries, headlines, ranking, priority ML, embeddings,
   story images, settings, Supabase, or related API routes.
 ---
@@ -63,7 +63,7 @@ Think of the product like a newspaper desk:
 - Regenerate existing summaries/headlines unless asked (new prompts apply **going forward**).
 - Change Brief ≥5 / Top 10 ≥6 / date windows without asking.
 - Commit/push unless the user asks.
-- Re-enable OpenAlex.
+- Backfill OpenAlex more than 28 days unless asked.
 
 ---
 
@@ -81,7 +81,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_news_items.sql` | **Run in Supabase** (In the news RSS approve queue) |
 | `scripts/add_news_items_image_url.sql` | **Run in Supabase** if table already exists (adds `image_url`) |
 | `scripts/add_survey_prompts.sql` | **Run in Supabase** (anonymous homepage survey · hashed IP · max 2 prompts) |
-| `scripts/add_author_outreach.sql` | **Run in Supabase** (corresponding-author email columns + author_outreach queue / opt-outs) |
+| `scripts/add_articles_doi.sql` | **Applied** (doi / openalex_id / landing_url + rekey_article_pmid) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -140,6 +140,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 - **Named restricted analyses:** In RESULTS, never write “a subset of N trials.” Name what defined the group using the abstract’s label plus N (e.g. “73 published peer-reviewed RCTs”, “per-protocol”, “excluding unpublished trials”). If the abstract does not name the restriction, omit that analysis. New ingest only unless asked to rewrite old rows.
 - **Named outcome:** Headlines must name the key subject and what was measured. Bare “rates” / “outcomes” is invalid — write “cure rates”, “mortality”, “antibiotic days”, etc. Bad: “Acute pyelonephritis showed higher rates than other cUTIs…”. Good: “…higher cure rates…”. New ingest only unless asked to rewrite old rows.
 - **This paper, not citations:** Headlines (and RESULTS / BOTTOM LINE) must describe what **this** article contributes. Never lead with a result the paper is citing from other studies. Narrative / clinical reviews and overviews without original data: headline this paper's scope or synthesis — not a cited trial or diagnostic accuracy claim (bad: “Point-of-care ultrasound helped distinguish cellulitis from abscess…” for a review that only discusses that literature). Systematic reviews / meta-analyses **may** headline this review's own pooled result. New ingest only unless asked to rewrite old rows.
+- **Acronyms:** Only use acronyms common in ID / AMS (CAP, SSTI, UTI, MRSA, MSSA, CRP, PCT, RCT, ICU, BSI, ASP for stewardship programs, etc.). Never introduce paper-coined shorthand (e.g. sIM). Write uncommon concepts in plain English. Enforced on **new** generation via prompts + headline allowlist validation (`lib/brief/idAcronyms.ts`); do not mass-rewrite old rows unless asked.
 
 ## Embeddings & ML priority (hard)
 
@@ -171,14 +172,13 @@ Main topic animal exclusion must be:
 
 ## Surfaces
 
-- **PubMed only.** OpenAlex ingest → **410**. `parseFeedSource` always `pubmed`. No source switcher.
+- **PubMed + OpenAlex.** Same 2× daily ingest. OpenAlex covers **CID, OFID, ASHE, ICHE, CMI** journal articles only (no preprints; same letter/editorial/case-report/animal-only drops). Other journals stay PubMed-only. Merge on DOI: one row. OpenAlex-first uses work id until a PMID exists, then rewrite PK, keep summary/headline/`fetched_at`, switch the public link to PubMed. PubMed-first: stamp `openalex_id`, do not summarize again. `/feed` shows one list with tags `OpenAlex` / `OpenAlex · PubMed` / `PubMed`. No source switcher. Brief / email / Top 10: one card, no API label. GET `/api/ingest/openalex` is a health probe (`enabled: true`); POST runs ingest.
 - **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v9`): All → sticky lead → images; filter setting + **topic** tabs in memory.
   - Setting + Topic: compact text menus (default All), Flickr-style attached list. Topic keeps color swatches. URL `?setting=` / `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
   - Setting tabs do not rewrite sticky lead.
-- **Brief digest email** — headline links to **PubMed**; article date sits tightly **above** the headline; journal name sits in smaller type **below** the headline. Under each story: **Read article** plus Email. Do **not** add LinkedIn, X, Facebook, or a “via stewardshipbrief.com” line in the email (that credit is for copied / outbound shares only). Copy, native Share, and Graphic takeaway do not appear in email. “Open today’s brief” / footer still point at the site.
-- **Author recognition email** — queued on first human `admin_priority` ≥ 5 (not ML; going forward only). Corresponding author only. No PubMed email → skip send, still listed on `/email_preview`. Unheld drafts send 21:00 ET via Resend (`BRIEF_FROM_EMAIL`). Before the sign-off, include a link to `/article/{pmid}?takeaway=1` (opens the graphic takeaway) for slide decks / social. Sign-off: “Congratulations on publishing this important work.” then “Brad Langford PharmD MPH”. Opt-out is **not** the Brief subscriber list (`/author-outreach/opt-out`). Feature link: `/article/{pmid}`.
+- **Brief digest email** — headline links to the Brief permalink; article date sits tightly **above** the headline; journal name sits in smaller type **below** the headline. Under each story: **Read article** (PubMed once a PMID exists, else publisher/DOI) plus Email. Do **not** add LinkedIn, X, Facebook, or a “via stewardshipbrief.com” line in the email (that credit is for copied / outbound shares only). Copy, native Share, and Graphic takeaway do not appear in email. “Open today’s brief” / footer still point at the site.
 - **In the news** — WHO / CIDRAP (general + ASP topic `news/48/rss`) / Google News RSS polled daily (`/api/cron/news-rss`). Items need a real **http(s)** link to be stored, approved, or shown. **Rolling 7-day window** (`NEWS_MAX_AGE_DAYS` in `lib/news/store.ts`): ingest skips older RSS items; Brief + approval lists filter to last 7 days and sort **newest → oldest** by `published_at` (fallback `created_at`). Editors approve on **`/feed`** (collapsible accordion, collapsed by default). Homepage shell matches broadsheet gutters (`brief.shell`: ~5vw sides, `max-w-[1570px]`). Masthead uses date-left / logo-center + double rule. Lead between news + tools (floats). Sidebars use a shared cream `SidebarCard` (hairline + accent top rule: steel / salmon / sky / olive) with Lead-style eyebrows — not solid steel fills. Scripts: `scripts/add_news_items.sql`, `scripts/add_news_items_image_url.sql`.
 - **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
   - **Feed sort (hard):** Default **Ingested** = newest `fetched_at`, then stored `ml_priority`, then PMID. **Published** = newest article/release date, then ML, then PMID. **Relevance** = `rank_score` (+ ML boost only — not admin). Human rating must **not** reshuffle order; **Unrated only** may drop a card after save. `/feed` is always **dark** (`.dark` shell); Brief stays cream.
@@ -199,7 +199,7 @@ Main topic animal exclusion must be:
    - **Top 10:** TTL only (~3 days). Tag kept for rare manual bust — never on ingest/rating.
    - **Human-rated total on `/feed`:** TTL only (~24 h); SQL `count` head — no row bodies.
 7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory.
-8. Ingest cron (`/api/cron/daily-digest`): PubMed summarize only — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
+8. Ingest cron (`/api/cron/daily-digest`): OpenAlex journals first, then PubMed, **shared** summarize cap — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
 9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` + `scripts/add_auto_topics.sql` + `scripts/add_auto_who_regions.sql` applied.
 10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
 11. Trending keywords: cached ~**6 h** (busts with feed slim index on ingest).
@@ -217,16 +217,16 @@ Main topic animal exclusion must be:
 - Story images assigned on All pool (stable across setting tabs); skip URL health probes for curated CDN hosts.
 - Dog stock photo (`vet-care` / photo-1548199973) only when text says dog/dogs.
 - Top 10: 365 days, scan ≥ 6, human > ML on ties; cache ~**3 days** All-pool (tabs filter in memory).
-- PubMed-only (OpenAlex UI + ingest disabled).
+- PubMed + OpenAlex (CID / OFID / ASHE / ICHE / CMI; DOI merge; `/feed` tags only).
 - Legacy ASP Literature Feed emails **retired**; Brief email only via `brief-digest`.
-- CI smoke: OpenAlex expects **410**; PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
+- CI smoke: OpenAlex health GET **200** + `enabled: true` (must not run ingest); PubMed feed + homepage **200**; Actions on Node 24 (`checkout`/`setup-node` v5).
 - Hot-path indexes + RLS + `auto_settings` applied in Supabase.
 - Fluid CPU cuts: summarize cap **40**; ingest **2×/day** (06:00 + 17:00 ET); priority retrain **weekly**; homepage ready cache ~1 h.
 - Ingest hardening (Aug 2026): article upsert **always** sends `fetched_at` (preserve first-seen; never omit → PostgREST null); `runDailyDigest` **throws** on ingest failure (HTTP 500, no false-green cron); wrap `revalidateTag` in try/catch so cache bust never fails the run.
 - Production schedule: **Vercel Cron only**; GitHub Actions ingest is **manual `workflow_dispatch`** (no schedule).
 - Feed sort: ingested default; ML tie-break (not admin); unrated-only may drop after rate; `/feed` dark shell.
 - Brief sort: prefer published, else recent ingest (`max(publish, fetched_at)`); sticky lead equal-or-higher replaces.
-- Digest email: headline → PubMed; date above headline; journal below headline (smaller type); Read article + Email share links (no LinkedIn, X, or Facebook). No via-line in email. Email cannot Copy, native-share, or Graphic takeaway.
+- Digest email: headline → Brief permalink; date above headline; journal below headline (smaller type); Read article (PubMed or DOI) + Email share links (no LinkedIn, X, or Facebook). No via-line in email. Email cannot Copy, native-share, or Graphic takeaway.
 - Headline + bottom-line prompts: ID/AMS experts, stewardship angle, RCT-only causal language, do not over-promise vs sensitivity analyses, headline this paper not cited literature.
 
 ## Still open (optional later)
@@ -242,7 +242,7 @@ Main topic animal exclusion must be:
 - Prefer stored `rank_score` for relevance sort when present.
 - Settings are **single-label** (`lib/classifySetting.ts`): highest score at/above floor (ties → `ARTICLE_SETTING_ORDER`). Labels: Hospital, Community, Long-term care, …. ED evidence still boosts hospital + community scores, but only the winner is saved/shown. Legacy multi-value `auto_settings` arrays: use **first** element only.
 - Topic capsules are **multi-label** (`lib/classifyTopic.ts`): Urinary, Respiratory (incl. ENT), Skin & Soft Tissue (no bare abscess / no osteomyelitis), Artificial Intelligence (higher score floor). Saved as `auto_topics` at ingest going forward.
-- WHO regions are **multi-label** (`lib/classifyWhoRegion.ts`): Africa, Americas, South-East Asia, Europe, Eastern Mediterranean, Western Pacific. From author affiliations + country names in title/keywords/MeSH. Saved as `auto_who_regions` at ingest going forward. Shown in More detail (below Results, above Original title). Filterable on homepage.
+- WHO regions are **multi-label** (`lib/classifyWhoRegion.ts`): African Region, Region of the Americas, South-East Asia Region, European Region, Eastern Mediterranean Region, Western Pacific Region. From author affiliations + country names in title/keywords/MeSH. Saved as `auto_who_regions` at ingest going forward. Shown in More detail (below Results, above Original title). No Brief/email filter yet.
 - Prefer stored `auto_settings` / `auto_topics` / `auto_who_regions` on page load; do not re-classify from keywords/MeSH when stored arrays are present.
 - **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
@@ -257,21 +257,20 @@ Main topic animal exclusion must be:
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
 - Do not re-assign images per setting tab.
 - Skip server-side URL health probes for curated catalog hosts (Unsplash/Pexels/Wikimedia/local); client `onError` demotes broken images.
-- **Graphic takeaway 2.0 (live):** plum gradient over the assigned story image (`#1C0B19`, **95%** opaque through the top **20%**, then down to **50%** at the bottom). 16:9 PNG. Headline + boxes occupy about **90%** of the width (tasteful side pad). Journal (BookOpen, sky) at top left, no chip. Inverted/light logo at top (logo 15% larger than the prior 42px mark). Headline type is slightly larger than the prior 48px mark for mobile readability. **Key takeaway** (`bottomLine`) with Sparkles icon. **Methods** (Users) left / **Study findings** (`results`, BarChart3) right, pale-sky labels (section labels 20% larger than the first 2.0 pass; icons +20% again). Methods/findings panels are **dark grey at 70%** opacity with a pale-sky left strip (same as the section type), grow to show the **full** methods/results text (no ellipsis), and share the same height (taller of the two). Footer is a full-width square salmon/plum bar (readable type): first author, original article title (full title, no ellipsis; if it wraps past 2 lines it starts on the author line), journal + year in paper white on the left; larger QR to PubMed + “Scan to read article” on the right. Salmon chip still opens the download/share popup. **1.0** was the 4:5 navy left-shade photo card; keep it in git if we restore or offer it as an option later.
+- **Graphic takeaway:** dark navy left shade (`#1C0B19`) over the story photo, white type, inverted logo — use the article’s assigned image when present.
 
 ## Ingest & cron
 
 - `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
 - `/api/cron/brief-digest` daily 12:30 UTC (**08:30** ET) — after 06:00 ingest so editors have time to screen and score before email.
-- `/api/cron/author-outreach` daily 01:00 UTC (**21:00** ET) — send pending corresponding-author notices (human rating 5+, cap 25/night). Review/hold on `/email_preview`. SQL: `scripts/add_author_outreach.sql`.
 - `/api/cron/news-rss` daily 12:00 UTC — poll WHO / CIDRAP / CIDRAP ASP / Google News into `news_items` as pending (approve before homepage).
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
-- Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`).
+- Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`), shared across OpenAlex then PubMed. Already-summarized DOIs do not use another slot. OpenAlex backfill cap **28** days (`OPENALEX_MAX_BACKFILL_DAYS`).
 - Show times in **Eastern**.
 - “Newly summarized” = summaries written in that run — not “ML ≥ 5”.
 - Ingest stats (feed) = **genuinely new only**: first-seen articles + new summaries. Do not count refreshes of already-summarized PMIDs. Persist via `saveLastIngestRunStats`.
 - **`fetched_at` (hard):** always include on article upsert. New rows get the run stamp; existing rows keep prior `fetched_at`. **Never omit** the field on refresh (omitting made PostgREST null → NOT NULL outage).
-- **Fail loud:** `runDailyDigest` must throw when PubMed ingest fails so cron returns HTTP 500 (no silent success).
+- **Fail loud:** `runDailyDigest` must throw when PubMed ingest fails so cron returns HTTP 500 (no silent success). OpenAlex failure is logged and does not block PubMed.
 - **PubMed ESearch:** use **HTTP POST** (not GET) so long topic queries do not fail with HTTP 414 Request-URI Too Long.
 - Cache bust after ingest: Brief homepage + feed slim; `revalidateTag` must be try/catch — never fail the ingest run.
 - New summary → embed once → save `ml_priority` + `auto_settings` + `auto_topics` + `auto_who_regions` + headline under current prompt rules.
@@ -282,8 +281,8 @@ Main topic animal exclusion must be:
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
 - **Homepage survey:** after **15s** on Brief homepage only; anonymous; emailed to `BRIEF_SURVEY_EMAIL` or `brad.langford@gmail.com`. Max **two** prompts per hashed IP (+ localStorage): “Ask me later” allows one more visit, then never. SQL: `scripts/add_survey_prompts.sql`.
-- **Graphic takeaway 2.0:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu “Share graphic takeaway” opens that same popup (menu is portaled above story photos). Card art: 16:9, photo under plum gradient (95% through the top 20%, then 50% at the bottom), logo colors, ~90% width for headline + boxes, dashboard lucide icons, key takeaway = BOTTOM LINE, methods + study findings in pale sky on matched-height dark-grey 70% panels (full text, no truncation), full-width footer bar with citation + a larger PubMed QR. Copied links are HTML: PubMed URL + `via www.stewardshipbrief.com` as two clickable links (plain-text fallback uses `via https://www.stewardshipbrief.com`). Do not put that via line in the digest email.
-- Digest email: headline links to PubMed; article date sits tightly above the headline; journal name in smaller type below the headline. Each story has **Read article** plus Email share links (no LinkedIn, X, or Facebook). No via-line in email. Copy, native Share, and Graphic takeaway cannot run in email. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
+- **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu “Share graphic takeaway” opens that same popup (menu is portaled above story photos). Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo, **via www.stewardshipbrief.com**. Copied links are HTML: PubMed URL + `via www.stewardshipbrief.com` as two clickable links (plain-text fallback uses `via https://www.stewardshipbrief.com`). Do not put that via line in the digest email.
+- Digest email: headline links to the Brief permalink; article date sits tightly above the headline; journal name in smaller type below the headline. Each story has **Read article** (PubMed or DOI) plus Email share links (no LinkedIn, X, or Facebook). No via-line in email. Copy, native Share, and Graphic takeaway cannot run in email. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 - Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
 - Feed sort: newest first (ingested=`fetched_at`, published=article date), then ML grade — not admin priority (so rating does not reshuffle). Unrated-only may remove after rate.
@@ -303,12 +302,12 @@ Main topic animal exclusion must be:
 - [ ] Story images: All-pool assign; top ~15; sticky across tabs/time/takeaway; no placeholder when null; curated hosts skip URL probe
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
-- [ ] PubMed-only preserved
+- [ ] Dual ingest: OpenAlex journals + PubMed; DOI merge; Brief unlabeled; `/feed` tags only
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
 - [ ] Top 10 All-pool cache; setting tabs filter in memory
 - [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: prefer published, else recent ingest; sticky equal-or-higher
-- [ ] Digest email: headline → PubMed; date above headline; Read article + share links; no via-line in email
+- [ ] Digest email: headline → Brief permalink; date above headline; Read article (PubMed or DOI) + share links; no via-line in email
 - [ ] Summaries/headlines: ID/AMS audience, stewardship angle, RCT-only causal, no over-promise, named outcome (not bare “rates”), this paper not cited literature
 - [ ] Article upsert always sends `fetched_at` (preserve first-seen)
 - [ ] Digest cron fails loud on ingest error; revalidateTag try/catch
