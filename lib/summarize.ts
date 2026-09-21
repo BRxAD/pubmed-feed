@@ -5,6 +5,7 @@ import {
   expandUncommonAcronyms,
   ID_ACRONYM_PROMPT_RULE,
 } from "@/lib/brief/idAcronyms";
+import { hasDisallowedCausalSummary } from "@/lib/brief/causality";
 
 const SYSTEM_PROMPT = `You summarize biomedical research abstracts for "The Stewardship Brief" — a literature feed for infectious diseases and antimicrobial-stewardship experts.
 
@@ -36,7 +37,7 @@ Rules:
 - If the finding stands alone without mentioning the study, that is still fine when design is already clear from METHODS
 - If AMS relevance is not obvious from the clinical topic alone, BOTTOM LINE should connect the main clinical result to the stewardship finding in the abstract, without overstating either. Example (observational / non-causal): "In this cohort, drug X for heart failure was not effective for the primary outcome but was associated with lower antibiotic use." Example (RCT, causal OK): "This RCT found drug X for heart failure did not improve the primary outcome; it reduced antibiotic use."
 - Do not over-promise: if primary results look strong but sensitivity, adjusted, or propensity-score analyses weaken or erase them, RESULTS should note that tension, and BOTTOM LINE should follow the authors' durable conclusion — not the fragile primary point estimate alone
-- Causality: use causal language ONLY for randomized trials (RCT) of a clear intervention. Systematic reviews / meta-analyses mixing observational data are non-causal unless limited to RCT evidence. For observational, cohort, cross-sectional, quasi-experimental, or any non-RCT design, state associations or patterns — do not imply the intervention "led to", "caused", "drove", or "resulted in" the outcome. The AMS hook follows the same rule: "associated with lower antibiotic use" for non-RCT; "reduced antibiotic use" only for RCT evidence
+- Causality: use causal language ONLY for randomized trials (RCT), or systematic reviews / meta-analyses clearly limited to RCT evidence. Systematic reviews mixing observational data are non-causal. Interrupted time series, pre-post, retrospective, cohort, cross-sectional, quasi-experimental, target-trial emulation, and any other non-RCT design are non-causal — do not write "led to", "resulted in", "caused", "drove", "reduced", or "significantly reduced". Use "associated with", "tied to", "coincided with", or a plain pattern ("use was lower…"). The AMS hook follows the same rule: "associated with lower antibiotic use" for non-RCT; "reduced antibiotic use" only for RCT or RCT-only SR evidence
 - When study design is unclear, default to non-causal wording
 - Do not prescribe actions ("should implement", "clinicians must") unless the authors explicitly recommend them
 - Max 40 words per section (BOTTOM LINE may use up to 50 words when it must add a stewardship hook; RESULTS may use up to 50 words when primary plus one named restricted analysis both need numbers)
@@ -92,27 +93,52 @@ export function parseSummaryResponse(content: string): ParsedSummary {
   };
 }
 
-export async function summarizeAbstract(abstract: string): Promise<ParsedSummary> {
+export async function summarizeAbstract(
+  abstract: string,
+  options?: { title?: string; publicationTypes?: string[] | null }
+): Promise<ParsedSummary> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || !apiKey.trim()) {
     throw new Error("Missing OPENAI_API_KEY environment variable");
   }
 
   const client = new OpenAI({ apiKey });
+  const title = options?.title?.trim() ?? "";
+  const pubs = (options?.publicationTypes ?? []).join(", ");
+  const designText = `${title}\n${pubs}\n${abstract}`;
 
-  const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: abstract },
-    ],
-  });
+  const userBase = title
+    ? `Title: ${title}${pubs ? `\nPublication types: ${pubs}` : ""}\n\nAbstract:\n${abstract}`
+    : abstract;
 
-  const content = completion.choices[0]?.message?.content;
-  if (content == null) {
-    throw new Error("OpenAI returned no summary content");
+  async function request(revision?: string): Promise<ParsedSummary> {
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: revision ? 0.15 : 0.2,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: revision
+            ? `${userBase}\n\nYour previous summary was rejected for causal language on a non-RCT study.\n${revision}\n\nRewrite RESULTS and BOTTOM LINE with non-causal phrasing (associated with, tied to, coincided with, or a plain pattern). Keep METHODS and all numbers. Do not use led to, resulted in, reduced, increased, improved, cut, or significantly reduced unless this is an RCT or an RCT-only systematic review.`
+            : userBase,
+        },
+      ],
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (content == null) {
+      throw new Error("OpenAI returned no summary content");
+    }
+    return parseSummaryResponse(content.trim());
   }
 
-  return parseSummaryResponse(content.trim());
+  let parsed = await request();
+  if (hasDisallowedCausalSummary(parsed.summaryText, designText)) {
+    parsed = await request(
+      `Rejected text:\n${parsed.summaryText}`
+    );
+  }
+
+  return parsed;
 }

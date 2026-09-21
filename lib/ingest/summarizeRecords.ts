@@ -123,7 +123,10 @@ export async function summarizeNewRecords(options: {
 
     const batchResults = await Promise.allSettled(
       batch.map(async (r, batchIdx) => {
-        const { summaryText } = await summarizeAbstract(r.abstract!);
+        const { summaryText } = await summarizeAbstract(r.abstract!, {
+          title: r.title ?? undefined,
+          publicationTypes: r.publicationTypes,
+        });
         let headline: string | null = null;
         try {
           headline = await generateBriefHeadline({

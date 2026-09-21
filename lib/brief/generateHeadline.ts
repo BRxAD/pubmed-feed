@@ -7,6 +7,11 @@ import {
   findUncommonAcronyms,
   ID_ACRONYM_PROMPT_RULE,
 } from "@/lib/brief/idAcronyms";
+import {
+  allowsCausalLanguage,
+  INTERVENTION_CAUSAL_RE,
+  STRONG_CAUSAL_RE,
+} from "@/lib/brief/causality";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -63,9 +68,9 @@ Do not over-promise (critical):
 - When primary and sensitivity analyses disagree, headline the durable takeaway (safety / non-inferior pattern / practice feasibility), not the fragile point estimate
 
 Causality (critical):
-- Use causal language ONLY for randomized trials (RCT) of a single intervention — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
-- Systematic reviews / meta-analyses that mix RCTs and observational studies are NOT a free pass for causal verbs — treat them as non-causal unless the abstract is clearly limited to RCT evidence and states a causal effect
-- For observational, cross-sectional, descriptive, cohort, quasi-experimental, or any non-RCT design, do NOT imply causation — never "led to", "resulted in", "caused", "drove", or "triggered"
+- Use causal language ONLY for randomized trials (RCT), or systematic reviews / meta-analyses clearly limited to RCT evidence — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
+- Systematic reviews / meta-analyses that mix RCTs and observational studies are NOT a free pass for causal verbs
+- Interrupted time series, pre-post, retrospective, cohort, cross-sectional, quasi-experimental, target-trial emulation, and any other non-RCT design are non-causal — never "led to", "resulted in", "caused", "drove", "triggered", "reduced", or "significantly reduced"
 - For non-RCT studies, use varied non-causal framing: state the pattern directly ("use varied widely…", "prescribing was higher among…"), or soft association verbs (associated with, tied to, coincided with, correlated with, aligned with, accompanied by)
 - Do NOT reach for "linked to" by default — vary phrasing across headlines; many observational findings read best as plain descriptive statements
 - When unsure of design, default to non-causal / descriptive language
@@ -89,20 +94,11 @@ Bad examples (never write these):
 
 Return ONLY the headline text — no quotes, labels, or extra lines.`;
 
-const STRONG_CAUSAL_RE =
-  /\b(led to|resulted in|caused|drove|triggered|spurred|yielded)\b/i;
-
-const INTERVENTION_CAUSAL_RE =
-  /\b(cut|boosted|lowered|reduced|increased|improved|slashed|dropped|raised|curbed)\b/i;
+const SYSTEMATIC_RE =
+  /\b(systematic review|meta[- ]analysis|metaanalysis)\b/i;
 
 const DANGLING_ENDING_RE =
   /\b(in|on|at|for|with|and|or|the|a|an|of|to|by|from|without|among|across|during|after|before|under|over|into|through|about|between|pediatric|paediatric|adult|hospital|clinical|acute|chronic|outpatient|inpatient|wide|widely|varies|varied)$/i;
-
-const RCT_RE =
-  /\b(randomized|randomised|randomized controlled|randomised controlled|placebo[- ]controlled|cluster[- ]randomized|cluster[- ]randomised|double[- ]blind|rct\b)\b/i;
-
-const SYSTEMATIC_RE =
-  /\b(systematic review|meta[- ]analysis|metaanalysis)\b/i;
 
 const NARRATIVE_REVIEW_TEXT_RE =
   /\b(narrative review|clinical review|this article reviews|this review (discusses|covers|provides|summarizes|outlines)|overview of|practice update)\b/i;
@@ -128,8 +124,8 @@ function designHint(
   if (isNarrativeOrClinicalReview(title, abstract, publicationTypes)) {
     return "Narrative/clinical review or overview — headline THIS paper's scope or synthesis, not a finding from studies it cites.";
   }
-  if (allowsCausalLanguage(abstract)) {
-    return "Randomized trial — direct intervention verbs allowed if supported by abstract.";
+  if (allowsCausalLanguage(`${title}\n${abstract}`)) {
+    return "Randomized trial or RCT-only systematic review — direct intervention verbs allowed if supported by abstract.";
   }
   return "Non-RCT — use descriptive or non-causal phrasing (vary wording; do not default to \"linked to\").";
 }
@@ -155,9 +151,7 @@ export type HeadlineValidation = {
   issues: string[];
 };
 
-export function allowsCausalLanguage(abstract: string): boolean {
-  return RCT_RE.test(abstract);
-}
+export { allowsCausalLanguage } from "@/lib/brief/causality";
 
 function sanitizeHeadline(raw: string): string {
   let h = decodeHtmlEntities(raw)
@@ -240,6 +234,7 @@ export function validateHeadlineQuality(
     requireNamedRates?: boolean;
     /** Only for new generation — do not use for stale checks (avoids mass rewrites). */
     enforceAcronymAllowlist?: boolean;
+    title?: string;
   }
 ): HeadlineValidation {
   const h = headline.trim();
@@ -266,7 +261,9 @@ export function validateHeadlineQuality(
   }
   if (hasHypeLanguage(h)) issues.push("hype language");
 
-  const causalAllowed = allowsCausalLanguage(abstract);
+  const causalAllowed = allowsCausalLanguage(
+    `${opts?.title ?? ""}\n${abstract}`
+  );
   if (!causalAllowed && STRONG_CAUSAL_RE.test(h)) {
     issues.push('causal wording ("led to/resulted in") on non-RCT study');
   }
@@ -421,6 +418,7 @@ export async function generateBriefHeadline(options: {
     const validation = validateHeadlineQuality(headline, abstract, {
       requireNamedRates: true,
       enforceAcronymAllowlist: true,
+      title,
     });
     if (validation.ok) return headline;
 
