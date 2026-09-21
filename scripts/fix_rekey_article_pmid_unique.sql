@@ -1,60 +1,7 @@
--- DOI merge for OpenAlex + PubMed dual ingest.
--- ASCII-only comments. Run in Supabase SQL Editor if not already applied.
+-- Fix rekey_article_pmid: copying doi/openalex_id while the old row still
+-- exists trips unique indexes and aborts PubMed ingest.
+-- ASCII-only comments.
 
-alter table public.articles
-  add column if not exists doi text,
-  add column if not exists openalex_id text,
-  add column if not exists landing_url text;
-
-create unique index if not exists articles_doi_unique
-  on public.articles (doi)
-  where doi is not null;
-
-create unique index if not exists articles_openalex_id_unique
-  on public.articles (openalex_id)
-  where openalex_id is not null;
-
-create index if not exists articles_doi_idx
-  on public.articles (doi)
-  where doi is not null;
-
--- Keep first-seen stamp and merge ids when an upsert omits them.
-create or replace function public.articles_preserve_merge_fields()
-returns trigger
-language plpgsql
-as $$
-begin
-  if TG_OP <> 'UPDATE' then
-    return NEW;
-  end if;
-
-  if OLD.fetched_at is not null then
-    if NEW.fetched_at is null or NEW.fetched_at > OLD.fetched_at then
-      NEW.fetched_at := OLD.fetched_at;
-    end if;
-  end if;
-
-  if NEW.doi is null then
-    NEW.doi := OLD.doi;
-  end if;
-  if NEW.openalex_id is null then
-    NEW.openalex_id := OLD.openalex_id;
-  end if;
-  if NEW.landing_url is null then
-    NEW.landing_url := OLD.landing_url;
-  end if;
-
-  return NEW;
-end;
-$$;
-
-drop trigger if exists articles_preserve_merge_fields on public.articles;
-create trigger articles_preserve_merge_fields
-  before update on public.articles
-  for each row
-  execute function public.articles_preserve_merge_fields();
-
--- Rewrite temporary OpenAlex work id to a PubMed PMID without duplicating the row.
 create or replace function public.rekey_article_pmid(old_pmid text, new_pmid text)
 returns void
 language plpgsql
@@ -81,8 +28,6 @@ begin
   from public.articles
   where pmid = old_pmid;
 
-  -- Copy without unique doi/openalex_id first; those columns stay on the
-  -- old row until it is deleted, or the unique indexes abort the ingest.
   insert into public.articles (
     pmid, title, abstract, journal, pub_date, publication_types, mesh_terms,
     keywords, authors, source, fetched_at, study_subheading, study_label,
@@ -135,6 +80,3 @@ begin
   where pmid = new_pmid;
 end;
 $$;
-
-revoke all on function public.rekey_article_pmid(text, text) from public;
-grant execute on function public.rekey_article_pmid(text, text) to service_role;

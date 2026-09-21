@@ -2,6 +2,9 @@ import type { OpenAlexRecord } from "@/lib/openalex/works";
 import { normalizeDoi } from "@/lib/doi";
 
 const CROSSREF_DELAY_MS = 80;
+const CROSSREF_ROWS = 100;
+/** Safety cap: 28 days of these journals never needs this many pages. */
+const CROSSREF_MAX_PAGES = 8;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -126,11 +129,12 @@ export async function listCrossrefOnlineDois(options: {
 }): Promise<Map<string, string>> {
   const { issns, mindate, maxdate } = options;
   const out = new Map<string, string>();
+  const uniqueIssns = [...new Set(issns)];
 
-  for (const issn of issns) {
+  for (const issn of uniqueIssns) {
     let cursor: string | null = "*";
     let pages = 0;
-    while (cursor && pages < 20) {
+    while (cursor && pages < CROSSREF_MAX_PAGES) {
       const params = new URLSearchParams({
         filter: [
           `issn:${issn}`,
@@ -138,7 +142,7 @@ export async function listCrossrefOnlineDois(options: {
           `until-online-pub-date:${maxdate}`,
           "type:journal-article",
         ].join(","),
-        rows: "100",
+        rows: String(CROSSREF_ROWS),
         cursor,
         select: "DOI,published-online,created",
       });
@@ -180,9 +184,13 @@ export async function listCrossrefOnlineDois(options: {
           fromCrossrefDate(item.created);
         if (doi && online) out.set(doi, online);
       }
-      cursor = body.message?.["next-cursor"] || null;
       pages++;
-      if (items.length === 0) break;
+      // Crossref still sends next-cursor on the last page. Stop when the
+      // page is short, or we would walk the cap on every ISSN (~minutes).
+      if (items.length === 0 || items.length < CROSSREF_ROWS) break;
+      const next = body.message?.["next-cursor"] || null;
+      if (!next || next === cursor) break;
+      cursor = next;
       await delay(CROSSREF_DELAY_MS);
     }
   }

@@ -427,6 +427,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     ]);
 
     let rekeyed = 0;
+    const omitDoiPmids = new Set<string>();
     for (const r of records) {
       const doi = normalizeDoi(r.doi ?? null);
       const merged = await resolvePubmedMergePmid({
@@ -437,6 +438,7 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         byDoi,
       });
       if (merged.rekeyed) rekeyed += 1;
+      if (merged.omitDoi) omitDoiPmids.add(r.pmid);
     }
 
     const newArticleCount = records.filter((r) => !existingMeta.has(r.pmid)).length;
@@ -475,7 +477,9 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
       const prior = existingMeta.get(r.pmid) ?? (r.doi ? byDoi.get(normalizeDoi(r.doi) ?? "") : undefined);
       const parsedEmail = r.correspondingAuthorEmail?.trim() || null;
       const parsedName = r.correspondingAuthorName?.trim() || null;
-      const doi = normalizeDoi(r.doi ?? null) ?? prior?.doi ?? null;
+      const doi = omitDoiPmids.has(r.pmid)
+        ? null
+        : normalizeDoi(r.doi ?? null) ?? prior?.doi ?? null;
 
       return {
         pmid: r.pmid,
@@ -501,6 +505,22 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         landing_url: prior?.landingUrl ?? null,
       };
     });
+
+    const doiOwner = new Map<string, string>();
+    for (const [d, row] of byDoi) {
+      if (d && row.pmid) doiOwner.set(d, row.pmid);
+    }
+    const seenDois = new Set<string>();
+    for (const row of articleRows) {
+      if (!row.doi) continue;
+      const owner = doiOwner.get(row.doi);
+      if ((owner && owner !== row.pmid) || seenDois.has(row.doi)) {
+        row.doi = null;
+        continue;
+      }
+      seenDois.add(row.doi);
+      doiOwner.set(row.doi, row.pmid);
+    }
 
     // ── 6. Upsert articles (in chunks to avoid payload limits) ────────────────
 
