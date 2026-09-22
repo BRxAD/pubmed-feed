@@ -13,10 +13,12 @@
 --    (still drop case reports, letters, editorials, comments, animal-only).
 -- 7) Major-topic MeSH: Anti-Bacterial Agents adverse effects or therapeutic use
 --    ([MAJR] = starred heading in PubMed). Not plain [MeSH] (too broad).
--- 8) Named drug in TITLE plus versus/vs in TITLE plus a clinical indication
---    word in TITLE (treatment / therapy / infection / BSI / pneumonia /
---    endocarditis). Comparative drug trials without a stewardship phrase
---    (e.g. SAVE in IJAA). Not all of IJAA.
+-- 8) Named drug in TITLE plus versus/vs OR adoption/uptake/prophylaxis
+--    OR use in TITLE plus a clinical indication word in TITLE
+--    (treatment / therapy / infection / BSI / pneumonia / endocarditis).
+--    Catches comparative trials (e.g. SAVE), practice-uptake / surgical
+--    prophylaxis, and named-drug "use" papers without a stewardship
+--    phrase. Not all of IJAA.
 -- 9) antifungal* in TITLE in CMI / CID / OFID / Lancet Infect Dis / NEJM
 --    only. Not antifungal MAJR. Not CMI all-pubs.
 -- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
@@ -258,6 +260,10 @@ SET query_string = '(
     (
       "versus"[Title]
       OR vs[Title]
+      OR adoption[Title]
+      OR uptake[Title]
+      OR prophylaxis[Title]
+      OR use[Title]
     )
     AND
     (
