@@ -32,7 +32,7 @@ import { createEmailSaveToken } from "@/lib/digest/emailArticleAction";
 import { DEFAULT_USER_PREFERENCES } from "@/lib/userPreferences";
 import {
   getUnsentApprovedNews,
-  recordBriefNewsEmailSends,
+  recordBriefNewsEmailSendsWithDuplicates,
 } from "@/lib/digest/briefNewsSends";
 import { getActiveAnnouncement } from "@/lib/digest/announcements";
 
@@ -306,7 +306,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       await recordBriefEmailSends(items.map((i) => i.pmid));
     }
     if (unsentNews.length > 0) {
-      await recordBriefNewsEmailSends(unsentNews.map((n) => n.id));
+      await recordBriefNewsEmailSendsWithDuplicates(unsentNews);
     }
   }
 
