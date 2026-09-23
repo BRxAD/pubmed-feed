@@ -17,14 +17,14 @@ export const EMAIL_FREQUENCY_OPTIONS: {
   hint: string;
 }[] = [
   {
+    value: "weekly",
+    label: "Weekly",
+    hint: "One roundup per week (Fridays).",
+  },
+  {
     value: "daily",
     label: "Daily",
     hint: "Each morning, after the overnight scan.",
-  },
-  {
-    value: "weekly",
-    label: "Weekly",
-    hint: "One roundup per week (Mondays).",
   },
   {
     value: "none",
@@ -43,9 +43,9 @@ export const TOPICS_TAG_OPTIONS = BRIEF_TOPIC_OPTIONS.filter(
   (opt) => opt.value !== ""
 );
 
-/** New accounts: Daily, All settings, All topics, All curated articles, In the News included. */
+/** New accounts: Weekly, All settings, All topics, All curated articles, In the News included. */
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
-  emailFrequency: "daily",
+  emailFrequency: "weekly",
   settingsTags: [],
   topicsTags: [],
   highImpactOnly: false,
@@ -64,7 +64,7 @@ const ALLOWED_TOPICS = new Set<string>(
 
 export function parseEmailFrequency(raw: unknown): EmailFrequency {
   if (raw === "daily" || raw === "weekly" || raw === "none") return raw;
-  return "daily";
+  return "weekly";
 }
 
 export function sanitizeUserPreferences(input: {

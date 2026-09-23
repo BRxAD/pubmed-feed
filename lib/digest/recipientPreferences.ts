@@ -20,7 +20,7 @@ export const HIGH_IMPACT_EMAIL_MIN_PRIORITY = 6;
 
 /**
  * Load account email preferences keyed by lowercased email.
- * Subscribers without an account row keep the defaults (daily, all important).
+ * Subscribers without an account row keep the defaults (weekly, all important).
  */
 export async function getPreferencesByEmails(
   emails: string[]
@@ -98,7 +98,7 @@ export function shouldSendBriefEmailToday(
     weekday: "short",
     timeZone: "America/New_York",
   }).format(now);
-  return weekday === "Mon";
+  return weekday === "Fri";
 }
 
 /** Apply which-articles / setting / topic prefs to a digest item list. */

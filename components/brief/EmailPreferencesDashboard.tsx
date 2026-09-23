@@ -30,14 +30,12 @@ function CheckboxCard({
   label,
   hint,
   name,
-  badge,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
   hint?: string;
   name: string;
-  badge?: string;
 }) {
   return (
     <label
@@ -55,16 +53,7 @@ function CheckboxCard({
         className="mt-1 accent-[#2A79A7]"
       />
       <span className="min-w-0">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className={`${brief.sans} text-sm ${brief.ink}`}>{label}</span>
-          {badge ? (
-            <span
-              className={`${brief.sans} rounded-sm bg-[#2A79A7]/15 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-[#2A79A7]`}
-            >
-              {badge}
-            </span>
-          ) : null}
-        </span>
+        <span className={`${brief.sans} text-sm ${brief.ink}`}>{label}</span>
         {hint ? (
           <p className={`mt-0.5 ${brief.sans} text-xs leading-relaxed ${brief.muted}`}>
             {hint}
@@ -127,7 +116,7 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Email frequency</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Choose how often we send the Brief. Pick one. Default is Daily.
+          Choose how often we send the Brief. Pick one.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           {EMAIL_FREQUENCY_OPTIONS.map((opt) => (
@@ -143,7 +132,6 @@ export default function EmailPreferencesDashboard({
               }
               label={opt.label}
               hint={opt.hint}
-              badge={opt.value === "daily" ? "Default" : undefined}
             />
           ))}
         </div>
@@ -152,7 +140,7 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Care setting</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Limit email to the settings you care about. Default is All.
+          Limit email to the settings you care about.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <CheckboxCard
@@ -166,7 +154,6 @@ export default function EmailPreferencesDashboard({
             }
             label="All"
             hint="Every care setting."
-            badge="Default"
           />
           {SETTINGS_TAG_OPTIONS.map((tag) => (
             <CheckboxCard
@@ -188,7 +175,7 @@ export default function EmailPreferencesDashboard({
       <section>
         <h2 className={`${brief.kicker} mb-2`}>Topics</h2>
         <p className={`mb-4 ${brief.sans} text-sm ${brief.muted}`}>
-          Limit email to these topic capsules. Default is All.
+          Limit email to these topic capsules.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CheckboxCard
@@ -202,7 +189,6 @@ export default function EmailPreferencesDashboard({
             }
             label="All"
             hint="Every topic."
-            badge="Default"
           />
           {TOPICS_TAG_OPTIONS.map((tag) => (
             <CheckboxCard
@@ -230,9 +216,8 @@ export default function EmailPreferencesDashboard({
             onChange={() =>
               setPreferences((prev) => ({ ...prev, highImpactOnly: false }))
             }
-            label="Default: All Curated Articles"
+            label="All curated articles"
             hint="Covers all priority-filtered content."
-            badge="Recommended"
           />
           <CheckboxCard
             name="highImpactOnly"
@@ -255,9 +240,8 @@ export default function EmailPreferencesDashboard({
             onChange={() =>
               setPreferences((prev) => ({ ...prev, includeNews: true }))
             }
-            label='Include "In the News" Roundup'
+            label='Include "In the News" roundup'
             hint="Recent approved news from WHO, CIDRAP, and global outlets."
-            badge="Default"
           />
           <CheckboxCard
             name="includeNews"

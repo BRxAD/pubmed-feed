@@ -11,7 +11,7 @@ create table if not exists public.auth_users (
   "emailVerified" timestamptz,
   image text,
   password_hash text,
-  email_frequency text not null default 'daily',
+  email_frequency text not null default 'weekly',
   settings_tags text[] not null default '{}',
   topics_tags text[] not null default '{}',
   high_impact_only boolean not null default false,
