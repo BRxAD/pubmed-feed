@@ -1,6 +1,10 @@
 import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
+  canonicalEmailInbox,
+  normalizeEmailAddress,
+} from "@/lib/digest/emailAddress";
+import {
   DEFAULT_USER_PREFERENCES,
   sanitizeUserPreferences,
   type UserPreferences,
@@ -29,12 +33,15 @@ export async function getPreferencesByEmails(
   const normalized = [
     ...new Set(
       emails
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.includes("@"))
+        .map((e) => normalizeEmailAddress(e))
+        .filter((e): e is string => Boolean(e))
     ),
   ];
   for (const email of normalized) {
-    map.set(email, { ...DEFAULT_USER_PREFERENCES });
+    const defaults = { ...DEFAULT_USER_PREFERENCES };
+    map.set(email, defaults);
+    const inbox = canonicalEmailInbox(email);
+    if (inbox) map.set(inbox, defaults);
   }
   if (normalized.length === 0) return map;
 
@@ -66,16 +73,16 @@ export async function getPreferencesByEmails(
         high_impact_only?: boolean | null;
         include_news?: boolean | null;
       };
-      map.set(
-        email,
-        sanitizeUserPreferences({
-          emailFrequency: r.email_frequency,
-          settingsTags: r.settings_tags ?? [],
-          topicsTags: r.topics_tags ?? [],
-          highImpactOnly: r.high_impact_only ?? false,
-          includeNews: r.include_news ?? true,
-        })
-      );
+      const prefs = sanitizeUserPreferences({
+        emailFrequency: r.email_frequency,
+        settingsTags: r.settings_tags ?? [],
+        topicsTags: r.topics_tags ?? [],
+        highImpactOnly: r.high_impact_only ?? false,
+        includeNews: r.include_news ?? true,
+      });
+      map.set(email, prefs);
+      const inbox = canonicalEmailInbox(email);
+      if (inbox) map.set(inbox, prefs);
     }
   } catch (err) {
     console.warn(
