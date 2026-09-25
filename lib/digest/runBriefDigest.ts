@@ -23,6 +23,8 @@ import {
   shouldSendBriefEmailToday,
 } from "@/lib/digest/recipientPreferences";
 import { sendDigestEmailToEach } from "@/lib/digest/sendEmail";
+import { uniqueRecipientsByInbox, easternCalendarDate, canonicalEmailInbox } from "@/lib/digest/emailAddress";
+import { claimBriefRecipientSend } from "@/lib/digest/briefRecipientSends";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import {
   unsubscribeApiUrlForEmail,
@@ -48,6 +50,7 @@ export type BriefDigestResult = {
   skippedStaleArticle?: number;
   skippedOldSummary?: number;
   skippedByPreference?: number;
+  skippedAlreadySentToday?: number;
 };
 
 function isBriefDigestEnabled(): boolean {
@@ -74,14 +77,18 @@ function isSummaryRecent(item: BriefItem, days: number): boolean {
   return t >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
-/** Grandfathered subscribers + active auth_users + configured digest recipients (deduped). */
+/** Grandfathered subscribers + active auth_users + configured digest recipients.
+ * Account emails win when the same inbox is listed twice (Gmail dots/plus, Name <email>).
+ */
 export async function getBriefDigestRecipients(): Promise<string[]> {
   const [subscribers, authUsers, admins] = await Promise.all([
     getBriefSubscribers(),
     getActiveAuthUserEmails(),
     Promise.resolve(getDigestRecipients()),
   ]);
-  return [...new Set([...subscribers, ...authUsers, ...admins])];
+  return uniqueRecipientsByInbox([...authUsers, ...subscribers, ...admins]).map(
+    (r) => r.sendTo
+  );
 }
 
 export async function runBriefDigest(): Promise<BriefDigestResult> {
@@ -185,7 +192,9 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
 
   for (const email of allRecipients) {
     const prefs =
-      prefsByEmail.get(email.trim().toLowerCase()) ?? DEFAULT_USER_PREFERENCES;
+      prefsByEmail.get(email) ??
+      prefsByEmail.get(canonicalEmailInbox(email) ?? "") ??
+      DEFAULT_USER_PREFERENCES;
     if (!shouldSendBriefEmailToday(prefs)) {
       skippedByPreference++;
       continue;
@@ -239,16 +248,22 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     announcement,
   });
 
+  const sendDate = easternCalendarDate();
   const result = await sendDigestEmailToEach({
     recipients: activeRecipients,
     subject,
     html,
     text,
     from: getBriefDigestFromAddress(),
+    shouldSend: (email) => claimBriefRecipientSend(email),
+    idempotencyKeyFor: (email) =>
+      `brief-digest/${sendDate}/${canonicalEmailInbox(email) ?? email}`,
     personalize: (email) => {
       const recipientItems = itemsByEmail.get(email) ?? items;
       const prefs =
-        prefsByEmail.get(email.trim().toLowerCase()) ?? DEFAULT_USER_PREFERENCES;
+        prefsByEmail.get(email) ??
+        prefsByEmail.get(canonicalEmailInbox(email) ?? "") ??
+        DEFAULT_USER_PREFERENCES;
       const recipientNews = prefs.includeNews !== false ? unsentNews : [];
 
       let unsubscribePageUrl: string | undefined;
@@ -301,7 +316,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     },
   });
 
-  if (result.sent > 0) {
+  if (result.sent > 0 || (result.skipped > 0 && result.failed.length === 0)) {
     if (items.length > 0) {
       await recordBriefEmailSends(items.map((i) => i.pmid));
     }
@@ -321,5 +336,6 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     skippedStaleArticle,
     skippedOldSummary,
     skippedByPreference,
+    skippedAlreadySentToday: result.skipped,
   };
 }

@@ -1,15 +1,9 @@
 /** Digest email configuration — reuses existing project env vars when possible. */
 
+import { extractEmailAddresses } from "@/lib/digest/emailAddress";
+
 export function parseRecipientEmails(raw: string | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return [
-    ...new Set(
-      raw
-        .split(/[,;\s]+/)
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.includes("@"))
-    ),
-  ];
+  return extractEmailAddresses(raw);
 }
 
 /**

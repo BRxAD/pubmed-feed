@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:unit": "tsx --test lib/digest/emailAddress.test.ts",
     "import:jcr": "tsx scripts/import_jcr.ts",
     "ingest:now": "tsx scripts/run-ingest-now.ts",
     "ingest:openalex": "tsx scripts/run-openalex-ingest-now.ts",
