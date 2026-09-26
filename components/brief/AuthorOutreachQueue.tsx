@@ -234,7 +234,8 @@ export default function AuthorOutreachQueue({
         <div className="space-y-2">
           <h3 className={`${brief.serif} text-lg font-bold`}>No corresponding email</h3>
           <p className="text-xs text-[#72705B]">
-            PubMed had no author address. These will not send.
+            PubMed had no author address. These will not send. They leave this
+            list after 24 hours.
           </p>
           <ul className="space-y-1.5 text-xs">
             {lists.noEmail.map((row) => (

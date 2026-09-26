@@ -21,6 +21,8 @@ import type {
 export type { AuthorOutreachRow, AuthorOutreachStatus } from "@/lib/digest/authorOutreachTypes";
 
 export const AUTHOR_OUTREACH_NIGHTLY_CAP = 25;
+/** Drop "no corresponding email" rows from the preview list after this. */
+export const AUTHOR_OUTREACH_NO_EMAIL_LIST_MS = 24 * 60 * 60 * 1000;
 
 const TERMINAL_NO_REQUEUE: AuthorOutreachStatus[] = [
   "sent",
@@ -302,6 +304,28 @@ export async function syncAuthorOutreachAfterRating(input: {
   }
 }
 
+async function pruneStaleSkippedNoEmail(): Promise<void> {
+  try {
+    const supabase = getSupabaseServerClient();
+    const cutoff = new Date(
+      Date.now() - AUTHOR_OUTREACH_NO_EMAIL_LIST_MS
+    ).toISOString();
+    const { error } = await supabase
+      .from("author_outreach")
+      .delete()
+      .eq("status", "skipped_no_email")
+      .lt("queued_at", cutoff);
+    if (error && !isMissingTable(error.message)) {
+      console.warn("[authorOutreach] no-email prune failed:", error.message);
+    }
+  } catch (err) {
+    console.warn(
+      "[authorOutreach] no-email prune error:",
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
 export async function listAuthorOutreachForPreview(): Promise<{
   pending: AuthorOutreachRow[];
   noEmail: AuthorOutreachRow[];
@@ -318,6 +342,7 @@ export async function listAuthorOutreachForPreview(): Promise<{
   };
   try {
     const supabase = getSupabaseServerClient();
+    await pruneStaleSkippedNoEmail();
     const sentCutoffIso = new Date(
       Date.now() - 30 * 24 * 60 * 60 * 1000
     ).toISOString();
@@ -347,7 +372,11 @@ export async function listAuthorOutreachForPreview(): Promise<{
     const sentRows = (sentRes.data ?? []) as AuthorOutreachRow[];
     return {
       pending: openRows.filter((r) => r.status === "pending"),
-      noEmail: openRows.filter((r) => r.status === "skipped_no_email"),
+      noEmail: openRows.filter((r) => {
+        if (r.status !== "skipped_no_email") return false;
+        const t = new Date(r.queued_at || r.updated_at).getTime();
+        return !Number.isNaN(t) && Date.now() - t < AUTHOR_OUTREACH_NO_EMAIL_LIST_MS;
+      }),
       held: openRows.filter((r) => r.status === "held"),
       never: openRows.filter((r) => r.status === "never"),
       sent: sentRows,
@@ -471,6 +500,7 @@ export async function sendPendingAuthorOutreach(
     failed: [],
   };
   const supabase = getSupabaseServerClient();
+  await pruneStaleSkippedNoEmail();
   const { data, error } = await supabase
     .from("author_outreach")
     .select("*")
