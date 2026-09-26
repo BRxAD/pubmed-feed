@@ -438,36 +438,38 @@ export function FeaturedStory({
     <article
       className={`py-5 ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
-      {image && (
-        <StoryThumb
-          image={image}
-          sizes="(max-width: 640px) 136px, 168px"
-          className="float-left mb-2 mr-3.5"
-          onError={onImageError}
-        />
-      )}
-      <MetaLine item={item} />
-      <h2
-        className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}${
-          balanceHeadline ? " text-balance" : ""
-        }`}
-      >
-        <a
-          href={item.pubmedUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
-        >
-          {item.headline}
-        </a>
-      </h2>
-      <JournalLine journal={item.journal} />
-      {item.bottomLine && (
-        <p className={`mt-1.5 ${brief.deck} text-[0.875rem] leading-[1.5] sm:text-[0.9375rem]`}>
-          {item.bottomLine}
-        </p>
-      )}
-      <div className="clear-both" aria-hidden />
+      <div className={image ? "flex items-start gap-3.5 sm:gap-4" : undefined}>
+        {image && (
+          <StoryThumb
+            image={image}
+            sizes="(max-width: 640px) 136px, 168px"
+            onError={onImageError}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <MetaLine item={item} />
+          <h2
+            className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}${
+              balanceHeadline ? " text-balance" : ""
+            }`}
+          >
+            <a
+              href={item.pubmedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
+            >
+              {item.headline}
+            </a>
+          </h2>
+          <JournalLine journal={item.journal} />
+          {item.bottomLine && (
+            <p className={`mt-1.5 ${brief.deck} text-[0.875rem] leading-[1.5] sm:text-[0.9375rem]`}>
+              {item.bottomLine}
+            </p>
+          )}
+        </div>
+      </div>
       <StoryActions
         item={item}
         saved={saved}
