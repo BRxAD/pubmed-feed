@@ -174,7 +174,7 @@ export default function AboutPage() {
           </div>
 
           <div className={`mt-12 border-t ${brief.hairline} pt-8`}>
-            <p className={`${brief.meta} mb-3`}>Acknowledged reviewers</p>
+            <p className={`${brief.meta} mb-3`}>Consultants</p>
             <ul className="space-y-1">
               {REVIEWERS.map((reviewer) => (
                 <li
