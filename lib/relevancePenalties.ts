@@ -109,12 +109,18 @@ export function isVeterinaryOnlyStudy(rec: PubMedRecord): boolean {
   return false;
 }
 
+/** Nationwide / international / multi-site language in title or abstract. */
+export function isMultiCenterOrMajorScopeStudy(rec: PubMedRecord): boolean {
+  const text = studyText(rec);
+  return MAJOR_SCOPE_RE.test(text) || MULTI_CENTER_RE.test(text);
+}
+
 export function isSingleCenterSmallSampleStudy(
   rec: PubMedRecord,
   smallSampleMax = DEFAULT_SMALL_SAMPLE_MAX
 ): boolean {
   const text = studyText(rec);
-  if (MAJOR_SCOPE_RE.test(text) || MULTI_CENTER_RE.test(text)) return false;
+  if (isMultiCenterOrMajorScopeStudy(rec)) return false;
 
   const n = primarySampleSize(rec);
   const smallSample = n != null && n <= smallSampleMax;

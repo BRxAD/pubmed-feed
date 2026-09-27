@@ -8,6 +8,7 @@ import {
   extractPriorityFeatures,
   PRIORITY_FEATURE_NAMES,
 } from "@/lib/brief/priorityFeatures";
+import { applyEditorialPriorityAdjust } from "@/lib/brief/priorityEditorial";
 import {
   EMBEDDING_PCA_DIMS,
   fitEmbeddingPca,
@@ -23,7 +24,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 5;
+  version: 6;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -97,7 +98,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 5,
+    version: 6,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -177,6 +178,8 @@ const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
   { mean: 0.2111, std: 0.4081, weight: 0.1297 }, // isReview
   { mean: 0.2495, std: 0.4327, weight: -0.0539 }, // isGuideline
   { mean: 0.3518, std: 0.4775, weight: 0.0536 }, // isRetrospectiveOrSurvey
+  { mean: 0.18, std: 0.384, weight: -0.35 }, // isSingleCenterSmall
+  { mean: 0.16, std: 0.367, weight: 0.28 }, // isMultiCenter
   ...Array.from({ length: EMBEDDING_PCA_DIMS }, () => ({
     mean: 0,
     std: 1,
@@ -226,7 +229,7 @@ export function parsePriorityModel(
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
   // Earlier versions used different feature vectors — discard and retrain.
-  if (m.version !== 5 || m.method !== "ridge_regression") return null;
+  if (m.version !== 6 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||
@@ -314,16 +317,13 @@ export function predictArticlePriority(options: {
   );
   const features = extractPriorityFeatures(options.rec, breakdown, embPca);
 
-  if (options.model) {
-    return {
-      priority: predictPriorityFromModel(options.model, features),
-      source: "model",
-    };
-  }
+  const predicted = options.model
+    ? predictPriorityFromModel(options.model, features)
+    : fallbackPredictedPriority(features);
 
   return {
-    priority: fallbackPredictedPriority(features),
-    source: "fallback",
+    priority: applyEditorialPriorityAdjust(options.rec, predicted),
+    source: options.model ? "model" : "fallback",
   };
 }
 

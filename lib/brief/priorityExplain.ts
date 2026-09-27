@@ -9,6 +9,7 @@ import {
   priorityFeatureLabel,
 } from "@/lib/brief/priorityFeatures";
 import { projectEmbeddingPca } from "@/lib/brief/embeddings";
+import { applyEditorialPriorityAdjust } from "@/lib/brief/priorityEditorial";
 import {
   explainFallbackContributions,
   type PriorityModel,
@@ -67,7 +68,7 @@ export function explainArticlePriority(options: {
       (a, b) => Math.abs(b.contribution) - Math.abs(a.contribution)
     );
     return {
-      priority: fb.priority,
+      priority: applyEditorialPriorityAdjust(rec, fb.priority),
       source: "fallback",
       bias: fb.bias,
       contributions,
@@ -99,7 +100,10 @@ export function explainArticlePriority(options: {
   );
 
   return {
-    priority: Math.min(10, Math.max(1, Math.round(raw))),
+    priority: applyEditorialPriorityAdjust(
+      rec,
+      Math.min(10, Math.max(1, Math.round(raw)))
+    ),
     source: "model",
     bias: model.bias,
     contributions,
