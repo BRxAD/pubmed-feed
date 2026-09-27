@@ -26,7 +26,10 @@ import {
   isTrendingBlocklisted,
   type FeedFilterParams,
 } from "@/lib/filters";
-import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  parseArticleSetting,
+  type ArticleSetting,
+} from "@/lib/classifySetting";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 import {
   loadPriorityModel,
@@ -54,21 +57,8 @@ function normalizeJournalName(name: string): string {
     .toUpperCase();
 }
 
-const VALID_ADMIN_SETTINGS = new Set<ArticleSetting>([
-  "hospital",
-  "community",
-  "long-term care",
-  "dentistry",
-  "one-health",
-  "global-health",
-  "animal",
-  "environment",
-]);
-
 function parseAdminSetting(raw: string | null | undefined): ArticleSetting | null {
-  if (!raw?.trim()) return null;
-  const v = raw.trim() as ArticleSetting;
-  return VALID_ADMIN_SETTINGS.has(v) ? v : null;
+  return parseArticleSetting(raw);
 }
 
 function parseAutoSettings(
@@ -77,8 +67,8 @@ function parseAutoSettings(
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const out: ArticleSetting[] = [];
   for (const v of raw) {
-    const s = String(v ?? "").trim() as ArticleSetting;
-    if (VALID_ADMIN_SETTINGS.has(s)) out.push(s);
+    const s = parseArticleSetting(String(v ?? ""));
+    if (s) out.push(s);
   }
   return out.length > 0 ? out : null;
 }

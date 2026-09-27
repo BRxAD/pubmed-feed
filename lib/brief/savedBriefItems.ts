@@ -8,7 +8,10 @@ import {
   normalizeScoreTo100,
   parseSummaryBullets,
 } from "@/lib/filters";
-import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  parseArticleSetting,
+  type ArticleSetting,
+} from "@/lib/classifySetting";
 import type { ArticleTopic } from "@/lib/classifyTopic";
 import type { WhoRegion } from "@/lib/classifyWhoRegion";
 import { isHighImpactJournal, lookupJif } from "@/lib/jif";
@@ -57,22 +60,6 @@ type SavedSummaryRow = {
   } | null;
 };
 
-function parseAdminSettingValue(
-  raw: string | null | undefined
-): ArticleSetting | null {
-  const s = raw?.trim();
-  if (
-    s === "hospital" ||
-    s === "community" ||
-    s === "long-term care" ||
-    s === "animal" ||
-    s === "environment"
-  ) {
-    return s;
-  }
-  return null;
-}
-
 function parseStoredMlPriority(raw: unknown): number | null {
   if (raw == null || !Number.isFinite(Number(raw))) return null;
   const n = Math.round(Number(raw));
@@ -110,7 +97,7 @@ function rowToBriefItem(row: SavedSummaryRow): BriefItem | null {
     isQ1Journal(row.articles?.journal) ||
     isHighImpactJournal(row.articles?.journal);
   const jifEntry = lookupJif(row.articles?.journal);
-  const adminSetting = parseAdminSettingValue(row.admin_setting);
+  const adminSetting = parseArticleSetting(row.admin_setting);
   const autoSettings = Array.isArray(row.auto_settings)
     ? (row.auto_settings
         .map((s) => String(s ?? "").trim())

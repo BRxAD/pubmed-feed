@@ -10,7 +10,10 @@ import {
   getItemSettings,
   formatStudyLabel,
 } from "@/lib/filters";
-import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  parseArticleSetting,
+  type ArticleSetting,
+} from "@/lib/classifySetting";
 import type { ArticleTopic } from "@/lib/classifyTopic";
 import type { WhoRegion } from "@/lib/classifyWhoRegion";
 import { isHighImpactJournal, lookupJif } from "@/lib/jif";
@@ -185,22 +188,6 @@ function parseStoredMlPriority(raw: unknown): number | null {
   if (raw == null || !Number.isFinite(Number(raw))) return null;
   const n = Math.round(Number(raw));
   return n >= 1 && n <= 10 ? n : null;
-}
-
-function parseAdminSettingValue(
-  raw: string | null | undefined
-): ArticleSetting | null {
-  const s = raw?.trim();
-  if (
-    s === "hospital" ||
-    s === "community" ||
-    s === "long-term care" ||
-    s === "animal" ||
-    s === "environment"
-  ) {
-    return s;
-  }
-  return null;
 }
 
 /** Slim Brief index: no abstract / summary_text / keywords / mesh bodies. */
@@ -702,7 +689,7 @@ export async function getBriefItems(options?: {
       .join(" · ");
     const studyLabel = formatStudyLabel(studyLabelRaw || null);
     const jifEntry = lookupJif(row.articles?.journal);
-    const adminSetting = parseAdminSettingValue(row.admin_setting);
+    const adminSetting = parseArticleSetting(row.admin_setting);
     const autoSettings = Array.isArray(row.auto_settings)
       ? (row.auto_settings
           .map((s) => String(s ?? "").trim())
@@ -945,7 +932,7 @@ export async function getBriefItems(options?: {
       }
 
       const slim = slimRows.find((r) => r.pmid === item.pmid);
-      const adminSetting = parseAdminSettingValue(slim?.admin_setting);
+      const adminSetting = parseArticleSetting(slim?.admin_setting);
       const autoSettings = Array.isArray(slim?.auto_settings)
         ? (slim!.auto_settings as ArticleSetting[])
         : null;

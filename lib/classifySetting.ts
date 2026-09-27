@@ -42,6 +42,17 @@ export const ARTICLE_SETTING_LABELS: Record<ArticleSetting, string> = {
   environment: "Environment",
 };
 
+const ARTICLE_SETTING_SET = new Set<string>(ARTICLE_SETTING_ORDER);
+
+/** Accept stored admin/auto setting values; null if unknown. */
+export function parseArticleSetting(
+  raw: string | null | undefined
+): ArticleSetting | null {
+  const s = raw?.trim();
+  if (!s || !ARTICLE_SETTING_SET.has(s)) return null;
+  return s as ArticleSetting;
+}
+
 // ── Shared: emergency department → hospital AND community ─────────────────────
 
 const ED_PHRASES = [
