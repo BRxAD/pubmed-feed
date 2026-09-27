@@ -30,6 +30,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/story-images/**",
+      },
+      {
+        protocol: "https",
         hostname: "api.qrserver.com",
         pathname: "/**",
       },

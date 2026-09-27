@@ -12,6 +12,13 @@ import {
 } from "@/lib/brief/storyImageCatalog";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import {
+  isRecyclableStoryImage,
+  loadStoredStoryImages,
+  storedStoryImageToCatalog,
+  type StoredStoryImage,
+} from "@/lib/brief/storyImageLibrary";
 
 export type { StoryImageMatch };
 export { IMAGE_MATCH_THRESHOLD, IMAGE_MATCH_THRESHOLD_THEMATIC };
@@ -181,11 +188,11 @@ function diversifyTop(
   return ranked;
 }
 
-function isUnused(entry: CatalogEntry, used: UsageTracker): boolean {
+function isUnused(entry: { id: string; url: string }, used: UsageTracker): boolean {
   return !used.ids.has(entry.id) && !used.urls.has(entry.url);
 }
 
-function markUsed(entry: CatalogEntry, used: UsageTracker): void {
+function markUsed(entry: { id: string; url: string }, used: UsageTracker): void {
   used.ids.add(entry.id);
   used.urls.add(entry.url);
 }
@@ -194,12 +201,13 @@ function rankCandidates(
   item: StoryImageFields,
   used: UsageTracker,
   mode: ScoreMode,
-  threshold: number
+  threshold: number,
+  extra: CatalogEntry[] = []
 ): Array<{ entry: CatalogEntry; confidence: number }> {
   const corpus = storyCorpus(item);
   const ranked: Array<{ entry: CatalogEntry; confidence: number }> = [];
 
-  for (const entry of STORY_IMAGE_CATALOG) {
+  for (const entry of [...extra, ...STORY_IMAGE_CATALOG]) {
     if (!isUnused(entry, used)) continue;
     if (isBlockedCatalogEntry(entry)) continue;
     const settings =
@@ -216,6 +224,27 @@ function rankCandidates(
 
   ranked.sort((a, b) => b.confidence - a.confidence);
   return diversifyTop(ranked, item.pmid + item.headline + mode);
+}
+
+/** Best strict-catalog score, including recycled generated photos. 0 when nothing hits. */
+export function bestStrictImageConfidence(
+  item: StoryImageFields,
+  extra: CatalogEntry[] = []
+): number {
+  const corpus = storyCorpus(item);
+  const settings =
+    item.settings?.length > 0
+      ? item.settings
+      : item.setting
+        ? [item.setting]
+        : [];
+  let best = 0;
+  for (const entry of [...extra, ...STORY_IMAGE_CATALOG]) {
+    if (isBlockedCatalogEntry(entry)) continue;
+    const confidence = scoreEntry(corpus, settings, entry, "strict");
+    if (confidence > best) best = confidence;
+  }
+  return best;
 }
 
 /** Generic stewardship photos only — never organ-specific scenes. */
@@ -257,7 +286,8 @@ function isTrustedCatalogHost(url: string): boolean {
       host === "images.unsplash.com" ||
       host === "images.pexels.com" ||
       host === "upload.wikimedia.org" ||
-      host.endsWith(".wikimedia.org")
+      host.endsWith(".wikimedia.org") ||
+      host.endsWith(".supabase.co")
     );
   } catch {
     return false;
@@ -332,7 +362,7 @@ export async function matchStoryImage(
   item: StoryImageFields,
   used: UsageTracker = { ids: new Set(), urls: new Set() },
   mode: ScoreMode = "strict",
-  opts: { allowGenericFallback?: boolean } = {}
+  opts: { allowGenericFallback?: boolean; extra?: CatalogEntry[] } = {}
 ): Promise<StoryImageMatch | null> {
   const allowGeneric =
     opts.allowGenericFallback ??
@@ -342,7 +372,7 @@ export async function matchStoryImage(
 
   const threshold =
     mode === "strict" ? IMAGE_MATCH_THRESHOLD : IMAGE_MATCH_THRESHOLD_THEMATIC;
-  const ranked = rankCandidates(item, used, mode, threshold);
+  const ranked = rankCandidates(item, used, mode, threshold, opts.extra ?? []);
   const matched = await firstReachableMatch(
     ranked,
     mode === "strict" ? "strict" : "thematic",
@@ -369,6 +399,16 @@ export async function matchStoryImage(
  * Remaining lower-ranked stories stay text-only. Tie-break is pmid-seeded
  * (no date) so the same article keeps the same image across time and tabs.
  */
+function ownGeneratedMatch(row: StoredStoryImage): StoryImageMatch {
+  return {
+    id: `generated-${row.pmid}`,
+    url: row.url,
+    confidence: 1,
+    label: row.label || "generated story photo",
+    tier: "strict",
+  };
+}
+
 export async function assignStoryImages(
   items: BriefItem[]
 ): Promise<Record<string, StoryImageMatch | null>> {
@@ -380,20 +420,45 @@ export async function assignStoryImages(
     Math.min(items.length, policy.photoTopCount)
   );
 
+  let stored: StoredStoryImage[] = [];
+  try {
+    stored = await loadStoredStoryImages(getSupabaseServerClient());
+  } catch (err) {
+    console.warn(
+      "[storyImages] library unavailable:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  const ownByPmid = new Map(stored.map((row) => [row.pmid, row]));
+  const recycled = stored
+    .filter((row) => isRecyclableStoryImage(row.createdAt))
+    .map(storedStoryImageToCatalog);
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
     out[item.pmid] = null;
 
     if (i >= photoSlots) continue;
 
+    const own = ownByPmid.get(item.pmid);
+    if (own && isUnused({ id: `generated-${own.pmid}`, url: own.url }, used)) {
+      const match = ownGeneratedMatch(own);
+      markUsed(match, used);
+      out[item.pmid] = match;
+      continue;
+    }
+
     const isLead = i === 0;
-    out[item.pmid] = await matchStoryImage(item, used, "strict");
+    out[item.pmid] = await matchStoryImage(item, used, "strict", {
+      extra: recycled,
+    });
     if (out[item.pmid]) continue;
 
     if (isLead) {
       if (policy.leadAllowThematic) {
         out[item.pmid] = await matchStoryImage(item, used, "thematic", {
           allowGenericFallback: policy.leadAllowGenericFallback,
+          extra: recycled,
         });
       }
       continue;
@@ -402,6 +467,7 @@ export async function assignStoryImages(
     if (!policy.secondaryStrictOnly) {
       out[item.pmid] = await matchStoryImage(item, used, "thematic", {
         allowGenericFallback: policy.secondaryAllowGeneric,
+        extra: recycled,
       });
     }
   }

@@ -5,7 +5,7 @@ export type CatalogEntry = {
   url: string;
   label: string;
   /** Attribution / license note for debugging. */
-  source: "unsplash" | "wikimedia" | "pexels" | "local";
+  source: "unsplash" | "wikimedia" | "pexels" | "local" | "generated";
   tags: string[];
   requireAny?: string[];
   settings?: ArticleSetting[];

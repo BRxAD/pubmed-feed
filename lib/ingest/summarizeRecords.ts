@@ -9,6 +9,11 @@ import { scoreFirstMlPriorities } from "@/lib/brief/firstRating";
 import { classifyArticleSettings } from "@/lib/classifySetting";
 import { classifyArticleTopics } from "@/lib/classifyTopic";
 import { classifyArticleWhoRegions } from "@/lib/classifyWhoRegion";
+import type { ArticleSetting } from "@/lib/classifySetting";
+import {
+  generateBriefStoryImages,
+  type BriefPhotoCandidate,
+} from "@/lib/brief/storyImageGenerate";
 
 const SUMMARIZE_CONCURRENCY = 5;
 
@@ -99,6 +104,24 @@ export async function summarizeNewRecords(options: {
   const toSummarize = withAbstract
     .filter((r) => !alreadySummarized.has(r.pmid))
     .slice(0, maxSummaries);
+  const photoCandidates: BriefPhotoCandidate[] = [];
+  const rememberPhotoCandidate = (
+    record: (typeof toSummarize)[number],
+    ml: number | null | undefined,
+    headline: string | null,
+    autoSettings: ArticleSetting[]
+  ) => {
+    if (ml == null || ml < 5) return;
+    photoCandidates.push({
+      pmid: record.pmid,
+      title: record.title,
+      headline,
+      abstract: record.abstract,
+      keywords: record.keywords ?? [],
+      meshTerms: record.meshTerms ?? [],
+      settings: autoSettings,
+    });
+  };
 
   result.summarizeAttempted = toSummarize.length;
   console.log(
@@ -153,6 +176,12 @@ export async function summarizeNewRecords(options: {
           scoringOptions,
         });
 
+        const autoSettings = classifyArticleSettings({
+          title: r.title,
+          abstract: r.abstract,
+          keywords: r.keywords,
+          meshTerms: r.meshTerms,
+        });
         const row: Record<string, unknown> = {
           topic_id: topicId,
           pmid: r.pmid,
@@ -160,12 +189,7 @@ export async function summarizeNewRecords(options: {
           subheading: classification.study_subheading,
           label: classification.study_label,
           rank_score,
-          auto_settings: classifyArticleSettings({
-            title: r.title,
-            abstract: r.abstract,
-            keywords: r.keywords,
-            meshTerms: r.meshTerms,
-          }),
+          auto_settings: autoSettings,
           auto_topics: classifyArticleTopics({
             title: r.title,
             abstract: r.abstract,
@@ -207,10 +231,12 @@ export async function summarizeNewRecords(options: {
             if (retry.error) {
               throw new Error(`upsert failed: ${retry.error.message}`);
             }
+            rememberPhotoCandidate(r, ml, headline, autoSettings);
             return r.pmid;
           }
           throw new Error(`upsert failed: ${sumErr.message}`);
         }
+        rememberPhotoCandidate(r, ml, headline, autoSettings);
         return r.pmid;
       })
     );
@@ -233,6 +259,21 @@ export async function summarizeNewRecords(options: {
       `[ingest] Summaries: batch ${Math.floor(i / SUMMARIZE_CONCURRENCY) + 1} done`,
       `(${result.storedSummaries} / ${toSummarize.length} so far)`
     );
+  }
+
+  if (photoCandidates.length > 0) {
+    try {
+      const photos = await generateBriefStoryImages(
+        supabase as never,
+        photoCandidates
+      );
+      console.log("[ingest] story images", photos);
+    } catch (err) {
+      console.warn(
+        "[ingest] story images skipped:",
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 
   return result;

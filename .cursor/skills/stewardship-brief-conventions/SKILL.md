@@ -113,7 +113,7 @@ Also: **do not commit or push** unless the user asks.
 | Brief email | **08:30** Eastern → UTC **12:30** (after morning ingest so editors can score) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v9` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v11` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
@@ -173,7 +173,7 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed + OpenAlex.** Same 2× daily ingest. OpenAlex covers **CID, OFID, ASHE, ICHE, CMI** journal articles only (no preprints; same letter/editorial/case-report/animal-only drops). Other journals stay PubMed-only. Merge on DOI: one row. OpenAlex-first uses work id until a PMID exists, then rewrite PK, keep summary/headline/`fetched_at`, switch the public link to PubMed. PubMed-first: stamp `openalex_id`, do not summarize again. Also poll **Crossref published-online** for those ISSNs in the same 28-day window — Cambridge FirstView papers that OpenAlex stamps as `YYYY-01-01` are missed by OpenAlex publication-date search. Store the DOI online date, not the year stamp. `/feed` shows one list with tags `OpenAlex` / `OpenAlex · PubMed` / `PubMed`. No source switcher. Brief / email / Top 10: one card, no API label. GET `/api/ingest/openalex` is a health probe (`enabled: true`); POST runs ingest.
-- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v9`): All → sticky lead → images; filter setting + **topic** tabs in memory.
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v11`): All → sticky lead → images; filter setting + **topic** tabs in memory.
   - Setting + Topic: compact text menus (default All), Flickr-style attached list. Topic keeps color swatches. URL `?setting=` / `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
@@ -252,6 +252,7 @@ Main topic animal exclusion must be:
 
 - Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab, over time (pmid-seeded tie-break, no date), and in graphic takeaway (same assigned URL).
 - Top ~**15** ranked stories may get a photo (`photoTopCount` in `storyImagePolicy.ts`). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely).
+- **Generated photos (ingest):** Brief-grade only (effective priority ≥ 5). If the best strict library match is already ≥ **0.65**, keep that photo. Otherwise generate with `gpt-image-2` quality **low**, landscape, for the weakest matches until **2/3** of that Eastern month’s new Brief-grade stories have a new photo. Caps: **$4.50** in the start month, **$1.80** after (`story_image_spend:YYYY-MM` in `app_settings`). Max **2** new photos per summarize pass. Own photo wins while the story is in the photo band. After **28** days the file stays in the match library and can be reused in later months (not deleted after one reuse). Palette: cream, olive, deep plum, soft salmon, steel blue (logo). Prompt forbids offensive, sexual, graphic, or distressing scenes. Table `story_images` + public bucket `story-images`. Failures must not fail ingest. No backfill unless asked.
 - **Crop lock:** lead = `aspect-[3/2]`; Also / secondary thumbs = `aspect-[4/3]`. Both `object-cover object-center`, layout-owned width, `rounded-sm`. Lead + photo-band headlines use `text-balance`.
 - Keep uniqueness (catalog id + URL) on the All assignment.
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
