@@ -1,6 +1,6 @@
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
-import { citationYear, formatLeadAuthorLine } from "@/lib/brief/citation";
+import { citationYear, fitAuthorsOneLine } from "@/lib/brief/citation";
 import { formatJournalTitle } from "@/lib/brief/formatJournal";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
 
@@ -493,7 +493,6 @@ async function renderToBlob(
   const takeaway = decodeHtmlEntities(item.bottomLine?.trim() ?? "");
   const methods = decodeHtmlEntities(item.methods?.trim() ?? "");
   const findings = decodeHtmlEntities(item.results?.trim() ?? "");
-  const leadAuthor = formatLeadAuthorLine(item.authors);
   const year = citationYear(item.date);
   const journalLine = [journal, year].filter(Boolean).join(". ");
 
@@ -578,6 +577,12 @@ async function renderToBlob(
   const AUTHOR_FONT = "600 22px 'Libre Franklin', system-ui, sans-serif";
   const titleRaw = fullTitle.replace(/\.$/, "");
   const citeMaxW = Math.max(240, WIDTH - PAGE_PAD - footerQrReserve(ctx, qr, scanIcon));
+  ctx.font = AUTHOR_FONT;
+  const leadAuthor = fitAuthorsOneLine(
+    item.authors,
+    citeMaxW,
+    (text) => ctx.measureText(text).width
+  );
   ctx.font = TITLE_FONT;
   let titleLines = titleRaw ? wrapAllLines(ctx, titleRaw, citeMaxW) : [];
   let titleBesideAuthor = false;
