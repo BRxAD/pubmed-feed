@@ -9,24 +9,35 @@ import {
 } from "react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
-import {
-  LeadStory,
-  FeaturedStory,
-} from "@/components/brief/ArticleCard";
+import { FeaturedStory, LeadStory } from "@/components/brief/ArticleCard";
 import { brief } from "@/components/brief/briefTheme";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 
 type Ranked = {
   item: BriefItem;
   image: StoryImageMatch | null;
 };
 
-/** Show photos only in complete 2-col pairs, then text-only to the bottom. */
-function photosInCompletePairs(stories: Ranked[]): Ranked[] {
-  const firstText = stories.findIndex((s) => !s.image);
-  const textStart =
-    firstText === -1 ? stories.length : firstText - (firstText % 2);
-  if (textStart >= stories.length) return stories;
-  return stories.map((s, i) => (i < textStart ? s : { ...s, image: null }));
+/**
+ * 2-col band: keep photos only on the first (photoTopCount - 1) rest stories
+ * (lead already used one slot), then text-only. Cut on a complete pair so a
+ * photo never sits beside a text-only card.
+ */
+function photosForTwoColBand(
+  stories: Ranked[],
+  restOffset: number
+): Ranked[] {
+  const lastPhotoRestIndex = STORY_IMAGE_POLICY.photoTopCount - 2;
+  const banded = stories.map((s, j) =>
+    restOffset + j > lastPhotoRestIndex ? { ...s, image: null } : s
+  );
+  let lastWith = -1;
+  for (let i = 0; i < banded.length; i++) {
+    if (banded[i]?.image) lastWith = i;
+  }
+  if (lastWith < 0) return banded;
+  const keep = lastWith + 1 - ((lastWith + 1) % 2);
+  return banded.map((s, i) => (i < keep ? s : { ...s, image: null }));
 }
 
 /** Between items inside one tier (~32–40px via card py). */
@@ -274,7 +285,7 @@ export default function BriefStoryLayout({
               {beside.length > 0 ? "More stories" : "Also in today's brief"}
             </SectionEyebrow>
             <div className="flow-root grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-2 md:gap-y-10">
-              {photosInCompletePairs(below).map((s) => (
+              {photosForTwoColBand(below, shownBeside).map((s) => (
                 <div key={s.item.pmid} className={ITEM_RULE}>
                   {renderStory(s, "list")}
                 </div>
