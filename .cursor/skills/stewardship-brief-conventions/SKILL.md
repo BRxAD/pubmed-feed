@@ -114,7 +114,7 @@ Also: **do not commit or push** unless the user asks.
 | Brief email | **08:30** Eastern → UTC **12:30** (after morning ingest so editors can score) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v12` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v13` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
@@ -254,7 +254,7 @@ Main topic animal exclusion must be:
 ## Story images (hard)
 
 - Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab, over time (pmid-seeded tie-break, no date), and in graphic takeaway (same assigned URL).
-- All Brief homepage stories may get a photo (`photoTopCount` = **50**, matching homepage `maxItems`). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely).
+- Top ~**15** ranked stories may get a photo (`photoTopCount` in `storyImagePolicy.ts`, lead included). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely). In the 2-col More stories band, photos stop on a complete pair so a photo card never sits beside a text-only card; from that row to the bottom, stories are text-only.
 - **Generated photos:** Brief-grade only (effective priority ≥ 5). If the best strict library match is already ≥ **0.65**, keep that photo. Otherwise generate with `gpt-image-2` quality **low**, landscape, for stories that still lack a match, until the monthly dollar cap is hit. Caps: **$4.50** in the start month, **$1.80** after (`story_image_spend:YYYY-MM` in `app_settings`). Max **2** new photos per ingest pass; `npm run fill:story-images` can fill current Brief gaps (capped). Own photo wins while the story is on the Brief. After **28** days the file stays in the match library and can be reused in later months (not deleted after one reuse). Palette: cream, olive, deep plum, soft salmon, steel blue (logo). Prompt forbids offensive, sexual, graphic, or distressing scenes. Table `story_images` + public bucket `story-images`. Failures must not fail ingest.
 - **Crop lock:** lead = `aspect-[3/2]`; Also / list photos = `aspect-[16/9]` stacked above type (full card width). Both `object-cover object-center`, layout-owned width, `rounded-sm`. Lead + photo-band headlines use `text-balance`.
 - Keep uniqueness (catalog id + URL) on the All assignment.
@@ -303,7 +303,7 @@ Main topic animal exclusion must be:
 - [ ] Admin setting exclusive (no soft-match into other capsules)
 - [ ] Prefer stored `auto_settings` (ingest write; no live classify when present)
 - [ ] Prefer stored `auto_who_regions` (ingest write; live classify only when missing)
-- [ ] Story images: All-pool assign; homepage band 50; sticky across tabs/time/takeaway; no placeholder when null; curated hosts skip URL probe
+- [ ] Story images: All-pool assign; top ~15; 2-col photo pairs then text-only; sticky across tabs/time/takeaway; no placeholder when null; curated hosts skip URL probe
 - [ ] Brief slim → gate → hydrate; Top 10 no body hydrate
 - [ ] Durable write + cheap read for new ML work
 - [ ] Dual ingest: OpenAlex journals + PubMed; DOI merge; Brief unlabeled; `/feed` tags only

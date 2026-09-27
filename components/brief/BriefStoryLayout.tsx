@@ -20,6 +20,15 @@ type Ranked = {
   image: StoryImageMatch | null;
 };
 
+/** Show photos only in complete 2-col pairs, then text-only to the bottom. */
+function photosInCompletePairs(stories: Ranked[]): Ranked[] {
+  const firstText = stories.findIndex((s) => !s.image);
+  const textStart =
+    firstText === -1 ? stories.length : firstText - (firstText % 2);
+  if (textStart >= stories.length) return stories;
+  return stories.map((s, i) => (i < textStart ? s : { ...s, image: null }));
+}
+
 /** Between items inside one tier (~32–40px via card py). */
 const ITEM_RULE = "border-b border-[#D8D4C8]";
 /** Between editorial tiers (~64–80px). */
@@ -265,7 +274,7 @@ export default function BriefStoryLayout({
               {beside.length > 0 ? "More stories" : "Also in today's brief"}
             </SectionEyebrow>
             <div className="flow-root grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-2 md:gap-y-10">
-              {below.map((s) => (
+              {photosInCompletePairs(below).map((s) => (
                 <div key={s.item.pmid} className={ITEM_RULE}>
                   {renderStory(s, "list")}
                 </div>

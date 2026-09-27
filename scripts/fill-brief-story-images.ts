@@ -11,6 +11,7 @@ import { getBriefItems } from "@/lib/brief/items";
 import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
 import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import { assignStoryImages } from "@/lib/brief/storyImages";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import {
   generateBriefStoryImages,
   type BriefPhotoCandidate,
@@ -35,7 +36,8 @@ async function main() {
   });
   const items = await applyStickyHomepageLead(brief.items, "");
   const assigned = await assignStoryImages(items);
-  const candidates: BriefPhotoCandidate[] = items
+  const photoBand = items.slice(0, STORY_IMAGE_POLICY.photoTopCount);
+  const candidates: BriefPhotoCandidate[] = photoBand
     .filter((item) => !assigned[item.pmid])
     .map((item) => ({
       pmid: item.pmid,
@@ -48,7 +50,7 @@ async function main() {
     }));
 
   console.log(
-    `[fill-story-images] brief=${items.length} missing=${candidates.length} max=${maxPerRun}`
+    `[fill-story-images] brief=${items.length} photoBand=${photoBand.length} missing=${candidates.length} max=${maxPerRun}`
   );
   if (candidates.length === 0) {
     console.log("[fill-story-images] nothing to generate");
