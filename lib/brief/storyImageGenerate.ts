@@ -182,12 +182,13 @@ async function ensureBudgetStart(supabase: SupabaseClient, now: Date): Promise<D
 
 /**
  * New Brief-grade stories only. Strong library matches keep the stock photo.
- * Weak matches are generated until 2/3 of this month's Brief-grade stories
- * have a new photo, or the monthly dollar cap is hit. Failures do not throw.
+ * Weak matches are generated until this month's Brief-grade stories have a
+ * new photo, or the monthly dollar cap is hit. Failures do not throw.
  */
 export async function generateBriefStoryImages(
   supabase: SupabaseClient,
-  candidates: BriefPhotoCandidate[]
+  candidates: BriefPhotoCandidate[],
+  opts?: { maxPerRun?: number; fillGaps?: boolean }
 ): Promise<{ generated: number; skipped: number }> {
   const unique = new Map<string, BriefPhotoCandidate>();
   for (const candidate of candidates) {
@@ -238,13 +239,19 @@ export async function generateBriefStoryImages(
       ),
     }));
 
+  const perRun = opts?.maxPerRun ?? STORY_IMAGE_MAX_PER_RUN;
   const chosen = new Set(
-    planStoryImageGenerations(
-      scores,
-      ledger.briefGradeCount,
-      ledger.generatedCount,
-      STORY_IMAGE_MAX_PER_RUN
-    )
+    opts?.fillGaps
+      ? scores
+          .sort((a, b) => a.score - b.score || a.pmid.localeCompare(b.pmid))
+          .slice(0, perRun)
+          .map((row) => row.pmid)
+      : planStoryImageGenerations(
+          scores,
+          ledger.briefGradeCount,
+          ledger.generatedCount,
+          perRun
+        )
   );
 
   const client = new OpenAI({ apiKey });

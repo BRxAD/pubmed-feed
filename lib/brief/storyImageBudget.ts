@@ -1,7 +1,7 @@
 import { IMAGE_MATCH_THRESHOLD } from "@/lib/brief/storyImageTypes";
 
 /** Share of new Brief-grade stories that may get a fresh photo. */
-export const STORY_IMAGE_GENERATE_FRACTION = 2 / 3;
+export const STORY_IMAGE_GENERATE_FRACTION = 1;
 
 /** First Eastern calendar month the feature runs. */
 export const STORY_IMAGE_FIRST_MONTH_CAP_USD = 4.5;
@@ -40,7 +40,7 @@ export function storyImageMonthCapUsd(startedAt: Date, now: Date): number {
 
 /**
  * Weakest matches first, and only while this month is still under the
- * 2/3 target. Strong library matches are left on the existing photo.
+ * generate-fraction target. Strong library matches are left on the existing photo.
  */
 export function planStoryImageGenerations(
   scores: Array<{ pmid: string; score: number }>,

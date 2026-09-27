@@ -9,10 +9,11 @@ export const STORY_IMAGE_POLICY = {
   leadAllowGenericFallback: false,
 
   /**
-   * Most recent ~N ranked stories (lead included) may get a photo when a
-   * topic-aligned catalog match exists. Others stay text-only.
+   * Every story on the Brief homepage (maxItems 50) may get a photo when a
+   * topic-aligned catalog match exists, or a generated photo for that PMID.
+   * Blank is still better than an off-topic stock photo.
    */
-  photoTopCount: 15,
+  photoTopCount: 50,
 
   /**
    * Within the photo-eligible band (excluding lead), allow thematic matches.

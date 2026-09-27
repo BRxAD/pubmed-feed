@@ -268,9 +268,8 @@ function StoryActions({
 }
 
 /**
- * Also / secondary thumb — fixed 4:3 slot, cover-crop, layout-owned size.
- * Width comes from the column (not intrinsic image size); aspect-ratio
- * reserves height before load to avoid text-column jostle.
+ * Also / list story photo — wide 16:9 cover, full card width, stacked above type
+ * so photo and no-photo cards share the same left edge for kicker/headline/deck.
  */
 function StoryThumb({
   image,
@@ -287,7 +286,7 @@ function StoryThumb({
 }) {
   return (
     <div
-      className={`relative aspect-[4/3] w-[8.5rem] shrink-0 overflow-hidden rounded-sm bg-[#EFECE4] sm:w-[10.5rem] ${className ?? ""}`}
+      className={`relative aspect-[16/9] w-full overflow-hidden rounded-sm bg-[#EFECE4] ${className ?? ""}`}
     >
       <Image
         src={image.url}
@@ -345,20 +344,20 @@ export function LeadStory({
       <div
         className={
           hasImage
-            ? "grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8"
+            ? "grid items-start gap-5 overflow-hidden sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8"
             : undefined
         }
       >
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-full overflow-hidden">
           <MetaLine item={item} />
           <h2
-            className={`${brief.serif} mt-1.5 text-balance text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
+            className={`${brief.serif} mt-1.5 max-w-full text-pretty break-words text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
           >
             <a
               href={item.pubmedUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={`brief-story-link ${brief.ink} no-underline ${brief.accentHover}`}
+              className={`brief-story-link block max-w-full break-words ${brief.ink} no-underline ${brief.accentHover}`}
             >
               {item.headline}
             </a>
@@ -399,7 +398,7 @@ export function LeadStory({
         </div>
 
         {image && (
-          <div className="min-w-0 lg:pt-1">
+          <div className="relative z-10 min-w-0 overflow-hidden lg:pt-1">
             <LeadImage image={image} onError={onImageError} />
           </div>
         )}
@@ -409,8 +408,8 @@ export function LeadStory({
 }
 
 /**
- * Also / list cards — side thumb only when a topic-matched photo exists.
- * No empty image slot or logo placeholder.
+ * Also / list cards — optional 16:9 photo on top. Type matches no-photo cards
+ * (same left edge, size, and spacing). No empty image slot.
  */
 export function FeaturedStory({
   item,
@@ -431,25 +430,24 @@ export function FeaturedStory({
     headlineTier === "list"
       ? "text-[1.0625rem] leading-snug sm:text-[1.125rem]"
       : "text-[1.25rem] leading-snug sm:text-[1.375rem]";
-  /** Balance wrap for lead-adjacent / photo-band headlines (Also + any thumb). */
   const balanceHeadline = headlineTier === "secondary" || Boolean(image);
 
   return (
     <article
-      className={`py-5 ${bare ? "" : `border-b ${brief.hairline}`}`}
+      className={`py-4 ${bare ? "" : `border-b ${brief.hairline}`}`}
     >
       {image && (
         <StoryThumb
           image={image}
-          sizes="(max-width: 640px) 136px, 168px"
-          className="float-left mb-2 mr-3.5"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 420px"
+          className="mb-3"
           onError={onImageError}
         />
       )}
       <MetaLine item={item} />
       <h2
-        className={`${brief.serif} mt-1 font-bold tracking-[-0.015em] ${headlineSize}${
-          balanceHeadline ? " text-balance" : ""
+        className={`${brief.serif} mt-1 max-w-full break-words font-bold tracking-[-0.015em] ${headlineSize}${
+          balanceHeadline ? " text-pretty" : ""
         }`}
       >
         <a
@@ -467,7 +465,6 @@ export function FeaturedStory({
           {item.bottomLine}
         </p>
       )}
-      <div className="clear-both" aria-hidden />
       <StoryActions
         item={item}
         saved={saved}
