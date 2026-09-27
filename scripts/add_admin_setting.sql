@@ -9,6 +9,9 @@ alter table public.summaries
       'hospital',
       'community',
       'long-term care',
+      'dentistry',
+      'one-health',
+      'global-health',
       'animal',
       'environment'
     )

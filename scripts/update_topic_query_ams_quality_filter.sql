@@ -4,24 +4,30 @@
 --    (no loose intervention*/implementation/guidance/recommendation*/ASP).
 -- 3) Priority journals: antibiotic/antimicrobial in TITLE only.
 --    Lancet list is ID/public-health titles only. No Nat Commun.
---    J Clin Microbiol is in this list and in the all-pubs ID journal arm.
+--    J Clin Microbiol is in this list. OFID and JCM are not all-pubs.
 -- 4) Named drugs (vancomycin, pip-tazo, etc.) only with a stewardship
 --    co-term, so PK/toxicity papers without an AMS frame stay out.
 --    Oral step-down phrases include oral transitional / stepdown / IVOST.
 -- 5) Diagnostic stewardship / antibiogram / procalcitonin-guided (any journal).
--- 6) All research articles from CID, OFID, JCM, ICHE, ASHE
---    (still drop case reports, letters, editorials, comments, animal-only).
+-- 6) All research articles from CID, ICHE, ASHE only (not OFID, not JCM).
+--    OFID and JCM match only with stewardship / antibiotic* / antimicrobial*
+--    / antifungal* / prescribing / named drug in Title/Abstract.
+--    Still drop case reports, letters, editorials, comments, animal-only.
 -- 7) Major-topic MeSH: Anti-Bacterial Agents adverse effects or therapeutic use
 --    ([MAJR] = starred heading in PubMed). Not plain [MeSH] (too broad).
 -- 8) Named drug in TITLE plus versus/vs OR adoption/uptake/prophylaxis
---    OR use in TITLE plus a clinical indication word in TITLE
+--    in TITLE plus a clinical indication word in TITLE
 --    (treatment / therapy / infection / BSI / pneumonia / endocarditis).
---    Catches comparative trials (e.g. SAVE), practice-uptake / surgical
---    prophylaxis, and named-drug "use" papers without a stewardship
---    phrase. Not all of IJAA.
+--    Catches comparative trials (e.g. SAVE) and practice-uptake / surgical
+--    prophylaxis without a stewardship phrase. Not bare use[Title].
+--    Not all of IJAA.
 -- 9) antifungal* in TITLE in CMI / CID / OFID / Lancet Infect Dis / NEJM
 --    only. Not antifungal MAJR. Not CMI all-pubs.
--- Animal exclusion stays (animals NOT humans). AI stewardship matches main.
+-- Animal exclusion stays (animals NOT humans) plus veterinary journals/titles.
+-- Also NOT case series / a case of / case-report journals; NOT Microbiology
+-- Spectrum unless stewardship / diagnostic stewardship in Title/Abstract;
+-- NOT hand-hygiene/PPE/CLABSI/CAUTI titles unless antibiotic/stewardship.
+-- AI stewardship matches main.
 -- Run in Supabase SQL Editor (ASCII comments only).
 
 UPDATE public.topics
@@ -245,10 +251,62 @@ SET query_string = '(
   OR
   (
     "Clin Infect Dis"[Journal]
-    OR "Open Forum Infect Dis"[Journal]
-    OR "J Clin Microbiol"[Journal]
     OR "Infect Control Hosp Epidemiol"[Journal]
     OR "Antimicrob Steward Healthc Epidemiol"[Journal]
+  )
+  OR
+  (
+    (
+      "Open Forum Infect Dis"[Journal]
+      OR "Open Forum Infectious Diseases"[Journal]
+      OR "J Clin Microbiol"[Journal]
+      OR "Journal of Clinical Microbiology"[Journal]
+    )
+    AND
+    (
+      stewardship[Title/Abstract]
+      OR antibiotic*[Title/Abstract]
+      OR antimicrobial*[Title/Abstract]
+      OR antifungal*[Title/Abstract]
+      OR prescribing[Title/Abstract]
+      OR de-escalat*[Title/Abstract]
+      OR deescalat*[Title/Abstract]
+      OR "duration of therapy"[Title/Abstract]
+      OR "days of therapy"[Title/Abstract]
+      OR vancomycin[Title/Abstract]
+      OR piperacillin*[Title/Abstract]
+      OR "pip-tazo"[Title/Abstract]
+      OR meropenem[Title/Abstract]
+      OR imipenem[Title/Abstract]
+      OR ertapenem[Title/Abstract]
+      OR carbapenem*[Title/Abstract]
+      OR ceftriaxone[Title/Abstract]
+      OR cefepime[Title/Abstract]
+      OR ceftazidime[Title/Abstract]
+      OR cefazolin[Title/Abstract]
+      OR cefadroxil[Title/Abstract]
+      OR cephalosporin*[Title/Abstract]
+      OR ciprofloxacin[Title/Abstract]
+      OR levofloxacin[Title/Abstract]
+      OR fluoroquinolon*[Title/Abstract]
+      OR azithromycin[Title/Abstract]
+      OR linezolid[Title/Abstract]
+      OR daptomycin[Title/Abstract]
+      OR metronidazole[Title/Abstract]
+      OR clindamycin[Title/Abstract]
+      OR "trimethoprim-sulfamethoxazole"[Title/Abstract]
+      OR cotrimoxazole[Title/Abstract]
+      OR colistin[Title/Abstract]
+      OR ceftaroline[Title/Abstract]
+      OR ceftolozane[Title/Abstract]
+      OR cefiderocol[Title/Abstract]
+      OR nitrofurantoin[Title/Abstract]
+      OR fosfomycin[Title/Abstract]
+      OR fidaxomicin[Title/Abstract]
+      OR penicillin*[Title/Abstract]
+      OR "beta-lactam"[Title/Abstract]
+      OR "beta lactam"[Title/Abstract]
+    )
   )
   OR
   (
@@ -263,7 +321,6 @@ SET query_string = '(
       OR adoption[Title]
       OR uptake[Title]
       OR prophylaxis[Title]
-      OR use[Title]
     )
     AND
     (
@@ -361,5 +418,60 @@ NOT
   OR Editorial[Publication Type]
   OR Letter[Publication Type]
   OR "Newspaper Article"[Publication Type]
+  OR "case series"[Title]
+  OR "a case of"[Title]
+  OR "case report"[Title]
+  OR "we report a"[Title]
+  OR "first case"[Title]
+  OR "Eur J Case Rep Intern Med"[Journal]
+  OR "Animals (Basel)"[Journal]
+  OR "Vet Sci"[Journal]
+  OR "Front Vet Sci"[Journal]
+  OR "BMC Vet Res"[Journal]
+  OR "J Am Vet Med Assoc"[Journal]
+  OR "J Dairy Sci"[Journal]
+  OR "Poult Sci"[Journal]
+  OR "Vet Microbiol"[Journal]
+  OR "Prev Vet Med"[Journal]
+  OR "Animal Microbiome"[Journal]
+  OR veterinary[Title]
+  OR veterinarian[Title]
+  OR poultry[Title]
+  OR broiler[Title]
+  OR livestock[Title]
+  OR zebrafish[Title]
+  OR canine[Title]
+  OR feline[Title]
+  OR weanling[Title]
+  OR "dairy cow"[Title]
+  OR "dairy cattle"[Title]
+  OR
+  (
+    (
+      "Microbiol Spectr"[Journal]
+      OR "Microbiology spectrum"[Journal]
+    )
+    NOT
+    (
+      stewardship[Title/Abstract]
+      OR "diagnostic stewardship"[Title/Abstract]
+    )
+  )
+  OR
+  (
+    (
+      "hand hygiene"[Title]
+      OR "personal protective equipment"[Title]
+      OR "contact precautions"[Title]
+      OR CLABSI[Title]
+      OR CAUTI[Title]
+    )
+    NOT
+    (
+      stewardship[Title/Abstract]
+      OR antibiotic*[Title/Abstract]
+      OR antimicrobial*[Title/Abstract]
+    )
+  )
 )'
 WHERE name ILIKE '%antimicrobial stewardship%';

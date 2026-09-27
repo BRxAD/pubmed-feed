@@ -40,6 +40,8 @@ export default function AdminSettingSelector({
     "idle"
   );
 
+  const [errorMessage, setErrorMessage] = useState("Save failed");
+
   useEffect(() => {
     setSetting(initialSetting ?? "");
   }, [initialSetting]);
@@ -48,6 +50,7 @@ export default function AdminSettingSelector({
     async (next: string) => {
       setSetting(next);
       setStatus("saving");
+      setErrorMessage("Save failed");
 
       try {
         const res = await fetch("/api/admin/summary-setting", {
@@ -70,8 +73,11 @@ export default function AdminSettingSelector({
         setStatus("saved");
         router.refresh();
         setTimeout(() => setStatus("idle"), 2000);
-      } catch {
+      } catch (err) {
         setStatus("error");
+        setErrorMessage(
+          err instanceof Error ? err.message : "Save failed"
+        );
       }
     },
     [topicId, pmid, router]
@@ -119,7 +125,7 @@ export default function AdminSettingSelector({
         <span className="text-green-700 dark:text-green-400">Saved</span>
       )}
       {status === "error" && (
-        <span className="text-red-600 dark:text-red-400">Save failed</span>
+        <span className="text-red-600 dark:text-red-400">{errorMessage}</span>
       )}
     </div>
   );

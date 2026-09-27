@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
           {
             ok: false,
             error:
-              "admin_setting column missing — run scripts/add_admin_setting.sql in Supabase",
+              "That setting is not allowed yet — run scripts/expand_admin_setting_check.sql in Supabase",
           },
           { status: 503 }
         );
