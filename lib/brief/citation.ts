@@ -37,9 +37,43 @@ export function formatPubmedCitation(input: {
 }
 
 const ET_AL = ", et al.";
+const ET_AL_TOKEN = /^et\.?\s*al\.?$/i;
+const ET_AL_SUFFIX = /,?\s*et\.?\s*al\.?\s*$/i;
 
-function cleanAuthorList(authors?: string[] | null): string[] {
-  return (authors ?? []).map((a) => a.trim()).filter(Boolean);
+/**
+ * Normalize PubMed/OpenAlex author arrays for the takeaway footer.
+ * Drops "et al." tokens and expands a single "A, B, C, et al." blob.
+ */
+export function cleanAuthorList(
+  authors?: string[] | string | null
+): string[] {
+  const items = Array.isArray(authors)
+    ? authors
+    : typeof authors === "string"
+      ? [authors]
+      : [];
+  const trimmed = items.map((a) => String(a).trim()).filter(Boolean);
+  if (trimmed.length === 0) return [];
+
+  const commaCount = (trimmed[0]!.match(/,/g) ?? []).length;
+  const splitSingleBlob =
+    trimmed.length === 1 &&
+    (ET_AL_SUFFIX.test(trimmed[0]!) || commaCount >= 2);
+
+  const names: string[] = [];
+  for (const item of trimmed) {
+    const withoutEtAl = item.replace(ET_AL_SUFFIX, "").trim();
+    if (!withoutEtAl) continue;
+    if (splitSingleBlob) {
+      for (const part of withoutEtAl.split(/\s*,\s*/)) {
+        const name = part.trim();
+        if (name && !ET_AL_TOKEN.test(name)) names.push(name);
+      }
+    } else if (!ET_AL_TOKEN.test(withoutEtAl)) {
+      names.push(withoutEtAl);
+    }
+  }
+  return names;
 }
 
 function ellipsizeToWidth(
@@ -71,7 +105,7 @@ function ellipsizeToWidth(
  * If more remain, append "et al." — never wrap to a second author line.
  */
 export function fitAuthorsOneLine(
-  authors: string[] | null | undefined,
+  authors: string[] | string | null | undefined,
   maxWidth: number,
   measure: (text: string) => number
 ): string | null {
@@ -93,7 +127,7 @@ export function fitAuthorsOneLine(
 
 /** @deprecated Prefer fitAuthorsOneLine with a measured width. */
 export function formatLeadAuthorLine(
-  authors?: string[] | null
+  authors?: string[] | string | null
 ): string | null {
   const list = cleanAuthorList(authors);
   if (list.length === 0) return null;

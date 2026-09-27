@@ -205,36 +205,6 @@ function wrapAllLines(
   return wrapLines(ctx, text, maxWidth, 40, { ellipsis: false });
 }
 
-/** First line uses a shorter width (e.g. beside the author); the rest use full width. */
-function wrapAllLinesWithFirst(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  firstWidth: number,
-  restWidth: number
-): string[] {
-  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-  if (words.length === 0) return [];
-  const firstMax = Math.max(24, firstWidth);
-  let current = "";
-  let i = 0;
-  for (; i < words.length; i++) {
-    const word = words[i]!;
-    const next = current ? `${current} ${word}` : word;
-    if (ctx.measureText(next).width <= firstMax) {
-      current = next;
-      continue;
-    }
-    break;
-  }
-  if (!current) {
-    return wrapAllLines(ctx, text, restWidth);
-  }
-  const lines = [current];
-  const rest = words.slice(i).join(" ");
-  if (rest) lines.push(...wrapAllLines(ctx, rest, restWidth));
-  return lines;
-}
-
 function drawCoverImage(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -570,13 +540,17 @@ async function renderToBlob(
   const colHeaderH = 48;
   const colBottomPad = 22;
   const topAfterLogo = 98;
-  const AUTHOR_LH = 28;
+  const AUTHOR_LH = 26;
   const TITLE_LH = 24;
   const JOURNAL_LH = 26;
   const TITLE_FONT = "400 18px 'Libre Franklin', system-ui, sans-serif";
-  const AUTHOR_FONT = "600 22px 'Libre Franklin', system-ui, sans-serif";
+  const AUTHOR_FONT = "600 20px 'Libre Franklin', system-ui, sans-serif";
   const titleRaw = fullTitle.replace(/\.$/, "");
-  const citeMaxW = Math.max(240, WIDTH - PAGE_PAD - footerQrReserve(ctx, qr, scanIcon));
+  // Leftover footer row: left pad → scan/QR block. Authors own this first row.
+  const citeMaxW = Math.max(
+    240,
+    WIDTH - PAGE_PAD - footerQrReserve(ctx, qr, scanIcon)
+  );
   ctx.font = AUTHOR_FONT;
   const leadAuthor = fitAuthorsOneLine(
     item.authors,
@@ -584,27 +558,11 @@ async function renderToBlob(
     (text) => ctx.measureText(text).width
   );
   ctx.font = TITLE_FONT;
-  let titleLines = titleRaw ? wrapAllLines(ctx, titleRaw, citeMaxW) : [];
-  let titleBesideAuthor = false;
-  let authorWidth = 0;
-  const authorGap = 12;
-  if (leadAuthor && titleLines.length > 2) {
-    ctx.font = AUTHOR_FONT;
-    authorWidth = ctx.measureText(leadAuthor).width;
-    ctx.font = TITLE_FONT;
-    const firstW = citeMaxW - authorWidth - authorGap;
-    if (firstW >= 80) {
-      titleLines = wrapAllLinesWithFirst(ctx, titleRaw, firstW, citeMaxW);
-      titleBesideAuthor = true;
-    }
-  }
-  const citeBlockH = titleBesideAuthor
-    ? Math.max(AUTHOR_LH, TITLE_LH) +
-      Math.max(0, titleLines.length - 1) * TITLE_LH +
-      (journalLine ? JOURNAL_LH : 0)
-    : (leadAuthor ? AUTHOR_LH : 0) +
-      titleLines.length * TITLE_LH +
-      (journalLine ? JOURNAL_LH : 0);
+  const titleLines = titleRaw ? wrapAllLines(ctx, titleRaw, citeMaxW) : [];
+  const citeBlockH =
+    (leadAuthor ? AUTHOR_LH : 0) +
+    titleLines.length * TITLE_LH +
+    (journalLine ? JOURNAL_LH : 0);
   const footerH = Math.max(16 + QR_SIZE + 16, citeBlockH + 24);
   const available = HEIGHT - footerH - 16;
 
@@ -717,47 +675,20 @@ async function renderToBlob(
   ctx.textBaseline = "top";
   let citeY = footer.y + Math.max(12, (footer.height - citeBlockH) / 2);
 
-  if (titleBesideAuthor && leadAuthor) {
+  if (leadAuthor) {
     ctx.fillStyle = PAPER;
     ctx.font = AUTHOR_FONT;
     ctx.fillText(leadAuthor, padX, citeY);
-    if (titleLines.length > 0) {
-      ctx.fillStyle = hexAlpha(PAPER, 0.95);
-      ctx.font = TITLE_FONT;
-      const first = titleLines[0] ?? "";
-      const restCount = titleLines.length - 1;
-      const firstIsLast = restCount === 0;
-      ctx.fillText(
-        `${first}${firstIsLast ? "." : ""}`,
-        padX + authorWidth + authorGap,
-        citeY + 3
-      );
-      citeY += Math.max(AUTHOR_LH, TITLE_LH);
-      for (let i = 1; i < titleLines.length; i++) {
-        const line = titleLines[i]!;
-        const isLast = i === titleLines.length - 1;
-        ctx.fillText(`${line}${isLast ? "." : ""}`, padX, citeY);
-        citeY += TITLE_LH;
-      }
-    } else {
-      citeY += AUTHOR_LH;
-    }
-  } else {
-    if (leadAuthor) {
-      ctx.fillStyle = PAPER;
-      ctx.font = AUTHOR_FONT;
-      ctx.fillText(leadAuthor, padX, citeY);
-      citeY += AUTHOR_LH;
-    }
-    if (titleLines.length > 0) {
-      ctx.fillStyle = hexAlpha(PAPER, 0.95);
-      ctx.font = TITLE_FONT;
-      for (let i = 0; i < titleLines.length; i++) {
-        const line = titleLines[i]!;
-        const isLast = i === titleLines.length - 1;
-        ctx.fillText(`${line}${isLast ? "." : ""}`, padX, citeY);
-        citeY += TITLE_LH;
-      }
+    citeY += AUTHOR_LH;
+  }
+  if (titleLines.length > 0) {
+    ctx.fillStyle = hexAlpha(PAPER, 0.95);
+    ctx.font = TITLE_FONT;
+    for (let i = 0; i < titleLines.length; i++) {
+      const line = titleLines[i]!;
+      const isLast = i === titleLines.length - 1;
+      ctx.fillText(`${line}${isLast ? "." : ""}`, padX, citeY);
+      citeY += TITLE_LH;
     }
   }
   if (journalLine) {
