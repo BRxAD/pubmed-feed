@@ -22,6 +22,27 @@ export type { AuthorOutreachRow, AuthorOutreachStatus } from "@/lib/digest/autho
 
 export const AUTHOR_OUTREACH_NIGHTLY_CAP = 25;
 
+/** Informational “no email” rows drop off the preview after this. */
+export const AUTHOR_OUTREACH_NO_EMAIL_HOURS = 48;
+
+function noEmailCutoffIso(now = Date.now()): string {
+  return new Date(
+    now - AUTHOR_OUTREACH_NO_EMAIL_HOURS * 60 * 60 * 1000
+  ).toISOString();
+}
+
+async function pruneExpiredNoEmailOutreach(): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from("author_outreach")
+    .delete()
+    .eq("status", "skipped_no_email")
+    .lt("queued_at", noEmailCutoffIso());
+  if (error && !isMissingTable(error.message)) {
+    console.warn("[authorOutreach] prune no-email failed:", error.message);
+  }
+}
+
 const TERMINAL_NO_REQUEUE: AuthorOutreachStatus[] = [
   "sent",
   "held",
@@ -317,17 +338,25 @@ export async function listAuthorOutreachForPreview(): Promise<{
     sent: [] as AuthorOutreachRow[],
   };
   try {
+    await pruneExpiredNoEmailOutreach();
     const supabase = getSupabaseServerClient();
     const sentCutoffIso = new Date(
       Date.now() - 30 * 24 * 60 * 60 * 1000
     ).toISOString();
-    const [openRes, sentRes] = await Promise.all([
+    const [openRes, noEmailRes, sentRes] = await Promise.all([
       supabase
         .from("author_outreach")
         .select("*")
-        .in("status", ["pending", "skipped_no_email", "held", "never"])
+        .in("status", ["pending", "held", "never"])
         .order("queued_at", { ascending: false })
         .limit(100),
+      supabase
+        .from("author_outreach")
+        .select("*")
+        .eq("status", "skipped_no_email")
+        .gte("queued_at", noEmailCutoffIso())
+        .order("queued_at", { ascending: false })
+        .limit(50),
       supabase
         .from("author_outreach")
         .select("*")
@@ -340,14 +369,18 @@ export async function listAuthorOutreachForPreview(): Promise<{
       if (isMissingTable(openRes.error.message)) return empty;
       throw new Error(openRes.error.message);
     }
+    if (noEmailRes.error && !isMissingTable(noEmailRes.error.message)) {
+      throw new Error(noEmailRes.error.message);
+    }
     if (sentRes.error && !isMissingTable(sentRes.error.message)) {
       throw new Error(sentRes.error.message);
     }
     const openRows = (openRes.data ?? []) as AuthorOutreachRow[];
+    const noEmailRows = (noEmailRes.data ?? []) as AuthorOutreachRow[];
     const sentRows = (sentRes.data ?? []) as AuthorOutreachRow[];
     return {
       pending: openRows.filter((r) => r.status === "pending"),
-      noEmail: openRows.filter((r) => r.status === "skipped_no_email"),
+      noEmail: noEmailRows,
       held: openRows.filter((r) => r.status === "held"),
       never: openRows.filter((r) => r.status === "never"),
       sent: sentRows,
@@ -471,6 +504,7 @@ export async function sendPendingAuthorOutreach(
     failed: [],
   };
   const supabase = getSupabaseServerClient();
+  await pruneExpiredNoEmailOutreach();
   const { data, error } = await supabase
     .from("author_outreach")
     .select("*")

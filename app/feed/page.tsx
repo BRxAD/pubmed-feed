@@ -38,6 +38,7 @@ import { explainArticlePriority } from "@/lib/brief/priorityExplain";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { loadLastIngestStats } from "@/lib/ingestStats";
 import { getCachedHumanRatedTotal } from "@/lib/humanRatingStats";
+import { getCachedAccountSignupStats } from "@/lib/accountSignupStats";
 import {
   articleExternalUrl,
   feedSourceTag,
@@ -726,9 +727,10 @@ export default async function FeedPage({
     : null;
 
   // Slim ingest stats only (counts + pmid/ml_priority slice) — no bodies.
-  const [ingestStats, humanRatedTotal] = await Promise.all([
+  const [ingestStats, humanRatedTotal, accountSignups] = await Promise.all([
     loadLastIngestStats(supabase, topicId),
     getCachedHumanRatedTotal(topicId),
+    getCachedAccountSignupStats(),
   ]);
 
   // Do not load embedding cache on feed page loads (egress). Admin ML badge
@@ -760,7 +762,21 @@ export default async function FeedPage({
             style={{ background: "transparent" }}
           />
         </a>
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
+          <p
+            className="text-right text-sm tabular-nums text-zinc-500 dark:text-zinc-400"
+            title="Registered accounts. This week = last 7 days. Cached about once an hour."
+          >
+            <span className="font-semibold text-zinc-800 dark:text-zinc-100">
+              {accountSignups.total.toLocaleString()}
+            </span>
+            <span className="ml-1.5 text-xs font-medium uppercase tracking-wide">
+              accounts
+            </span>
+            <span className="mt-0.5 block text-[11px] font-medium normal-case tracking-normal">
+              {accountSignups.thisWeek.toLocaleString()} this week
+            </span>
+          </p>
           <p
             className="text-right text-sm tabular-nums text-zinc-500 dark:text-zinc-400"
             title="Cached about once a day — total summaries with a human priority rating"

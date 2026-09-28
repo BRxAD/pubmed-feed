@@ -82,6 +82,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_news_items_image_url.sql` | **Run in Supabase** if table already exists (adds `image_url`) |
 | `scripts/add_survey_prompts.sql` | **Run in Supabase** (anonymous homepage survey · hashed IP · max 2 prompts) |
 | `scripts/add_articles_doi.sql` | **Applied** (doi / openalex_id / landing_url + rekey_article_pmid) |
+| `scripts/add_auth_users_created_at.sql` | **Applied** (`auth_users.created_at` for /feed account counts) |
 | `scripts/expand_admin_setting_check.sql` | **Applied** (admin_setting allows dentistry, one-health, global-health) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
@@ -114,7 +115,7 @@ Also: **do not commit or push** unless the user asks.
 | Brief email | **08:30** Eastern → UTC **12:30** (after morning ingest so editors can score) | `vercel.json` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v15` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v16` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
@@ -183,7 +184,7 @@ Main topic animal exclusion must be:
   - Setting tabs do not rewrite sticky lead.
 - **Brief digest email** — headline links to the Brief permalink; article date sits tightly **above** the headline; journal name sits in smaller type **below** the headline. Under each story: **Read article** (PubMed once a PMID exists, else publisher/DOI) plus Email. Do **not** add LinkedIn, X, Facebook, or a “via stewardshipbrief.com” line in the email (that credit is for copied / outbound shares only). Copy, native Share, and Graphic takeaway do not appear in email. “Open today’s brief” / footer still point at the site.
 - **In the news** — WHO / CIDRAP (general + ASP topic `news/48/rss`) / Google News RSS polled daily (`/api/cron/news-rss`). Items need a real **http(s)** link to be stored, approved, or shown. **Rolling 7-day window** (`NEWS_MAX_AGE_DAYS` in `lib/news/store.ts`): ingest skips older RSS items; Brief + approval lists filter to last 7 days and sort **newest → oldest** by `published_at` (fallback `created_at`). Editors approve on **`/feed`** (collapsible accordion, collapsed by default). Homepage shell matches broadsheet gutters (`brief.shell`: ~5vw sides, `max-w-[1570px]`). Masthead uses date-left / logo-center + double rule. Lead between news + tools (floats). Sidebars use a shared cream `SidebarCard` (hairline + accent top rule: steel / salmon / sky / olive) with Lead-style eyebrows — not solid steel fills. Scripts: `scripts/add_news_items.sql`, `scripts/add_news_items_image_url.sql`.
-- **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h).
+- **`/feed`** — **Secret-gated** (`CRON_SECRET` or `BRIEF_ADMIN_SECRET` via `?secret=`). PubMed browser + collapsible **In the news** approval queue (last 7 days). SQL page for ingested/published/relevance (+ setting via `auto_settings`); keyword filter uses lighter index. Admin ML badge = stored `ml_priority`. Top-right **human rated** total (SQL head count, cached ~24h) plus **accounts** total and last-7-day signups (head counts, cached ~1h).
   - **Feed sort (hard):** Default **Ingested** = newest `fetched_at`, then stored `ml_priority`, then PMID. **Published** = newest article/release date, then ML, then PMID. **Relevance** = `rank_score` (+ ML boost only — not admin). Human rating must **not** reshuffle order; **Unrated only** may drop a card after save. `/feed` is always **dark** (`.dark` shell); Brief stays cream.
 - **`/dashboard`** — **retired** (redirects to `/feed`). Do not rebuild heavy analytics without an explicit ask.
 - **SEO** — `/feed` + `/dashboard` **noindex**; `robots.ts` disallows tools. Brief/marketing stay indexable.
@@ -201,6 +202,7 @@ Main topic animal exclusion must be:
    - **Admin rating / setting** busts: Brief homepage **only**.
    - **Top 10:** TTL only (~3 days). Tag kept for rare manual bust — never on ingest/rating.
    - **Human-rated total on `/feed`:** TTL only (~24 h); SQL `count` head — no row bodies.
+   - **Account signups on `/feed`:** TTL only (~1 h); two SQL `count` heads (`auth_users` total + `created_at` last 7 days) — no row bodies.
 7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory.
 8. Ingest cron (`/api/cron/daily-digest`): OpenAlex journals first, then PubMed, **shared** summarize cap — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
 9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` + `scripts/add_auto_topics.sql` + `scripts/add_auto_who_regions.sql` applied.
@@ -290,7 +292,8 @@ Main topic animal exclusion must be:
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.
 - Brief homepage: date meta sits tightly above the headline; lead-by-recency prefers published then ingest.
 - Feed sort: newest first (ingested=`fetched_at`, published=article date), then ML grade — not admin priority (so rating does not reshuffle). Unrated-only may remove after rate.
-- Feed header: cached **human rated** total (~24h head count) — not a live corpus walk.
+- Feed header: cached **human rated** total (~24h head count) and **accounts** + this week (~1h head counts) — not a live corpus walk.
+- Author outreach **No corresponding email**: show 48h, then delete (`queued_at`).
 
 ## Implementation checklist
 

@@ -15,6 +15,7 @@ create table if not exists public.auth_users (
   settings_tags text[] not null default '{}',
   topics_tags text[] not null default '{}',
   high_impact_only boolean not null default false,
+  created_at timestamptz default now(),
   updated_at timestamptz,
   constraint auth_users_pkey primary key (id),
   constraint auth_users_email_unique unique (email)

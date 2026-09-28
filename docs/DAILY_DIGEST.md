@@ -6,7 +6,7 @@
 |-----|-----|----------|--------|
 | PubMed ingest + summarize | 06:00, 17:00 | `0 10 * * *` / `0 21 * * *` | `/api/cron/daily-digest` |
 | Stewardship Brief email | 08:30 | `30 12 * * *` | `/api/cron/brief-digest` |
-| Author recognition emails (human 5+) | 21:00 | `0 1 * * *` | `/api/cron/author-outreach` |
+| Author recognition emails (human 5+) | 21:00 | `0 1 * * *` | `/api/cron/author-outreach` (also drops “no email” rows older than 48h) |
 | Priority model retrain check | 18:00 | `0 22 * * *` | `/api/cron/retrain-priority` (weekly gate) |
 
 OpenAlex ingest is **off**. Legacy ASP Literature Feed emails are **retired** (no `DIGEST_SEND_LEGACY`, no abstract digests on the ingest cron).
