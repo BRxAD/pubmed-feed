@@ -7,7 +7,7 @@ import { isQ1Journal } from "@/lib/scimago";
 import { EMBEDDING_PCA_DIMS } from "@/lib/brief/embeddings";
 import {
   isMultiCenterOrMajorScopeStudy,
-  isSingleCenterSmallSampleStudy,
+  isSingleCenterStudy,
 } from "@/lib/relevancePenalties";
 
 /**
@@ -26,7 +26,7 @@ export const HANDCRAFTED_FEATURE_NAMES = [
   "isReview",
   "isGuideline",
   "isRetrospectiveOrSurvey",
-  "isSingleCenterSmall",
+  "isSingleCenter",
   "isMultiCenter",
 ] as const;
 
@@ -55,7 +55,7 @@ export const PRIORITY_FEATURE_LABELS: Record<string, string> = {
   isReview: "Review article",
   isGuideline: "Guideline",
   isRetrospectiveOrSurvey: "Retrospective / survey",
-  isSingleCenterSmall: "Single-center, small sample",
+  isSingleCenter: "Single-center",
   isMultiCenter: "Multi-center / national",
   embPca1: "Text embedding PC1",
   embPca2: "Text embedding PC2",
@@ -76,7 +76,7 @@ export const PRIORITY_BINARY_FEATURES: ReadonlySet<string> = new Set([
   "isReview",
   "isGuideline",
   "isRetrospectiveOrSurvey",
-  "isSingleCenterSmall",
+  "isSingleCenter",
   "isMultiCenter",
 ]);
 
@@ -197,7 +197,7 @@ export function extractHandcraftedFeatures(
     isReview ? 1 : 0,
     isGuideline ? 1 : 0,
     isRetrospectiveOrSurvey ? 1 : 0,
-    isSingleCenterSmallSampleStudy(rec) ? 1 : 0,
+    isSingleCenterStudy(rec) ? 1 : 0,
     isMultiCenterOrMajorScopeStudy(rec) ? 1 : 0,
   ];
 }

@@ -48,6 +48,7 @@ Requirements:
 - Abbreviations: ASP / ASPs universally means Antimicrobial Stewardship Program(s). NEVER use "ASP" or "ASPs" as an abbreviation for antistaphylococcal penicillins — write out "antistaphylococcal penicillins" (or "anti-staph penicillins" / specific drug names like nafcillin or oxacillin) so readers never confuse the drug class with stewardship programs
 - ${ID_ACRONYM_PROMPT_RULE}
 - Use at most ONE statistic — round large counts (e.g., "728,000 patients" not "727,958"; "118 VA hospitals" not "118" alone)
+- Never headline a headcount of clinicians, physicians, nurses, pharmacists, or other health workers ("engages 35 emergency physicians" is invalid — drop the number; the N is not the finding)
 - Name the key subject and the measured outcome in full so an expert knows what changed — never a bare "rates", "outcomes", or "use" when the abstract names what was measured (cure rates, mortality, antibiotic days, resistance). "Higher rates" is invalid; "higher cure rates" is valid
 - Never end on a bare number, preposition, or unfinished phrase ("across 118" is invalid — say "across 118 VA hospitals")
 - Never pack contradictory statistics into one headline
@@ -80,14 +81,14 @@ Good examples:
 - "Higher macrolide prescribing accompanied broader-spectrum regimens in 12 EDs"
 - "Report cards tied to higher guideline concordance and less cefdinir use in kids"
 - "Stewardship bundle cut broad-spectrum use 23% across 42 ICUs" (RCT)
-- "Four in five sinusitis visits meeting criteria still got antibiotics"
+- "Co-designed urine-culture stewardship intervention with emergency physicians"
 - "Oral therapy shows signal of benefit and no harm for Gram-negative BSI" (meta-analysis where mortality signal did not hold in sensitivity analyses)
 - "Acute pyelonephritis showed higher cure rates than other cUTIs in a trial analysis"
 - "Review maps SSTI diagnosis and when antibiotics vs drainage apply" (narrative review — this paper's scope, not a cited trial)
 
 Bad examples (never write these):
 - "New DASC-LOT framework reveals 727,958 patients' antimicrobial use varies widely across 118"
-- "Study shows antibiotic use was high"
+- "Co-designed intervention for urine culture stewardship engages 35 emergency physicians" (do not headline a clinician headcount)
 - "Oral step-down cut mortality 61% in Gram-negative BSI" (over-promises when sensitivity analyses nullify the mortality signal)
 - "Acute pyelonephritis showed higher rates than other cUTIs in trial analysis" (rates of what — name cure rates, mortality, or the actual endpoint)
 - "Point-of-care ultrasound helped distinguish cellulitis from abscess in SSTI cases" (that was cited primary literature, not this narrative review's own study)
@@ -139,6 +140,12 @@ const BARE_NUMBER_END_RE =
 /** "cure rates" / "mortality rates" are fine; bare "rates" is not. */
 const NAMED_RATE_RE =
   /\b(?:clinical\s+|microbiologic(?:al)?\s+|culture[-\s]negative\s+|treatment[-\s]success\s+)?(?:cure|success|mortality|death|resistance|response|recurrence|failure|colonization|infection|prescribing|prescription|readmission|relapse|eradication|hospitalization|admission|complication|event)\s+rates?\b/gi;
+
+function hasClinicianHeadcount(headline: string): boolean {
+  return /\b\d[\d,]*(?:\.\d+)?\s+(?:emergency\s+|critical[- ]care\s+|icu\s+|hospital\s+|ed\s+)?(?:physicians?|clinicians?|doctors?|nurses?|pharmacists?|providers?|practitioners?|hcps?|healthcare workers?|health[- ]care workers?|staff members|staff)\b/i.test(
+    headline
+  );
+}
 
 function hasUnspecifiedRateNoun(headline: string): boolean {
   if (!/\brates?\b/i.test(headline)) return false;
@@ -252,6 +259,11 @@ export function validateHeadlineQuality(
   }
   if (countMajorStats(h) > 1) {
     issues.push("too many numbers — use at most one statistic and round large counts");
+  }
+  if (hasClinicianHeadcount(h)) {
+    issues.push(
+      "do not headline a count of clinicians or other health workers — drop the number"
+    );
   }
   if (FRAMEWORK_LEAD_RE.test(h)) {
     issues.push("do not lead with framework name or 'New … framework reveals'");

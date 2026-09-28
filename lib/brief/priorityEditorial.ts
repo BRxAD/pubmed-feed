@@ -4,7 +4,7 @@ import { isHighImpactJournal } from "@/lib/jif";
 import { isQ1Journal } from "@/lib/scimago";
 import {
   isMultiCenterOrMajorScopeStudy,
-  isSingleCenterSmallSampleStudy,
+  isSingleCenterStudy,
 } from "@/lib/relevancePenalties";
 
 /** Q1 or JIF at/above the JCR median. Missing JIF counts as low impact. */
@@ -31,9 +31,9 @@ function clampPriority(n: number): number {
 
 /**
  * Editorial overlay after the ridge model.
- * Small single-center papers in weaker journals should not make the Brief.
- * Multi-center (or national/international) work in high-impact venues gets a bump.
- * Guidelines and systematic reviews / meta-analyses skip the small-study cap.
+ * Single-center papers in weaker journals should not make the Brief (sample
+ * size is ignored). Multi-center / national work in high-impact venues gets a bump.
+ * Guidelines and systematic reviews / meta-analyses skip the single-center cap.
  */
 export function applyEditorialPriorityAdjust(
   rec: PubMedRecord,
@@ -43,7 +43,7 @@ export function applyEditorialPriorityAdjust(
   let n = predicted;
 
   if (
-    isSingleCenterSmallSampleStudy(rec) &&
+    isSingleCenterStudy(rec) &&
     !highIf &&
     !isGuidelineOrPooledEvidence(rec)
   ) {

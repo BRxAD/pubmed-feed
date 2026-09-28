@@ -31,7 +31,7 @@ Think of the product like a newspaper desk:
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto setting (both are one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
 3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Default order: **prefer newest published, else newest ingest** (`max(publish, fetched_at)`), then priority. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn only.
 4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
-5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. After the ridge score, an **editorial overlay** caps small single-center papers in weaker journals at **4** and adds **+1** for multi-center / national work in high-impact venues. Manual force: `npm run retrain:priority` or cron `?force=1`.
+5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. After the ridge score, an **editorial overlay** caps **single-center** papers in weaker journals at **4** (sample size ignored) and adds **+1** for multi-center / national work in high-impact venues. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
 ### Words we use
 
@@ -95,7 +95,7 @@ Do **not** change without explicit user approval:
 - Top 10 scan floor (`TOP_PRIORITY_MIN_PRIORITY` = **6**)
 - Brief window (**28** days) or Top 10 window (**365** days)
 - Ingest / digest cron or timezone assumptions
-- Priority model version / feature schema (**v6** ridge + PCA-8 + study-scope flags)
+- Priority model version / feature schema (**v7** ridge + PCA-8 + study-scope flags)
 - Public branding / marketing copy
 - Schema migrations / destructive SQL / RLS that **opens** public access
 
@@ -109,13 +109,13 @@ Also: **do not commit or push** unless the user asks.
 | Brief article window | **28** days (article/release date) | `BRIEF_ARTICLE_WINDOW_DAYS` |
 | Top 10 window | **365** days | `TOP_PRIORITY_ARTICLE_WINDOW_DAYS` |
 | Top 10 scan floor | stored priority ≥ **6** | `TOP_PRIORITY_MIN_PRIORITY` |
-| Priority model | **v6** ridge + PCA-8 + study-scope flags | `lib/brief/priorityModel.ts` |
+| Priority model | **v7** ridge + PCA-8 + study-scope flags | `lib/brief/priorityModel.ts` |
 | Timezone | **America/New_York** | UI, lead story |
 | Ingest slots (Eastern) | **06:00 / 17:00** → UTC **10 / 21** (**Vercel Cron only**) | `vercel.json` |
-| Brief email | **08:30** Eastern → UTC **12:30** (after morning ingest so editors can score) | `vercel.json` |
+| Brief email | **08:30** Eastern → UTC **12:30**; auto-hold if &lt; **2** new stories | `vercel.json`, `BRIEF_EMAIL_MIN_ITEMS` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v16` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v17` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
@@ -141,6 +141,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 - **Good caution example:** “Oral therapy shows signal of benefit and no harm for Gram-negative BSI” — not “cut mortality 61%” when sensitivity analyses nullify that signal.
 - **Named restricted analyses:** In RESULTS, never write “a subset of N trials.” Name what defined the group using the abstract’s label plus N (e.g. “73 published peer-reviewed RCTs”, “per-protocol”, “excluding unpublished trials”). If the abstract does not name the restriction, omit that analysis. New ingest only unless asked to rewrite old rows.
 - **Named outcome:** Headlines must name the key subject and what was measured. Bare “rates” / “outcomes” is invalid — write “cure rates”, “mortality”, “antibiotic days”, etc. Bad: “Acute pyelonephritis showed higher rates than other cUTIs…”. Good: “…higher cure rates…”. New ingest only unless asked to rewrite old rows.
+- **No clinician headcounts:** Do not put a number of physicians, nurses, or other health workers in the headline. That N is not the finding (bad: “engages 35 emergency physicians”). New ingest only unless asked to rewrite old rows.
 - **This paper, not citations:** Headlines (and RESULTS / BOTTOM LINE) must describe what **this** article contributes. Never lead with a result the paper is citing from other studies. Narrative / clinical reviews and overviews without original data: headline this paper's scope or synthesis — not a cited trial or diagnostic accuracy claim (bad: “Point-of-care ultrasound helped distinguish cellulitis from abscess…” for a review that only discusses that literature). Systematic reviews / meta-analyses **may** headline this review's own pooled result. New ingest only unless asked to rewrite old rows.
 - **Acronyms:** Only use acronyms common in ID / AMS (CAP, SSTI, UTI, MRSA, MSSA, CRP, PCT, RCT, ICU, BSI, ASP for stewardship programs, etc.). Never introduce paper-coined shorthand (e.g. sIM). Write uncommon concepts in plain English. Enforced on **new** generation via prompts + headline allowlist validation (`lib/brief/idAcronyms.ts`); do not mass-rewrite old rows unless asked.
 
@@ -154,7 +155,7 @@ Source: `lib/summarize.ts`, `lib/brief/generateHeadline.ts`. Applies to **new** 
 
 Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not re-score old rows.
 
-**Editorial overlay** (`lib/brief/priorityEditorial.ts`), applied after ridge at ingest: small single-center + not Q1/high-JIF → drop 2 points and **cap at 4** (off the Brief), except guidelines / systematic reviews / meta-analyses. Multi-center, national, or international + Q1/high-JIF → **+1**. Your `admin_priority` still wins.
+**Editorial overlay** (`lib/brief/priorityEditorial.ts`), applied after ridge at ingest: **single-center** (any sample size) + not Q1/high-JIF → drop 2 points and **cap at 4** (off the Brief), except guidelines / systematic reviews / meta-analyses. Multi-center, national, or international + Q1/high-JIF → **+1**. Your `admin_priority` still wins.
 
 **Explicit handcrafted backfill (when asked):** `npm run backfill:ml-priority` → `scripts/backfill-ml-priority-handcrafted.ts`. Fills null `ml_priority` only where `admin_priority` is also null, last N months (default 12). Uses model + handcrafted features with **embeddings off**; never reads/writes `emb:*` cache. Prefer `--dry-run` first. Warn: pulls abstracts for eligible rows.
 
@@ -257,7 +258,7 @@ Main topic animal exclusion must be:
 
 - Assign on the full **All** candidate pool (after sticky lead), then filter by setting — same PMID → same photo on every tab, over time (pmid-seeded tie-break, no date), and in graphic takeaway (same assigned URL).
 - Top ~**15** ranked stories may get a photo (`photoTopCount` in `storyImagePolicy.ts`, lead included). Prefer null over a weak / wrong / generic filler — **no UI placeholder** when null (omit the image slot entirely). In the 2-col More stories band, photos follow the same 15-story cap and stop on a complete pair so a photo card never sits beside a text-only card. A missing photo in the band does **not** hide later photo-band stories.
-- **Generated photos:** Brief-grade only (effective priority ≥ 5). If the best strict library match is already ≥ **0.65**, keep that photo. Otherwise generate with `gpt-image-2` quality **low**, landscape, for stories that still lack a match, until the monthly dollar cap is hit. Caps: **$4.50** in the start month, **$1.80** after (`story_image_spend:YYYY-MM` in `app_settings`). Max **2** new photos per ingest pass; `npm run fill:story-images` can fill current Brief gaps (capped). Own photo wins while the story is on the Brief. After **28** days the file stays in the match library and can be reused in later months (not deleted after one reuse). Palette: cream, olive, deep plum, soft salmon, steel blue (logo). Prompt forbids offensive, sexual, graphic, or distressing scenes. Table `story_images` + public bucket `story-images`. Failures must not fail ingest.
+- **Generated photos:** Brief-grade only (effective priority ≥ 5). If the best strict library match is already ≥ **0.65** *and* it is not generic/overused stock, keep that photo. Otherwise generate with `gpt-image-2` quality **low**, landscape. The Unsplash clinician-in-scrubs portrait (`white-coat` / `photo-1622253692010`) is blocked — it was reused too often. Caps: **$4.50** in the start month, **$1.80** after (`story_image_spend:YYYY-MM` in `app_settings`). Max **2** new photos per ingest pass; `npm run fill:story-images` can fill current Brief gaps (capped). Own photo wins while the story is on the Brief. After **28** days the file stays in the match library and can be reused in later months (not deleted after one reuse). Palette: cream, olive, deep plum, soft salmon, steel blue (logo). Prompt forbids offensive, sexual, graphic, or distressing scenes. Table `story_images` + public bucket `story-images`. Failures must not fail ingest.
 - **Crop lock:** lead = `aspect-[3/2]`; Also / list photos = `aspect-[16/9]` stacked above type (full card width). Both `object-cover object-center`, layout-owned width, `rounded-sm`. Lead + photo-band headlines use `text-balance`.
 - Keep uniqueness (catalog id + URL) on the All assignment.
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
@@ -268,7 +269,7 @@ Main topic animal exclusion must be:
 ## Ingest & cron
 
 - `/api/cron/daily-digest` via **Vercel Cron only** (GitHub Actions is manual `workflow_dispatch` — **no** scheduled Actions run). Auth: `CRON_SECRET`.
-- `/api/cron/brief-digest` daily 12:30 UTC (**08:30** ET) — after 06:00 ingest so editors have time to screen and score before email.
+- `/api/cron/brief-digest` daily 12:30 UTC (**08:30** ET) — after 06:00 ingest so editors have time to screen and score before email. **Auto-hold** if fewer than **2** new stories are queued; email preview labels that state.
 - `/api/cron/news-rss` daily 12:00 UTC — poll WHO / CIDRAP / CIDRAP ASP / Google News into `news_items` as pending (approve before homepage).
 - `/api/cron/retrain-priority` daily 22:00 UTC — retrains only if ≥ **7 days** since `priority_model.trainedAt`.
 - Ingest summarize default cap **40** (`DIGEST_MAX_SUMMARIES`), shared across OpenAlex then PubMed. Already-summarized DOIs do not use another slot. OpenAlex backfill cap **28** days (`OPENALEX_MAX_BACKFILL_DAYS`).

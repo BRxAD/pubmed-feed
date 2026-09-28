@@ -140,7 +140,7 @@ export function buildBriefDigestEmail(options: {
   if (items.length === 0) {
     textParts.push(
       "No new high-priority studies in this brief.",
-      "The daily email brief is only dispatched when 1 or more articles are ready for inclusion.",
+      "The daily email brief is only dispatched when 2 or more articles are ready for inclusion.",
       ""
     );
   }
@@ -175,7 +175,7 @@ export function buildBriefDigestEmail(options: {
     inner.push(
       `<tr><td style="padding:14px 16px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.55;color:#4A483E;background:${paperWarm};border:1px dashed #D8D4C8;border-radius:2px;text-align:center">
         <p style="margin:0 0 4px;font-family:Georgia,serif;font-size:16px;font-weight:600;color:${plum}">A quiet stretch in the stewardship literature.</p>
-        <p style="margin:0;font-size:12px;color:${olive}">The daily email brief is paused until 1 or more new articles meet inclusion criteria. Queued news and announcements will be delivered on the next active brief.</p>
+        <p style="margin:0;font-size:12px;color:${olive}">The daily email brief is paused until 2 or more new articles meet inclusion criteria. Queued news and announcements will be delivered on the next active brief.</p>
       </td></tr>`
     );
   }

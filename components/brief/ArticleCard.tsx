@@ -348,7 +348,7 @@ export function LeadStory({
             : undefined
         }
       >
-        <div className="min-w-0 max-w-full overflow-hidden">
+        <div className="min-w-0 max-w-full">
           <MetaLine item={item} />
           <h2
             className={`${brief.serif} mt-1.5 max-w-full text-pretty break-words text-[1.75rem] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[2.125rem] sm:leading-[1.06] lg:text-[2.375rem] lg:leading-[1.05]`}
@@ -357,7 +357,7 @@ export function LeadStory({
               href={item.pubmedUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={`brief-story-link block max-w-full break-words ${brief.ink} no-underline ${brief.accentHover}`}
+              className={`brief-story-link max-w-full break-words ${brief.ink} no-underline ${brief.accentHover}`}
             >
               {item.headline}
             </a>

@@ -78,3 +78,10 @@ export function getDigestReplyTo(): string | undefined {
 
 /** Cap for ingest cron summarize batch (`DIGEST_MAX_SUMMARIES`). */
 export const DEFAULT_DIGEST_MAX_SUMMARIES = 40;
+
+/** Hold the daily Brief email until at least this many new stories are queued. */
+export const BRIEF_EMAIL_MIN_ITEMS = 2;
+
+export function briefEmailIsAutoHeld(itemCount: number): boolean {
+  return itemCount < BRIEF_EMAIL_MIN_ITEMS;
+}

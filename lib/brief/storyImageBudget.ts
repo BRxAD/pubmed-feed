@@ -39,11 +39,11 @@ export function storyImageMonthCapUsd(startedAt: Date, now: Date): number {
 }
 
 /**
- * Weakest matches first, and only while this month is still under the
- * generate-fraction target. Strong library matches are left on the existing photo.
+ * Weakest matches first. Also mint a new photo when the best library hit is
+ * generic stock (those portraits get reused too often), even above 0.65.
  */
 export function planStoryImageGenerations(
-  scores: Array<{ pmid: string; score: number }>,
+  scores: Array<{ pmid: string; score: number; preferGenerate?: boolean }>,
   briefGradeCount: number,
   generatedCount: number,
   perRunCap = STORY_IMAGE_MAX_PER_RUN
@@ -54,7 +54,9 @@ export function planStoryImageGenerations(
   if (take === 0) return [];
 
   return scores
-    .filter((row) => row.score < IMAGE_MATCH_THRESHOLD)
+    .filter(
+      (row) => row.score < IMAGE_MATCH_THRESHOLD || Boolean(row.preferGenerate)
+    )
     .sort((a, b) => a.score - b.score || a.pmid.localeCompare(b.pmid))
     .slice(0, take)
     .map((row) => row.pmid);

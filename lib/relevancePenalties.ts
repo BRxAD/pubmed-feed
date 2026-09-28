@@ -38,7 +38,7 @@ const MULTI_CENTER_RE =
   /\b(multi[- ]center|multi[- ]centre|multicenter|multicentre|multi[- ]site|multisite|multi hospital|multiple hospitals|network of|collaborative network|\d+\s+(?:hospitals?|centers?|centres?|sites?|countries?))\b/i;
 
 const SINGLE_CENTER_RE =
-  /\b(single[- ]center|single[- ]centre|one hospital|one centre|one center|a tertiary|our hospital|university hospital|tertiary care (?:center|centre|hospital))\b/i;
+  /\b(single[- ]center|single[- ]centre|single[- ]institution|single[- ]hospital|one hospital|one centre|one center|a tertiary|our hospital|our institution|university hospital|tertiary care (?:center|centre|hospital)|tertiary academic)\b/i;
 
 const MAJOR_SCOPE_RE =
   /\b(nationwide|nation-wide|countrywide|country-wide|national(?:ly)?|national survey|national audit|national surveillance|national study|across (?:the )?(?:us|u\.s\.|united states|usa|canada|uk|united kingdom|europe|australia|oceania)|united states|u\.s\.|usa|canada|united kingdom|uk-wide|european union|eu-wide|multi[- ]country|international|global (?:surveillance|study|survey)|continental|statewide|province-wide|multi-province|\d+\s+(?:states?|provinces|regions))\b/i;
@@ -113,6 +113,12 @@ export function isVeterinaryOnlyStudy(rec: PubMedRecord): boolean {
 export function isMultiCenterOrMajorScopeStudy(rec: PubMedRecord): boolean {
   const text = studyText(rec);
   return MAJOR_SCOPE_RE.test(text) || MULTI_CENTER_RE.test(text);
+}
+
+/** One hospital / centre, with no multi-site or national language. Ignores sample size. */
+export function isSingleCenterStudy(rec: PubMedRecord): boolean {
+  if (isMultiCenterOrMajorScopeStudy(rec)) return false;
+  return SINGLE_CENTER_RE.test(studyText(rec));
 }
 
 export function isSingleCenterSmallSampleStudy(

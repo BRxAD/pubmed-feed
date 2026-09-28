@@ -24,7 +24,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 6;
+  version: 7;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -98,7 +98,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 6,
+    version: 7,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -178,7 +178,7 @@ const FALLBACK_TERMS: { mean: number; std: number; weight: number }[] = [
   { mean: 0.2111, std: 0.4081, weight: 0.1297 }, // isReview
   { mean: 0.2495, std: 0.4327, weight: -0.0539 }, // isGuideline
   { mean: 0.3518, std: 0.4775, weight: 0.0536 }, // isRetrospectiveOrSurvey
-  { mean: 0.18, std: 0.384, weight: -0.35 }, // isSingleCenterSmall
+  { mean: 0.18, std: 0.384, weight: -0.35 }, // isSingleCenter
   { mean: 0.16, std: 0.367, weight: 0.28 }, // isMultiCenter
   ...Array.from({ length: EMBEDDING_PCA_DIMS }, () => ({
     mean: 0,
@@ -229,7 +229,7 @@ export function parsePriorityModel(
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
   // Earlier versions used different feature vectors — discard and retrain.
-  if (m.version !== 6 || m.method !== "ridge_regression") return null;
+  if (m.version !== 7 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||

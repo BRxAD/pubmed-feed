@@ -70,10 +70,14 @@ body {
 }
 
 .brief-story-link {
+  display: inline;
+  text-decoration: none;
   background-image: linear-gradient(currentColor, currentColor);
   background-position: 0 100%;
   background-repeat: no-repeat;
   background-size: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   transition:
     background-size 0.25s ease,
     color 0.2s ease,

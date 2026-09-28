@@ -24,8 +24,15 @@ function parseMax(): number {
   return Number.isFinite(n) && n > 0 ? Math.min(20, Math.floor(n)) : 12;
 }
 
+function parsePmid(): string | null {
+  const flag = process.argv.find((arg) => arg.startsWith("--pmid="));
+  const raw = flag?.slice("--pmid=".length).trim();
+  return raw || null;
+}
+
 async function main() {
   const maxPerRun = parseMax();
+  const onlyPmid = parsePmid();
   const supabase = getSupabaseServerClient();
   const brief = await getBriefItems({
     setting: "",
@@ -38,7 +45,7 @@ async function main() {
   const assigned = await assignStoryImages(items);
   const photoBand = items.slice(0, STORY_IMAGE_POLICY.photoTopCount);
   const candidates: BriefPhotoCandidate[] = photoBand
-    .filter((item) => !assigned[item.pmid])
+    .filter((item) => (onlyPmid ? item.pmid === onlyPmid : !assigned[item.pmid]))
     .map((item) => ({
       pmid: item.pmid,
       title: item.title,

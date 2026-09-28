@@ -14,7 +14,7 @@ import {
   loadStoredStoryImages,
   storedStoryImageToCatalog,
 } from "@/lib/brief/storyImageLibrary";
-import { bestStrictImageConfidence } from "@/lib/brief/storyImages";
+import { bestStrictImagePlan } from "@/lib/brief/storyImages";
 
 const BUDGET_START_KEY = "story_image_budget_start";
 const BUCKET = "story-images";
@@ -181,9 +181,9 @@ async function ensureBudgetStart(supabase: SupabaseClient, now: Date): Promise<D
 }
 
 /**
- * New Brief-grade stories only. Strong library matches keep the stock photo.
- * Weak matches are generated until this month's Brief-grade stories have a
- * new photo, or the monthly dollar cap is hit. Failures do not throw.
+ * New Brief-grade stories only. Strong unique library matches keep the stock
+ * photo. Weak matches, and high matches that would reuse generic stock, are
+ * generated until the monthly dollar cap is hit. Failures do not throw.
  */
 export async function generateBriefStoryImages(
   supabase: SupabaseClient,
@@ -218,9 +218,8 @@ export async function generateBriefStoryImages(
 
   const scores = list
     .filter((candidate) => !already.has(candidate.pmid))
-    .map((candidate) => ({
-      pmid: candidate.pmid,
-      score: bestStrictImageConfidence(
+    .map((candidate) => {
+      const plan = bestStrictImagePlan(
         {
           pmid: candidate.pmid,
           headline: candidate.headline ?? "",
@@ -236,8 +235,13 @@ export async function generateBriefStoryImages(
           abstractSnippet: candidate.abstract,
         },
         recycled
-      ),
-    }));
+      );
+      return {
+        pmid: candidate.pmid,
+        score: plan.score,
+        preferGenerate: plan.preferGenerate,
+      };
+    });
 
   const perRun = opts?.maxPerRun ?? STORY_IMAGE_MAX_PER_RUN;
   const chosen = new Set(

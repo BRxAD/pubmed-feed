@@ -28,6 +28,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1532094349884", // fluorescent eukaryotic cells (not bacteria)
   "photo-1530026405186", // mislabeled culture/cells stock
   "photo-1576086213369", // clinical lab aisle — over-matched
+  "photo-1622253692010", // clinician in scrubs — used on too many physician headlines
   "photos/7089020", // team huddle — over-matched generic
   "photo-1529107386315", // city network lights — not stewardship/global health
   "photo-1631217868264", // clinicians discussion — user-rejected
@@ -45,6 +46,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "mri-diagnostics",
   "globe-network",
   "hospital-staff",
+  "white-coat",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -228,23 +230,41 @@ function rankCandidates(
 
 /** Best strict-catalog score, including recycled generated photos. 0 when nothing hits. */
 export function bestStrictImageConfidence(
-  item: StoryImageFields,
+  rec: StoryImageFields,
   extra: CatalogEntry[] = []
 ): number {
-  const corpus = storyCorpus(item);
+  return bestStrictImagePlan(rec, extra).score;
+}
+
+/**
+ * Whether ingest should mint a new photo even if the library score is high:
+ * generic stock, or a clinician portrait that gets reused on too many stories.
+ */
+const REUSE_STOCK_IDS = new Set(["white-coat"]);
+
+export function bestStrictImagePlan(
+  rec: StoryImageFields,
+  extra: CatalogEntry[] = []
+): { score: number; preferGenerate: boolean } {
+  const corpus = storyCorpus(rec);
   const settings =
-    item.settings?.length > 0
-      ? item.settings
-      : item.setting
-        ? [item.setting]
+    rec.settings?.length > 0
+      ? rec.settings
+      : rec.setting
+        ? [rec.setting]
         : [];
   let best = 0;
+  let preferGenerate = false;
   for (const entry of [...extra, ...STORY_IMAGE_CATALOG]) {
     if (isBlockedCatalogEntry(entry)) continue;
     const confidence = scoreEntry(corpus, settings, entry, "strict");
-    if (confidence > best) best = confidence;
+    if (confidence > best) {
+      best = confidence;
+      preferGenerate =
+        Boolean(entry.generic) || REUSE_STOCK_IDS.has(entry.id);
+    }
   }
-  return best;
+  return { score: best, preferGenerate };
 }
 
 /** Generic stewardship photos only — never organ-specific scenes. */

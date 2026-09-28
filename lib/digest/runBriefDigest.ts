@@ -14,6 +14,8 @@ import {
   getActiveAuthUserEmails,
 } from "@/lib/digest/briefSubscribers";
 import {
+  BRIEF_EMAIL_MIN_ITEMS,
+  briefEmailIsAutoHeld,
   getBriefDigestFromAddress,
   getDigestRecipients,
 } from "@/lib/digest/config";
@@ -156,20 +158,20 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
     };
   }
 
-  // STRICT RULE: Only send the brief email if there is 1 or more article for inclusion.
-  // If there are 0 priority articles today, do NOT dispatch an email containing only
-  // "In the News" or announcements. Delay delivery until the next day with 1+ articles.
-  if (items.length === 0) {
+  // Hold until 2+ new articles. A single-story day waits for the next ingest.
+  if (briefEmailIsAutoHeld(items.length)) {
     return {
       sent: false,
       recipients: allRecipients,
-      itemCount: 0,
+      itemCount: items.length,
       skippedReason:
-        skippedDuplicates > 0
-          ? "No new brief articles (all recent items already emailed) — email delivery delayed until 1+ new articles arrive"
-          : skippedStaleArticle > 0
-            ? "No newly published articles in the last 28 days — email delivery delayed until 1+ new articles arrive"
-            : "No new brief articles today — email delivery delayed until 1+ new articles arrive",
+        items.length === 0
+          ? skippedDuplicates > 0
+            ? "No new brief articles (all recent items already emailed) — auto-hold until 2+ new articles arrive"
+            : skippedStaleArticle > 0
+              ? "No newly published articles in the last 28 days — auto-hold until 2+ new articles arrive"
+              : "No new brief articles today — auto-hold until 2+ new articles arrive"
+          : `Auto-hold: ${items.length} new ${items.length === 1 ? "article" : "articles"} queued (need ${BRIEF_EMAIL_MIN_ITEMS}+)`,
       skippedDuplicates,
       skippedStaleArticle,
       skippedOldSummary,
@@ -191,9 +193,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       continue;
     }
     const filtered = filterBriefItemsForPreferences(items, prefs);
-    // Only send the brief email to this recipient if there is 1 or more article for inclusion
-    // matching their preferences. If filtered.length === 0, delay their delivery.
-    if (filtered.length === 0) {
+    if (briefEmailIsAutoHeld(filtered.length)) {
       skippedByPreference++;
       continue;
     }
@@ -207,7 +207,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
       recipients: allRecipients,
       itemCount: items.length,
       skippedReason:
-        "No recipients had 1 or more articles matching their preferences today — email delivery delayed until matching articles arrive",
+        "No recipients had 2 or more articles matching their preferences today — auto-hold until matching articles arrive",
       skippedDuplicates,
       skippedStaleArticle,
       skippedOldSummary,
