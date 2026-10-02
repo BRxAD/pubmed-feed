@@ -121,52 +121,72 @@ function compositionForPmid(pmid: string): string {
   return STORY_IMAGE_COMPOSITIONS[hash % STORY_IMAGE_COMPOSITIONS.length]!;
 }
 
-function sceneMotif(text: string): string {
+function sceneMotif(text: string): string | null {
   const t = text.toLowerCase();
-  if (/urin|kidney|cystitis|bacteriuria/.test(t)) {
-    return "a urine specimen cup and a simple lab tray";
-  }
-  if (/pneumonia|lung|respiratory|ventilat/.test(t)) {
-    return "oxygen tubing and a blank chest-imaging lightbox, no patient";
-  }
-  if (/dental|periodont|dentist|oral/.test(t)) {
+  const dental = /\b(dental|dentist|dentistry|odontogenic|periodont|endodontic)\b/.test(t);
+  const bacteremia = /\b(bacteremi[aa]|bloodstream|blood culture)\b|\bbsi\b/.test(t);
+  const oralSwitch =
+    /\b(oral step-?down|transition to oral|switch to oral|iv to oral|intravenous to oral|early oral)\b/.test(
+      t
+    ) || (/\boral antibiotic/.test(t) && !dental);
+  const education = /\b(nurse|nurses|nursing|education|teaching|knowledge gap)\b/.test(t);
+  const urine = /\b(urine|urinary|kidney|cystitis|bacteriuria|pyelonephritis)\b/.test(t);
+  const lung = /\b(pneumonia|lung|respiratory|ventilat)\b/.test(t);
+  const infusion = /\b(opat|parenteral|infusion|intravenous)\b|\biv\b/.test(t);
+  const surgery = /\b(surgery|surgical|operative|incision)\b/.test(t);
+  const child = /\b(child|children|pediatric|infant|newborn)\b/.test(t);
+  const policy = /\b(policy|guideline|surveillance|advisory)\b/.test(t);
+  const micro = /\b(microbiology|petri|culture plate|antibiogram|susceptibility testing)\b/.test(t);
+
+  if (dental) {
     return "dental instruments and a mouth mirror on a tray, chair empty";
   }
-  if (/blood culture|bloodstream|bacteremia|\bbsi\b/.test(t)) {
-    return "blood culture bottles on a lab bench";
+  if (oralSwitch && bacteremia) {
+    return "blood culture bottles beside an IV bag and a blister pack of antibiotic capsules. No dental chair. No petri dishes.";
   }
-  if (/op-?at|parenteral|infusion|intravenous|\biv\b/.test(t)) {
-    return "an IV bag and pump in a quiet room";
+  if (bacteremia) {
+    return "blood culture bottles on a lab bench. No dental chair. No petri dishes.";
   }
-  if (/surgery|operative|incision|vancomycin/.test(t)) {
-    return "a surgical instrument tray, no patient and no incision";
+  if (oralSwitch && infusion) {
+    return "an IV bag next to a blister pack of oral antibiotic capsules. No dental chair.";
   }
-  if (/child|pediatric|infant|newborn/.test(t)) {
-    return "a pediatric clinic room with a scale and a closed bottle, no child";
+  if (oralSwitch) {
+    return "an IV bag next to a blister pack of oral antibiotic capsules. No dental chair. No petri dishes.";
   }
-  if (/policy|guideline|surveillance|advisory|national/.test(t)) {
-    return "a quiet briefing table with a closed folder and an unlabeled map";
+  if (education) {
+    return "a nurses' station with a medication cart and a closed binder. No petri dishes, no microscope, no dental chair.";
   }
-  if (/lab|microbi|culture|diagnostic|susceptib/.test(t)) {
-    return "culture plates and a microscope on a bench";
+  if (urine) return "a urine specimen cup and a simple lab tray. No dental chair.";
+  if (lung) return "oxygen tubing and a blank chest-imaging lightbox, no patient. No dental chair.";
+  if (infusion) return "an IV bag and pump in a quiet room. No dental chair. No petri dishes.";
+  if (surgery) return "a surgical instrument tray, no patient and no incision. No dental chair.";
+  if (child) return "a pediatric clinic room with a scale and a closed bottle, no child. No dental chair.";
+  if (policy) return "a quiet briefing table with a closed folder and an unlabeled map. No flags. No petri dishes.";
+  if (micro) return "culture plates and a microscope on a bench. No dental chair.";
+  if (/\b(hospital|icu|ward|inpatient)\b/.test(t)) {
+    return "an empty hospital bay with a monitor and folded linens. No dental chair. No petri dishes.";
   }
-  if (/hospital|icu|ward|inpatient/.test(t)) {
-    return "an empty hospital bay with a monitor and folded linens";
-  }
-  return "medicine bottles, blister packs, or clinical tools on a counter";
+  return null;
 }
 
+const DEFAULT_MOTIF =
+  "medicine bottles and blister packs on a counter. No dental chair. No petri dishes. No microscope.";
+
 export function buildStoryImagePrompt(candidate: BriefPhotoCandidate): string {
-  const subject = (candidate.headline || candidate.title || "antimicrobial stewardship")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 180);
-  const motif = sceneMotif(`${candidate.headline ?? ""} ${candidate.title ?? ""}`);
+  const headline = (candidate.headline ?? "").replace(/\s+/g, " ").trim();
+  const title = (candidate.title ?? "").replace(/\s+/g, " ").trim();
+  const subject = (headline || title || "antimicrobial stewardship").slice(0, 180);
+  const motif =
+    sceneMotif(headline) ??
+    sceneMotif(`${headline} ${title}`) ??
+    DEFAULT_MOTIF;
   return [
     "Photorealistic newspaper photojournalism, landscape, natural light, shallow depth of field. Sharp and specific, not an illustration.",
     "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted. No neon, no pure black background.",
     compositionForPmid(candidate.pmid),
-    `Subject matter: ${motif}. Topic, for choosing objects only: ${subject}.`,
+    `Show only this, and nothing from another specialty: ${motif}.`,
+    "Do not depict a dental chair, mouth mirror, petri dishes, or microscope unless that sentence names them.",
+    `Context, do not invent extra objects from it: ${subject}.`,
     "Do not show two people sitting or talking. Do not make a doctor-patient consultation portrait. Prefer no faces.",
     "Professional and respectful. No nudity, no sexual content, no children in distress, no graphic disease, wounds, blood, rashes, or lesions, no drug use, no weapons, no stereotypes, no political symbols.",
     "No text, no letters, no logos, no flags, no watermarks, no readable documents, no charts.",
