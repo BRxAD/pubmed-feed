@@ -107,18 +107,69 @@ export function storyImageTags(
   return out.slice(0, 16);
 }
 
-function buildPrompt(candidate: BriefPhotoCandidate): string {
-  const subject = (candidate.headline || candidate.title || "antimicrobial stewardship study")
+/** Rotates the shot so stories do not all become two people talking. */
+const STORY_IMAGE_COMPOSITIONS = [
+  "Photojournalistic still life. No people. Objects only, on a table or shelf, natural window light.",
+  "Photojournalistic view of an empty place: a corridor, lab bench, pharmacy shelf, or clinic room. No faces.",
+  "Tight photojournalistic detail of hands or equipment only. Do not show a face.",
+  "Wide environmental photograph of the care setting. If a person appears, they are small, turned away, or out of focus. Not a portrait.",
+] as const;
+
+function compositionForPmid(pmid: string): string {
+  let hash = 0;
+  for (const char of pmid) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  return STORY_IMAGE_COMPOSITIONS[hash % STORY_IMAGE_COMPOSITIONS.length]!;
+}
+
+function sceneMotif(text: string): string {
+  const t = text.toLowerCase();
+  if (/urin|kidney|cystitis|bacteriuria/.test(t)) {
+    return "a urine specimen cup and a simple lab tray";
+  }
+  if (/pneumonia|lung|respiratory|ventilat/.test(t)) {
+    return "oxygen tubing and a blank chest-imaging lightbox, no patient";
+  }
+  if (/dental|periodont|dentist|oral/.test(t)) {
+    return "dental instruments and a mouth mirror on a tray, chair empty";
+  }
+  if (/blood culture|bloodstream|bacteremia|\bbsi\b/.test(t)) {
+    return "blood culture bottles on a lab bench";
+  }
+  if (/op-?at|parenteral|infusion|intravenous|\biv\b/.test(t)) {
+    return "an IV bag and pump in a quiet room";
+  }
+  if (/surgery|operative|incision|vancomycin/.test(t)) {
+    return "a surgical instrument tray, no patient and no incision";
+  }
+  if (/child|pediatric|infant|newborn/.test(t)) {
+    return "a pediatric clinic room with a scale and a closed bottle, no child";
+  }
+  if (/policy|guideline|surveillance|advisory|national/.test(t)) {
+    return "a quiet briefing table with a closed folder and an unlabeled map";
+  }
+  if (/lab|microbi|culture|diagnostic|susceptib/.test(t)) {
+    return "culture plates and a microscope on a bench";
+  }
+  if (/hospital|icu|ward|inpatient/.test(t)) {
+    return "an empty hospital bay with a monitor and folded linens";
+  }
+  return "medicine bottles, blister packs, or clinical tools on a counter";
+}
+
+export function buildStoryImagePrompt(candidate: BriefPhotoCandidate): string {
+  const subject = (candidate.headline || candidate.title || "antimicrobial stewardship")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 220);
+    .slice(0, 180);
+  const motif = sceneMotif(`${candidate.headline ?? ""} ${candidate.title ?? ""}`);
   return [
-    "Photorealistic editorial photograph, landscape, soft natural light, shallow depth of field.",
-    "Color grade in The Stewardship Brief palette: warm cream, olive green, deep plum, soft salmon pink, and steel blue. Muted and calm. No neon, no harsh cyan, no pure black background.",
-    `A reusable everyday clinical or public-health scene for this topic, suitable to illustrate a similar paper in a later month: ${subject}.`,
-    "Professional and respectful. Fully clothed adults in ordinary settings.",
-    "No nudity, no sexual content, no children in distress, no graphic disease, wounds, blood, rashes, or lesions, no drug use, no weapons, no stereotypes, no political symbols.",
-    "No text, no letters, no logos, no watermarks, no readable documents, no charts.",
+    "Photorealistic newspaper photojournalism, landscape, natural light, shallow depth of field. Sharp and specific, not an illustration.",
+    "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted. No neon, no pure black background.",
+    compositionForPmid(candidate.pmid),
+    `Subject matter: ${motif}. Topic, for choosing objects only: ${subject}.`,
+    "Do not show two people sitting or talking. Do not make a doctor-patient consultation portrait. Prefer no faces.",
+    "Professional and respectful. No nudity, no sexual content, no children in distress, no graphic disease, wounds, blood, rashes, or lesions, no drug use, no weapons, no stereotypes, no political symbols.",
+    "No text, no letters, no logos, no flags, no watermarks, no readable documents, no charts.",
   ].join(" ");
 }
 
@@ -273,7 +324,7 @@ export async function generateBriefStoryImages(
     try {
       const result = await client.images.generate({
         model: "gpt-image-2",
-        prompt: buildPrompt(candidate),
+        prompt: buildStoryImagePrompt(candidate),
         size: "1536x1024",
         quality: "low",
         n: 1,
