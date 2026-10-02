@@ -14,7 +14,11 @@ import {
   loadStoredStoryImages,
   storedStoryImageToCatalog,
 } from "@/lib/brief/storyImageLibrary";
-import { bestStrictImagePlan } from "@/lib/brief/storyImages";
+import { getBriefItems } from "@/lib/brief/items";
+import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
+import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
+import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
+import { assignStoryImages, bestStrictImagePlan } from "@/lib/brief/storyImages";
 
 const BUDGET_START_KEY = "story_image_budget_start";
 const BUCKET = "story-images";
@@ -135,6 +139,7 @@ function sceneMotif(text: string): string | null {
   const infusion = /\b(opat|parenteral|infusion|intravenous)\b|\biv\b/.test(t);
   const surgery = /\b(surgery|surgical|operative|incision)\b/.test(t);
   const child = /\b(child|children|pediatric|infant|newborn)\b/.test(t);
+  const tb = /\btuberculosis\b|\btb\b/.test(t);
   const policy = /\b(policy|guideline|surveillance|advisory)\b/.test(t);
   const micro = /\b(microbiology|petri|culture plate|antibiogram|susceptibility testing)\b/.test(t);
 
@@ -160,6 +165,12 @@ function sceneMotif(text: string): string | null {
   if (lung) return "oxygen tubing and a blank chest-imaging lightbox, no patient. No dental chair.";
   if (infusion) return "an IV bag and pump in a quiet room. No dental chair. No petri dishes.";
   if (surgery) return "a surgical instrument tray, no patient and no incision. No dental chair.";
+  if (tb && child) {
+    return "a closed bottle of tablets and a small dosing syringe on a pediatric clinic counter. No child. No lesions. No dental chair.";
+  }
+  if (tb) {
+    return "a closed bottle of tablets and a dosing cup on a clinic counter. No patient. No lesions. No dental chair.";
+  }
   if (child) return "a pediatric clinic room with a scale and a closed bottle, no child. No dental chair.";
   if (policy) return "a quiet briefing table with a closed folder and an unlabeled map. No flags. No petri dishes.";
   if (micro) return "culture plates and a microscope on a bench. No dental chair.";
@@ -395,4 +406,37 @@ export async function generateBriefStoryImages(
   });
 
   return { generated, skipped: list.length - generated };
+}
+
+/**
+ * Photo-band stories with no catalog match get a new photo, stored for reuse
+ * after 28 days. Stops at the per-run count and the monthly dollar cap.
+ */
+export async function fillMissingBriefStoryImages(
+  supabase: SupabaseClient,
+  maxPerRun = STORY_IMAGE_MAX_PER_RUN
+): Promise<{ generated: number; skipped: number }> {
+  const brief = await getBriefItems({
+    setting: "",
+    daysBack: 90,
+    maxLookbackDays: 90,
+    maxItems: 50,
+    articleDateWithinDays: BRIEF_ARTICLE_WINDOW_DAYS,
+  });
+  const items = await applyStickyHomepageLead(brief.items, "");
+  const assigned = await assignStoryImages(items);
+  const missing = items
+    .slice(0, STORY_IMAGE_POLICY.photoTopCount)
+    .filter((item) => !assigned[item.pmid])
+    .map((item) => ({
+      pmid: item.pmid,
+      title: item.title,
+      headline: item.headline,
+      abstract: item.abstractSnippet ?? null,
+      keywords: item.keywords ?? [],
+      meshTerms: item.meshTerms ?? [],
+      settings: item.settings ?? [],
+    }));
+  if (missing.length === 0) return { generated: 0, skipped: 0 };
+  return generateBriefStoryImages(supabase, missing, { maxPerRun, fillGaps: true });
 }

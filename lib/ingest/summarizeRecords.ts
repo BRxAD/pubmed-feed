@@ -11,6 +11,7 @@ import { classifyArticleTopics } from "@/lib/classifyTopic";
 import { classifyArticleWhoRegions } from "@/lib/classifyWhoRegion";
 import type { ArticleSetting } from "@/lib/classifySetting";
 import {
+  fillMissingBriefStoryImages,
   generateBriefStoryImages,
   type BriefPhotoCandidate,
 } from "@/lib/brief/storyImageGenerate";
@@ -261,19 +262,21 @@ export async function summarizeNewRecords(options: {
     );
   }
 
-  if (photoCandidates.length > 0) {
-    try {
+  try {
+    if (photoCandidates.length > 0) {
       const photos = await generateBriefStoryImages(
         supabase as never,
         photoCandidates
       );
       console.log("[ingest] story images", photos);
-    } catch (err) {
-      console.warn(
-        "[ingest] story images skipped:",
-        err instanceof Error ? err.message : err
-      );
     }
+    const gaps = await fillMissingBriefStoryImages(supabase as never);
+    if (gaps.generated > 0) console.log("[ingest] story image gaps", gaps);
+  } catch (err) {
+    console.warn(
+      "[ingest] story images skipped:",
+      err instanceof Error ? err.message : err
+    );
   }
 
   return result;
