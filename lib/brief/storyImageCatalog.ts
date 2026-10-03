@@ -105,7 +105,7 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     url: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Penicillin_culture.jpg/1280px-Penicillin_culture.jpg",
     label: "penicillin culture plate",
     source: "wikimedia",
-    requireAny: ["penicillin", "beta-lactam", "culture", "microbiology"],
+    requireAny: ["penicillium", "fleming", "discovery of penicillin"],
     tags: ["penicillin", "culture", "microbiology", "antibiotic history", "beta-lactam"],
   },
 

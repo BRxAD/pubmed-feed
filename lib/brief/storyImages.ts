@@ -29,6 +29,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1530026405186", // mislabeled culture/cells stock
   "photo-1576086213369", // clinical lab aisle — over-matched
   "photo-1622253692010", // clinician in scrubs — used on too many physician headlines
+  "photos/8460157", // labeled urine testing, file is a male portrait
   "photos/7089020", // team huddle — over-matched generic
   "photo-1529107386315", // city network lights — not stewardship/global health
   "photo-1631217868264", // clinicians discussion — user-rejected
@@ -47,6 +48,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "globe-network",
   "hospital-staff",
   "white-coat",
+  "pexels-urine-dipstick",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -124,6 +126,16 @@ function storyCorpus(item: StoryImageFields): string {
   return expandStoryCorpus(raw);
 }
 
+/** Drop a stock photo when its subject would be easy to call wrong. */
+function subjectConflict(corpus: string, entry: CatalogEntry): boolean {
+  const about = `${entry.id} ${entry.label} ${entry.tags.join(" ")}`.toLowerCase();
+  if (/\bpregnan/.test(corpus) && !/\bpregnan/.test(about)) return true;
+  if (/\b(nicu|preterm|neonat)/.test(corpus)) {
+    if (!/\b(nicu|neonat|preterm|infant|incubator|newborn)\b/.test(about)) return true;
+  }
+  return false;
+}
+
 function hasRequiredGate(corpus: string, entry: CatalogEntry): boolean {
   if (!entry.requireAny?.length) return true;
   return entry.requireAny.some((req) => corpusHas(corpus, req));
@@ -138,6 +150,7 @@ function scoreEntry(
   mode: ScoreMode
 ): number {
   if (!hasRequiredGate(corpus, entry)) return 0;
+  if (subjectConflict(corpus, entry)) return 0;
 
   let matchedWeight = 0;
   let matchedCount = 0;
@@ -175,6 +188,24 @@ function scoreEntry(
   if (entry.source === "wikimedia") score = Math.min(1, score + 0.02);
   // Prefer curated local topic photos when tags already match.
   if (entry.source === "local") score = Math.min(1, score + 0.04);
+  if (
+    entry.id === "local-neonatal-nicu-newborn" &&
+    /\b(nicu|preterm|neonat)/.test(corpus)
+  ) {
+    score = Math.min(1, score + 0.4);
+  }
+  if (
+    entry.id === "local-blood-culture-laboratory" &&
+    /\bbacteremi|\bblood culture\b|\bbloodstream\b/.test(corpus)
+  ) {
+    score = Math.min(1, score + 0.3);
+  }
+  if (
+    entry.id === "iv-drip" &&
+    !/\bintravenous\b|\binfusion\b|\bcatheter\b|\bcentral line\b/.test(corpus)
+  ) {
+    score = Math.max(0, score - 0.25);
+  }
 
   return score;
 }
@@ -197,6 +228,12 @@ function isUnused(entry: { id: string; url: string }, used: UsageTracker): boole
 function markUsed(entry: { id: string; url: string }, used: UsageTracker): void {
   used.ids.add(entry.id);
   used.urls.add(entry.url);
+}
+
+function specificRank(entry: CatalogEntry): number {
+  if (entry.id === "local-blood-culture-laboratory") return 2;
+  if (entry.id === "local-neonatal-nicu-newborn") return 2;
+  return 0;
 }
 
 function rankCandidates(
@@ -224,7 +261,10 @@ function rankCandidates(
     }
   }
 
-  ranked.sort((a, b) => b.confidence - a.confidence);
+  ranked.sort(
+    (a, b) =>
+      b.confidence - a.confidence || specificRank(b.entry) - specificRank(a.entry)
+  );
   return diversifyTop(ranked, item.pmid + item.headline + mode);
 }
 

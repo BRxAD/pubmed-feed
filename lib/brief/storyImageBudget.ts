@@ -13,10 +13,10 @@ export const STORY_IMAGE_LATER_MONTH_CAP_USD = 1.8;
  * Photos per summarize pass. Keeps image calls from eating the ingest
  * time limit. The next pass continues until the monthly 2/3 target is met.
  */
-export const STORY_IMAGE_MAX_PER_RUN = 2;
+export const STORY_IMAGE_MAX_PER_RUN = 1;
 
-/** Reserve before a call so the cap is not crossed by a typical low-quality image. */
-export const STORY_IMAGE_CALL_RESERVE_USD = 0.006;
+/** Reserve before a call so a medium-quality landscape image cannot cross the cap. */
+export const STORY_IMAGE_CALL_RESERVE_USD = 0.08;
 
 export const STORY_IMAGE_RECYCLE_DAYS = 28;
 

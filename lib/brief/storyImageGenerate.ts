@@ -111,77 +111,62 @@ export function storyImageTags(
   return out.slice(0, 16);
 }
 
-/** Rotates the shot so stories do not all become two people talking. */
-const STORY_IMAGE_COMPOSITIONS = [
-  "Photojournalistic still life. No people. Objects only, on a table or shelf, natural window light.",
-  "Photojournalistic view of an empty place: a corridor, lab bench, pharmacy shelf, or clinic room. No faces.",
-  "Tight photojournalistic detail of hands or equipment only. Do not show a face.",
-  "Wide environmental photograph of the care setting. If a person appears, they are small, turned away, or out of focus. Not a portrait.",
-] as const;
-
-function compositionForPmid(pmid: string): string {
-  let hash = 0;
-  for (const char of pmid) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return STORY_IMAGE_COMPOSITIONS[hash % STORY_IMAGE_COMPOSITIONS.length]!;
-}
-
+/**
+ * One safe subject. If the headline does not make an object certain,
+ * use a person or organ that cannot be factually wrong.
+ * Never invent a syringe for a medicine that is swallowed.
+ */
 function sceneMotif(text: string): string | null {
   const t = text.toLowerCase();
-  const dental = /\b(dental|dentist|dentistry|odontogenic|periodont|endodontic)\b/.test(t);
-  const bacteremia = /\b(bacteremi[aa]|bloodstream|blood culture)\b|\bbsi\b/.test(t);
-  const oralSwitch =
-    /\b(oral step-?down|transition to oral|switch to oral|iv to oral|intravenous to oral|early oral)\b/.test(
-      t
-    ) || (/\boral antibiotic/.test(t) && !dental);
-  const education = /\b(nurse|nurses|nursing|education|teaching|knowledge gap)\b/.test(t);
-  const urine = /\b(urine|urinary|kidney|cystitis|bacteriuria|pyelonephritis)\b/.test(t);
-  const lung = /\b(pneumonia|lung|respiratory|ventilat)\b/.test(t);
-  const infusion = /\b(opat|parenteral|infusion|intravenous)\b|\biv\b/.test(t);
-  const surgery = /\b(surgery|surgical|operative|incision)\b/.test(t);
-  const child = /\b(child|children|pediatric|infant|newborn)\b/.test(t);
+  const pregnant = /\bpregnan/.test(t);
+  const child = /\b(child|children|pediatric|paediatric|infant|newborn|neonat)\b/.test(t);
+  const nicu = /\b(nicu|preterm|neonat)\b/.test(t);
   const tb = /\btuberculosis\b|\btb\b/.test(t);
-  const policy = /\b(policy|guideline|surveillance|advisory)\b/.test(t);
-  const micro = /\b(microbiology|petri|culture plate|antibiogram|susceptibility testing)\b/.test(t);
+  const bacteremia = /\b(bacteremi[aa]|bloodstream|blood culture)\b|\bbsi\b/.test(t);
+  const urine = /\b(urine|urinary|cystitis|bacteriuria|pyelonephritis|bladder)\b/.test(t);
+  const lung = /\b(pneumonia|lung|respiratory|ventilat)\b/.test(t);
+  const dental = /\b(dental|dentist|dentistry|odontogenic|periodont)\b/.test(t);
+  const infusion = /\b(intravenous|infusion|parenteral)\b/.test(t);
+  const nurse = /\b(nurse|nurses|nursing)\b/.test(t);
 
-  if (dental) {
-    return "dental instruments and a mouth mirror on a tray, chair empty";
+  if (pregnant) {
+    return "A clothed pregnant woman, calm, visibly pregnant, soft daylight, magazine portrait. No men. No procedure. No nudity. No syringe.";
   }
-  if (oralSwitch && bacteremia) {
-    return "blood culture bottles beside an IV bag and a blister pack of antibiotic capsules. No dental chair. No petri dishes.";
+  if (nicu) {
+    return "Close-up of a clear neonatal incubator with a baby's hand resting inside. Peaceful. No adult faces. No distress. No blood. No syringe in the foreground.";
   }
-  if (bacteremia) {
-    return "blood culture bottles on a lab bench. No dental chair. No petri dishes.";
-  }
-  if (oralSwitch && infusion) {
-    return "an IV bag next to a blister pack of oral antibiotic capsules. No dental chair.";
-  }
-  if (oralSwitch) {
-    return "an IV bag next to a blister pack of oral antibiotic capsules. No dental chair. No petri dishes.";
-  }
-  if (education) {
-    return "a nurses' station with a medication cart and a closed binder. No petri dishes, no microscope, no dental chair.";
-  }
-  if (urine) return "a urine specimen cup and a simple lab tray. No dental chair.";
-  if (lung) return "oxygen tubing and a blank chest-imaging lightbox, no patient. No dental chair.";
-  if (infusion) return "an IV bag and pump in a quiet room. No dental chair. No petri dishes.";
-  if (surgery) return "a surgical instrument tray, no patient and no incision. No dental chair.";
   if (tb && child) {
-    return "a closed bottle of tablets and a small dosing syringe on a pediatric clinic counter. No child. No lesions. No dental chair.";
+    return "A calm child, fully clothed, soft daylight, magazine portrait. No hospital bed, no syringe, no needle, no device, no lesions.";
   }
   if (tb) {
-    return "a closed bottle of tablets and a dosing cup on a clinic counter. No patient. No lesions. No dental chair.";
+    return "A chest radiograph on a lightbox showing lungs only. No readable text. No patient. No syringe.";
   }
-  if (child) return "a pediatric clinic room with a scale and a closed bottle, no child. No dental chair.";
-  if (policy) return "a quiet briefing table with a closed folder and an unlabeled map. No flags. No petri dishes.";
-  if (micro) return "culture plates and a microscope on a bench. No dental chair.";
-  if (/\b(hospital|icu|ward|inpatient)\b/.test(t)) {
-    return "an empty hospital bay with a monitor and folded linens. No dental chair. No petri dishes.";
+  if (bacteremia) {
+    return "Sealed blood culture bottles on a clean bench. No people. No petri dishes. No syringe. No dental chair.";
+  }
+  if (dental) {
+    return "Dental instruments and a mouth mirror on a tray, chair empty. No patient.";
+  }
+  if (urine) {
+    return "A lidded urine specimen cup on a clean tray. No people. No syringe.";
+  }
+  if (lung) {
+    return "A chest radiograph on a lightbox showing lungs only. No readable text. No patient. No syringe.";
+  }
+  if (infusion) {
+    return "An IV bag hanging in an empty room. No people. No syringe in a hand.";
+  }
+  if (nurse) {
+    return "A nurses' station counter with a closed binder. No petri dishes. No people unless a nurse is clearly at work, turned away.";
+  }
+  if (child) {
+    return "A calm child, fully clothed, soft daylight. No devices. No syringe. No distress.";
   }
   return null;
 }
 
 const DEFAULT_MOTIF =
-  "medicine bottles and blister packs on a counter. No dental chair. No petri dishes. No microscope.";
+  "Unlabeled medicine bottles on a linen cloth. No people. No syringe. No needle. No petri dishes. No dental chair.";
 
 export function buildStoryImagePrompt(candidate: BriefPhotoCandidate): string {
   const headline = (candidate.headline ?? "").replace(/\s+/g, " ").trim();
@@ -192,14 +177,13 @@ export function buildStoryImagePrompt(candidate: BriefPhotoCandidate): string {
     sceneMotif(`${headline} ${title}`) ??
     DEFAULT_MOTIF;
   return [
-    "Photorealistic newspaper photojournalism, landscape, natural light, shallow depth of field. Sharp and specific, not an illustration.",
-    "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted. No neon, no pure black background.",
-    compositionForPmid(candidate.pmid),
-    `Show only this, and nothing from another specialty: ${motif}.`,
-    "Do not depict a dental chair, mouth mirror, petri dishes, or microscope unless that sentence names them.",
-    `Context, do not invent extra objects from it: ${subject}.`,
-    "Do not show two people sitting or talking. Do not make a doctor-patient consultation portrait. Prefer no faces.",
-    "Professional and respectful. No nudity, no sexual content, no children in distress, no graphic disease, wounds, blood, rashes, or lesions, no drug use, no weapons, no stereotypes, no political symbols.",
+    "Editorial photograph for a newspaper or magazine. Photorealistic, landscape, natural light, shallow depth of field. Not an illustration.",
+    "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted.",
+    `Show only this: ${motif}.`,
+    "If an object is not named above, do not add it. Do not invent syringes, needles, or injections for medicines that are swallowed.",
+    "Do not show the wrong sex. A story about women or pregnancy must not show a man.",
+    `Headline, for context only, do not add objects from it: ${subject}.`,
+    "Professional and respectful. No nudity, no distress, no graphic disease, wounds, blood, rashes, or lesions, no weapons, no stereotypes.",
     "No text, no letters, no logos, no flags, no watermarks, no readable documents, no charts.",
   ].join(" ");
 }
@@ -270,7 +254,7 @@ async function ensureBudgetStart(supabase: SupabaseClient, now: Date): Promise<D
 export async function generateBriefStoryImages(
   supabase: SupabaseClient,
   candidates: BriefPhotoCandidate[],
-  opts?: { maxPerRun?: number; fillGaps?: boolean }
+  opts?: { maxPerRun?: number; fillGaps?: boolean; force?: boolean }
 ): Promise<{ generated: number; skipped: number }> {
   const unique = new Map<string, BriefPhotoCandidate>();
   for (const candidate of candidates) {
@@ -299,7 +283,7 @@ export async function generateBriefStoryImages(
     .map(storedStoryImageToCatalog);
 
   const scores = list
-    .filter((candidate) => !already.has(candidate.pmid))
+    .filter((candidate) => opts?.force || !already.has(candidate.pmid))
     .map((candidate) => {
       const plan = bestStrictImagePlan(
         {
@@ -357,7 +341,7 @@ export async function generateBriefStoryImages(
         model: "gpt-image-2",
         prompt: buildStoryImagePrompt(candidate),
         size: "1536x1024",
-        quality: "low",
+        quality: "medium",
         n: 1,
       });
       const b64 = result.data?.[0]?.b64_json;
@@ -366,25 +350,29 @@ export async function generateBriefStoryImages(
       const path = `${candidate.pmid}.png`;
       const upload = await supabase.storage.from(BUCKET).upload(path, bytes, {
         contentType: "image/png",
-        upsert: false,
+        upsert: true,
       });
       if (upload.error) throw new Error(upload.error.message);
-      const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      const publicUrl = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      const url = `${publicUrl.split("?")[0]}?v=${Date.now()}`;
       const cost = costFromUsage(result.usage as ImageUsage | undefined);
       const label = (candidate.headline || candidate.title || "Story photo").slice(0, 140);
-      const insert = await supabase.from("story_images").insert({
-        pmid: candidate.pmid,
-        url,
-        storage_path: path,
-        label,
-        tags: storyImageTags(
-          candidate.keywords,
-          candidate.meshTerms,
-          candidate.headline
-        ),
-        settings: candidate.settings,
-        cost_usd: cost,
-      });
+      const insert = await supabase.from("story_images").upsert(
+        {
+          pmid: candidate.pmid,
+          url,
+          storage_path: path,
+          label,
+          tags: storyImageTags(
+            candidate.keywords,
+            candidate.meshTerms,
+            candidate.headline
+          ),
+          settings: candidate.settings,
+          cost_usd: cost,
+        },
+        { onConflict: "pmid" }
+      );
       if (insert.error) throw new Error(insert.error.message);
 
       ledger.spentUsd = Math.round((ledger.spentUsd + cost) * 10_000) / 10_000;
