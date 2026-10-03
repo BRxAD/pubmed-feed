@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { getBriefDigestFromAddress } from "@/lib/digest/config";
 import { sendDigestEmail } from "@/lib/digest/sendEmail";
+import { claimBriefRecipientSend } from "@/lib/digest/briefRecipientSends";
+import {
+  canonicalEmailInbox,
+  easternCalendarDate,
+  normalizeEmailAddress,
+} from "@/lib/digest/emailAddress";
 import { publicAppBaseUrl } from "@/lib/internalFetch";
 import { briefPalette } from "@/components/brief/briefTheme";
 import { unsubscribeUrlForEmail } from "@/lib/digest/unsubscribeToken";
@@ -54,8 +60,8 @@ function buildWelcomeEmail(email: string): {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { email?: string };
-    const email = body.email?.trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const email = normalizeEmailAddress(body.email);
+    if (!email) {
       return NextResponse.json(
         { ok: false, error: "Valid email required" },
         { status: 400 }
@@ -86,25 +92,32 @@ export async function POST(request: NextRequest) {
 
     let welcomeSent = false;
     let welcomeWarning: string | undefined;
-    try {
-      const welcome = buildWelcomeEmail(email);
-      await sendDigestEmail({
-        to: [email],
-        subject: welcome.subject,
-        html: welcome.html,
-        text: welcome.text,
-        from: getBriefDigestFromAddress(),
-      });
-      welcomeSent = true;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[brief/subscribe] welcome email failed:", msg);
-      const usingOnboarding =
-        !process.env.BRIEF_FROM_EMAIL?.trim() &&
-        !process.env.DIGEST_FROM_EMAIL?.trim();
-      welcomeWarning = usingOnboarding
-        ? "Saved your signup, but confirmation could not be sent. Set BRIEF_FROM_EMAIL in Vercel to an address on your verified Resend domain (e.g. The Stewardship Brief <brief@yourdomain.com>), then redeploy."
-        : `Saved your signup, but confirmation could not be sent (${msg}). Check that BRIEF_FROM_EMAIL uses your verified Resend domain and that the domain status is Verified.`;
+    const alreadyEmailedToday = !(await claimBriefRecipientSend(email));
+    if (alreadyEmailedToday) {
+      welcomeWarning =
+        "You are on the list. Today’s Brief was already sent to this inbox, so we did not send a second confirmation.";
+    } else {
+      try {
+        const welcome = buildWelcomeEmail(email);
+        await sendDigestEmail({
+          to: [email],
+          subject: welcome.subject,
+          html: welcome.html,
+          text: welcome.text,
+          from: getBriefDigestFromAddress(),
+          idempotencyKey: `brief-welcome/${easternCalendarDate()}/${canonicalEmailInbox(email) ?? email}`,
+        });
+        welcomeSent = true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("[brief/subscribe] welcome email failed:", msg);
+        const usingOnboarding =
+          !process.env.BRIEF_FROM_EMAIL?.trim() &&
+          !process.env.DIGEST_FROM_EMAIL?.trim();
+        welcomeWarning = usingOnboarding
+          ? "Saved your signup, but confirmation could not be sent. Set BRIEF_FROM_EMAIL in Vercel to an address on your verified Resend domain (e.g. The Stewardship Brief <brief@yourdomain.com>), then redeploy."
+          : `Saved your signup, but confirmation could not be sent (${msg}). Check that BRIEF_FROM_EMAIL uses your verified Resend domain and that the domain status is Verified.`;
+      }
     }
 
     return NextResponse.json({

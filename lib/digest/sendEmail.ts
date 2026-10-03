@@ -3,6 +3,7 @@ import {
   getDigestFromAddress,
   getDigestReplyTo,
 } from "@/lib/digest/config";
+import { uniqueRecipientsByInbox } from "@/lib/digest/emailAddress";
 
 export async function sendDigestEmail(options: {
   to: string[];
@@ -15,6 +16,8 @@ export async function sendDigestEmail(options: {
   replyTo?: string;
   /** Extra Resend headers (e.g. List-Unsubscribe). */
   headers?: Record<string, string>;
+  /** Resend Idempotency-Key so a retry cannot create a second message. */
+  idempotencyKey?: string;
 }): Promise<{ id?: string }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -29,6 +32,9 @@ export async function sendDigestEmail(options: {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...(options.idempotencyKey
+        ? { "Idempotency-Key": options.idempotencyKey }
+        : {}),
     },
     body: JSON.stringify({
       from,
@@ -70,32 +76,43 @@ export async function sendDigestEmailToEach(options: {
     subject?: string;
     headers?: Record<string, string>;
   };
-}): Promise<{ sent: number; failed: string[]; lastId?: string }> {
-  const { recipients, personalize, ...payload } = options;
-  if (recipients.length === 0) {
-    return { sent: 0, failed: [] };
+  /** Return false to skip this inbox (already sent today). */
+  shouldSend?: (email: string) => Promise<boolean>;
+  idempotencyKeyFor?: (email: string) => string | undefined;
+}): Promise<{ sent: number; failed: string[]; skipped: number; lastId?: string }> {
+  const { recipients, personalize, shouldSend, idempotencyKeyFor, ...payload } =
+    options;
+  const unique = uniqueRecipientsByInbox(recipients);
+  if (unique.length === 0) {
+    return { sent: 0, failed: [], skipped: 0 };
   }
 
   let sent = 0;
+  let skipped = 0;
   const failed: string[] = [];
   let lastId: string | undefined;
 
-  for (const email of recipients) {
+  for (const { sendTo } of unique) {
+    if (shouldSend && !(await shouldSend(sendTo))) {
+      skipped += 1;
+      continue;
+    }
     try {
-      const extras = personalize?.(email) ?? {};
+      const extras = personalize?.(sendTo) ?? {};
       const result = await sendDigestEmail({
         ...payload,
-        to: [email],
+        to: [sendTo],
         subject: extras.subject ?? payload.subject,
         html: extras.html ?? payload.html,
         text: extras.text ?? payload.text,
         headers: extras.headers,
+        idempotencyKey: idempotencyKeyFor?.(sendTo),
       });
       sent += 1;
       lastId = result.id;
     } catch (err) {
       failed.push(
-        `${email}: ${err instanceof Error ? err.message : String(err)}`
+        `${sendTo}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }
@@ -104,5 +121,5 @@ export async function sendDigestEmailToEach(options: {
     throw new Error(failed[0] ?? "All recipient sends failed");
   }
 
-  return { sent, failed, lastId };
+  return { sent, failed, skipped, lastId };
 }
