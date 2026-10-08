@@ -41,6 +41,10 @@ In the Vercel project, go to **Settings** → **Environment Variables** and add 
 | `RESEND_API_KEY` | For Brief email | From [resend.com](https://resend.com) |
 | `BRIEF_FROM_EMAIL` | For Brief email | e.g. `The Stewardship Brief <brief@yourdomain.com>` (verified Resend domain) |
 | `DIGEST_RECIPIENT_EMAILS` | Optional | Extra Brief recipients (admins) |
+| `VISUAL_ABSTRACT_URL` | For visual abstract (beta) | Production address of the Visual Abstract service, e.g. `https://visual-abstract.vercel.app`. See `docs/VISUAL_ABSTRACT.md` |
+| `VISUAL_ABSTRACT_KEY` | For visual abstract (beta) | One of the service's `VISUAL_ABSTRACT_SERVICE_KEYS` (24+ characters). Server only |
+| `VISUAL_ABSTRACT_ENABLED` | Optional | `0` switches the feature off at once |
+| `VISUAL_ABSTRACT_USER_PER_HOUR`, `VISUAL_ABSTRACT_PER_DAY` | Optional | Caps on new papers (default 5 per person per hour, 40 per day) |
 
 **Do not** commit `.env.local` or any file containing real keys. Set everything in Vercel (or use Vercel’s env UI).
 

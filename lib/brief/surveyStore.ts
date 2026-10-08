@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "crypto";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { SURVEY_PAUSE_NEW_VISITORS } from "@/lib/brief/surveyPause";
 
 export type SurveyPromptStatus = "deferred" | "done";
 
@@ -62,6 +63,8 @@ export async function getSurveyPrompt(
 
 /** Whether this IP may see the survey (max 2 impressions). */
 export function surveyMayShow(row: SurveyPromptRow | null): boolean {
+  // No saved prompt yet — this visitor has never been asked.
+  if (SURVEY_PAUSE_NEW_VISITORS && (!row || row.showCount < 1)) return false;
   if (!row) return true;
   if (row.status === "done") return false;
   if (row.showCount >= 2) return false;

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { BriefItem } from "@/lib/brief/items";
+import { isNumericPmid } from "@/lib/doi";
 import { brief } from "@/components/brief/briefTheme";
 import {
   copyArticleLinks,
@@ -14,12 +15,13 @@ import {
 
 type Props = {
   item: BriefItem;
-  onGraphicTakeaway: () => void;
+  /** Opens the visual abstract (beta) dialog; for a paper without a PubMed ID it opens the text graphic. */
+  onVisualAbstract: () => void;
 };
 
 type MenuPos = { top: number; left: number; width: number };
 
-export default function ShareMenu({ item, onGraphicTakeaway }: Props) {
+export default function ShareMenu({ item, onVisualAbstract }: Props) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,10 +118,10 @@ export default function ShareMenu({ item, onGraphicTakeaway }: Props) {
             <MenuButton
               onClick={() => {
                 setOpen(false);
-                onGraphicTakeaway();
+                onVisualAbstract();
               }}
             >
-              Share graphic takeaway
+              {isNumericPmid(item.pmid) ? "Share visual abstract (beta)" : "Share graphic takeaway"}
             </MenuButton>
             <MenuButton onClick={() => void copyPubmedLink()}>
               {copied ? "Link copied" : "Copy PubMed link"}

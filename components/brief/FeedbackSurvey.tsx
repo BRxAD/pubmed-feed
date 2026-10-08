@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { brief } from "@/components/brief/briefTheme";
+import { SURVEY_PAUSE_NEW_VISITORS } from "@/lib/brief/surveyPause";
 
 const STORAGE_KEY = "brief-survey-v1";
 const DELAY_MS = 15_000;
@@ -80,6 +81,8 @@ function ScoreRow({
 /**
  * Homepage-only feedback prompt: after 15s, at most twice per visitor
  * (Ask later → once more next visit, then never). Anonymous; emailed via Resend.
+ * While SURVEY_PAUSE_NEW_VISITORS is on, people who have never been asked
+ * are skipped. That does not mark them finished, so the survey can resume later.
  */
 export default function FeedbackSurvey() {
   const titleId = useId();
@@ -96,6 +99,9 @@ export default function FeedbackSurvey() {
   useEffect(() => {
     const local = readLocal();
     if (local?.status === "done" || (local?.showCount ?? 0) >= 2) return;
+    // Never asked on this browser — do not start a first prompt, and do not
+    // write "done" (that would block them after the pause is lifted).
+    if (SURVEY_PAUSE_NEW_VISITORS && !local) return;
 
     let cancelled = false;
     const timer = window.setTimeout(async () => {
@@ -104,9 +110,11 @@ export default function FeedbackSurvey() {
         const data = (await res.json()) as {
           ok?: boolean;
           show?: boolean;
+          pausedNew?: boolean;
         };
         if (cancelled) return;
         if (!data.show) {
+          if (data.pausedNew) return;
           writeLocal({ status: "done", showCount: 2 });
           return;
         }

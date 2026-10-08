@@ -1,4 +1,8 @@
-import { getCachedHomepageReady } from "@/lib/brief/homepageCache";
+import {
+  BRIEF_FILTER_DISPLAY_MAX,
+  getCachedBriefFilterPool,
+  getCachedHomepageReady,
+} from "@/lib/brief/homepageCache";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import {
   matchesBriefSettingFilter,
@@ -14,8 +18,29 @@ import {
 } from "@/lib/brief/whoRegionFilter";
 import { listApprovedNewsForBrief } from "@/lib/news/store";
 import { searchBriefArticles } from "@/lib/brief/searchArticles";
+import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import { assignStoryImages } from "@/lib/brief/storyImages";
+import type { BriefItem } from "@/lib/brief/items";
 import BriefPage from "@/components/brief/BriefPage";
+
+function applyBriefFilters(
+  items: BriefItem[],
+  setting: ReturnType<typeof parseBriefSetting>,
+  topic: ReturnType<typeof parseBriefTopic>,
+  region: ReturnType<typeof parseBriefWhoRegion>
+): BriefItem[] {
+  let next = items;
+  if (setting) {
+    next = next.filter((item) => matchesBriefSettingFilter(item, setting));
+  }
+  if (topic) {
+    next = next.filter((item) => matchesBriefTopicFilter(item, topic));
+  }
+  if (region) {
+    next = next.filter((item) => matchesBriefWhoRegionFilter(item, region));
+  }
+  return next;
+}
 
 export default async function HomePage({
   searchParams,
@@ -50,24 +75,9 @@ export default async function HomePage({
     ]);
 
     if (q) {
-      // Full-text / ILIKE title & abstract search path
+      // Search is not limited to the last 28 days. Two columns, no photos.
       const searchHits = await searchBriefArticles(q, 40);
-      let items = searchHits;
-      if (setting) {
-        items = items.filter((item) =>
-          matchesBriefSettingFilter(item, setting)
-        );
-      }
-      if (topic) {
-        items = items.filter((item) => matchesBriefTopicFilter(item, topic));
-      }
-      if (region) {
-        items = items.filter((item) =>
-          matchesBriefWhoRegionFilter(item, region)
-        );
-      }
-
-      const images = await assignStoryImages(items);
+      const items = applyBriefFilters(searchHits, setting, topic, region);
 
       return (
         <BriefPage
@@ -77,6 +87,38 @@ export default async function HomePage({
           topic={topic}
           region={region}
           q={q}
+          images={{}}
+          newsItems={newsItems}
+          googleEnabled={googleEnabled}
+        />
+      );
+    }
+
+    const hasFilter = Boolean(setting || topic || region);
+    if (hasFilter) {
+      // Filters may include the past year. Layout stays lead + columns.
+      const pool = await getCachedBriefFilterPool();
+      const matched = applyBriefFilters(pool, setting, topic, region).slice(
+        0,
+        BRIEF_FILTER_DISPLAY_MAX
+      );
+      const items = await getBriefItemsForSaved(
+        matched.map((item) => ({
+          pmid: item.pmid,
+          title: item.headline || item.title,
+          pubmedUrl: item.pubmedUrl,
+        }))
+      );
+      const images = await assignStoryImages(items);
+
+      return (
+        <BriefPage
+          items={items}
+          topPriority={topPriority}
+          setting={setting}
+          topic={topic}
+          region={region}
+          q=""
           images={images}
           newsItems={newsItems}
           googleEnabled={googleEnabled}
@@ -84,20 +126,9 @@ export default async function HomePage({
       );
     }
 
-    // Default Brief path: cached All-pool + sticky lead + story images
+    // Default Brief path: cached All-pool + sticky lead + story images (28 days)
     const ready = await getCachedHomepageReady();
-    let items = ready.items;
-    if (setting) {
-      items = items.filter((item) => matchesBriefSettingFilter(item, setting));
-    }
-    if (topic) {
-      items = items.filter((item) => matchesBriefTopicFilter(item, topic));
-    }
-    if (region) {
-      items = items.filter((item) =>
-        matchesBriefWhoRegionFilter(item, region)
-      );
-    }
+    const items = ready.items;
 
     return (
       <BriefPage

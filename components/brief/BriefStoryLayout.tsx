@@ -208,10 +208,10 @@ export default function BriefStoryLayout({
         </aside>
 
         <div className="order-1 min-w-0">
-          <div className="flow-root divide-y divide-[#D8D4C8]">
+          <div className="flow-root grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-2 md:gap-y-10">
             {all.map((s) => (
-              <div key={s.item.pmid} className="flow-root">
-                {renderStory(s, "secondary")}
+              <div key={s.item.pmid} className={ITEM_RULE}>
+                {renderStory({ ...s, image: null }, "list")}
               </div>
             ))}
           </div>

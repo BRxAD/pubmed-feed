@@ -10,12 +10,26 @@ export type ArticleTopic =
   | "urinary"
   | "respiratory"
   | "skin-soft-tissue"
+  | "bone-joint"
+  | "c-difficile"
+  | "antifungal"
+  | "pediatrics"
+  | "diagnostic-stewardship"
+  | "allergy"
+  | "surgical-prophylaxis"
   | "artificial-intelligence";
 
 export const ARTICLE_TOPIC_ORDER: ArticleTopic[] = [
   "urinary",
   "respiratory",
   "skin-soft-tissue",
+  "bone-joint",
+  "c-difficile",
+  "antifungal",
+  "pediatrics",
+  "diagnostic-stewardship",
+  "allergy",
+  "surgical-prophylaxis",
   "artificial-intelligence",
 ];
 
@@ -23,6 +37,13 @@ export const ARTICLE_TOPIC_LABELS: Record<ArticleTopic, string> = {
   urinary: "Urinary",
   respiratory: "Respiratory",
   "skin-soft-tissue": "Skin & Soft Tissue",
+  "bone-joint": "Bone & Joint",
+  "c-difficile": "C. difficile",
+  antifungal: "Antifungal",
+  pediatrics: "Pediatrics",
+  "diagnostic-stewardship": "Diagnostic Stewardship",
+  allergy: "Allergy",
+  "surgical-prophylaxis": "Surgical Prophylaxis",
   "artificial-intelligence": "Artificial Intelligence",
 };
 
@@ -47,6 +68,34 @@ export const ARTICLE_TOPIC_CHIP_CLASSES: Record<
     idle: "bg-[#1C0B19]/08 text-[#1C0B19] ring-1 ring-[#1C0B19]/25",
     active: "bg-[#1C0B19] text-[#F6F4EF] ring-1 ring-[#1C0B19]",
   },
+  "bone-joint": {
+    idle: "bg-[#4E6470]/15 text-[#2C3E48] ring-1 ring-[#4E6470]/40",
+    active: "bg-[#4E6470] text-white ring-1 ring-[#4E6470]",
+  },
+  "c-difficile": {
+    idle: "bg-[#6B4E2E]/15 text-[#5C3E1E] ring-1 ring-[#6B4E2E]/40",
+    active: "bg-[#6B4E2E] text-white ring-1 ring-[#6B4E2E]",
+  },
+  antifungal: {
+    idle: "bg-[#A36B2C]/18 text-[#6B4510] ring-1 ring-[#A36B2C]/45",
+    active: "bg-[#A36B2C] text-white ring-1 ring-[#A36B2C]",
+  },
+  pediatrics: {
+    idle: "bg-[#3D7A6A]/15 text-[#1E4A40] ring-1 ring-[#3D7A6A]/40",
+    active: "bg-[#3D7A6A] text-white ring-1 ring-[#3D7A6A]",
+  },
+  "diagnostic-stewardship": {
+    idle: "bg-[#72705B]/18 text-[#3E3D32] ring-1 ring-[#72705B]/45",
+    active: "bg-[#72705B] text-white ring-1 ring-[#72705B]",
+  },
+  allergy: {
+    idle: "bg-[#8B4D6B]/15 text-[#6A3050] ring-1 ring-[#8B4D6B]/40",
+    active: "bg-[#8B4D6B] text-white ring-1 ring-[#8B4D6B]",
+  },
+  "surgical-prophylaxis": {
+    idle: "bg-[#3F5E4A]/15 text-[#24382C] ring-1 ring-[#3F5E4A]/40",
+    active: "bg-[#3F5E4A] text-white ring-1 ring-[#3F5E4A]",
+  },
 };
 
 /** Solid swatches for the Topic dropdown (same hues as the chips). */
@@ -55,6 +104,13 @@ export const ARTICLE_TOPIC_SWATCH: Record<ArticleTopic, string> = {
   respiratory: "#2A79A7",
   "skin-soft-tissue": "#E07A72",
   "artificial-intelligence": "#1C0B19",
+  "bone-joint": "#4E6470",
+  "c-difficile": "#6B4E2E",
+  antifungal: "#A36B2C",
+  pediatrics: "#3D7A6A",
+  "diagnostic-stewardship": "#72705B",
+  allergy: "#8B4D6B",
+  "surgical-prophylaxis": "#3F5E4A",
 };
 
 // ── Urinary ───────────────────────────────────────────────────────────────────
@@ -178,9 +234,160 @@ const AI_MESH_KW = [
   "natural language processing",
 ];
 
-/** Default floor; AI uses a higher floor so weak signals do not fire alone. */
+// ── Bone & joint (osteomyelitis stays out of Skin & Soft Tissue) ──────────────
+
+const BONE_PHRASES = [
+  "osteomyelitis",
+  "prosthetic joint infection",
+  "periprosthetic joint",
+  "septic arthritis",
+  "diabetic foot osteomyelitis",
+];
+
+const BONE_WORDS = ["pji", "dfo"];
+
+const BONE_MESH_KW = [
+  "osteomyelitis",
+  "arthritis, infectious",
+  "prosthesis-related infections",
+];
+
+// ── C. difficile ──────────────────────────────────────────────────────────────
+
+const CDI_PHRASES = [
+  "clostridioides difficile",
+  "clostridium difficile",
+  "c. difficile",
+  "c difficile",
+  "c.difficile",
+  "c diff",
+  "cdad",
+];
+
+const CDI_WORDS = ["cdi"];
+
+const CDI_MESH_KW = [
+  "clostridioides difficile",
+  "clostridium difficile",
+  "enterocolitis, pseudomembranous",
+];
+
+// ── Antifungal (bare "candida" / "azole" need a second hit; floor is 3) ───────
+
+const ANTIFUNGAL_PHRASES = [
+  "antifungal stewardship",
+  "candidemia",
+  "candidaemia",
+  "invasive candidiasis",
+  "invasive aspergillosis",
+  "aspergillosis",
+  "antifungal prophylaxis",
+  "candida auris",
+];
+
+const ANTIFUNGAL_WORDS = ["candida", "azole"];
+
+const ANTIFUNGAL_MESH_KW = [
+  "candidiasis",
+  "aspergillosis",
+  "antifungal agents",
+];
+
+// ── Pediatrics ────────────────────────────────────────────────────────────────
+// Age words in the title count. The same words in the abstract do not, so
+// "not studied in children" stays out. MeSH age terms count on their own.
+
+const PEDS_ANYWHERE_PHRASES = [
+  "pediatric",
+  "paediatric",
+  "neonatal",
+  "neonate",
+  "nicu",
+  "picu",
+];
+
+const PEDS_TITLE_PHRASES = ["children", "infants", "adolescent"];
+
+const PEDS_MESH_PATTERNS = [
+  /^child(,|\s|$)/,
+  /^infant(,|\s|$)/,
+  /^adolescent(,|\s|$)/,
+  /^pediatrics(,|\s|$)/,
+  /intensive care units, pediatric/,
+  /intensive care units, neonatal/,
+];
+
+// ── Diagnostic stewardship (floor 3: one phrase or MeSH, not two weak words) ─
+
+const DIAGNOSTIC_PHRASES = [
+  "diagnostic stewardship",
+  "blood culture stewardship",
+  "urine culture stewardship",
+  "procalcitonin-guided",
+  "procalcitonin guided",
+  "cascade reporting",
+  "selective reporting",
+  "blood culture contamination",
+  "reflex urine culture",
+  "urine culture reflex",
+  "syndromic panel",
+  "rapid blood culture identification",
+];
+
+const DIAGNOSTIC_WORDS = ["procalcitonin", "pct", "biofire", "maldi"];
+
+const DIAGNOSTIC_MESH_KW = ["procalcitonin"];
+
+// ── Allergy (drug / antibiotic allergy, not the bare word "allergy") ─────────
+
+const ALLERGY_PHRASES = [
+  "penicillin allergy",
+  "penicillin-allergic",
+  "penicillin allergic",
+  "beta-lactam allergy",
+  "beta lactam allergy",
+  "cephalosporin allergy",
+  "sulfonamide allergy",
+  "antibiotic allergy",
+  "antimicrobial allergy",
+  "drug allergy",
+  "allergy delabel",
+  "delabeling",
+  "de-labeling",
+  "delabelling",
+  "de-labelling",
+  "allergy label",
+  "allergy assessment",
+  "allergy testing",
+];
+
+const ALLERGY_MESH_KW = ["drug hypersensitivity"];
+
+// ── Surgical prophylaxis (prophylaxis plus a surgical word, or a set phrase) ─
+
+const SURGICAL_PROPHYLAXIS_PHRASES = [
+  "surgical prophylaxis",
+  "surgical antibiotic prophylaxis",
+  "surgical antimicrobial prophylaxis",
+  "perioperative antibiotic",
+  "perioperative antibiotics",
+  "perioperative antimicrobial",
+  "preoperative antibiotic",
+  "preoperative antibiotics",
+  "preoperative antimicrobial",
+  "pre-operative antibiotic",
+  "peri-operative antibiotic",
+];
+
+/** Default floor; some topics use a higher floor so two weak words cannot fire. */
 const MIN_SCORE = 2;
-const MIN_SCORE_AI = 3;
+const MIN_SCORE_STRICT = 3;
+
+const STRICT_TOPICS = new Set<ArticleTopic>([
+  "artificial-intelligence",
+  "diagnostic-stewardship",
+  "antifungal",
+]);
 
 function scoreText(
   text: string,
@@ -218,6 +425,27 @@ function hasExclude(text: string, phrases: string[]): boolean {
   return phrases.some((p) => lower.includes(p));
 }
 
+function scorePediatricsMesh(kws: string[]): number {
+  let score = 0;
+  for (const kw of kws) {
+    const lower = kw.toLowerCase().trim();
+    if (PEDS_MESH_PATTERNS.some((pattern) => pattern.test(lower))) score += 4;
+  }
+  return score;
+}
+
+function scoreSurgicalProphylaxis(text: string): number {
+  let score = scoreText(text, SURGICAL_PROPHYLAXIS_PHRASES, []);
+  const lower = text.toLowerCase();
+  const prophylaxis = /\bprophyla(?:xis|ctic)\b/.test(lower);
+  const surgical =
+    /\b(?:surgeries|surgery|surgical|perioperative|preoperative|pre-operative|peri-operative|intraoperative|intra-operative|ssi)\b/.test(
+      lower
+    );
+  if (prophylaxis && surgical) score += 3;
+  return score;
+}
+
 /**
  * Score all topic capsules (for soft match / debugging).
  */
@@ -227,7 +455,8 @@ export function scoreAllTopics(params: {
   keywords?: string[] | null;
   meshTerms?: string[] | null;
 }): Record<ArticleTopic, number> {
-  const text = [params.title ?? "", params.abstract ?? ""].join(" ");
+  const title = params.title ?? "";
+  const text = [title, params.abstract ?? ""].join(" ");
   const kws = [
     ...(params.keywords ?? []),
     ...(params.meshTerms ?? []),
@@ -249,6 +478,26 @@ export function scoreAllTopics(params: {
     "skin-soft-tissue":
       scoreText(text, SSTI_PHRASES, SSTI_WORDS) +
       scoreKeywords(kws, SSTI_MESH_KW),
+    "bone-joint":
+      scoreText(text, BONE_PHRASES, BONE_WORDS) +
+      scoreKeywords(kws, BONE_MESH_KW),
+    "c-difficile":
+      scoreText(text, CDI_PHRASES, CDI_WORDS) +
+      scoreKeywords(kws, CDI_MESH_KW),
+    antifungal:
+      scoreText(text, ANTIFUNGAL_PHRASES, ANTIFUNGAL_WORDS) +
+      scoreKeywords(kws, ANTIFUNGAL_MESH_KW),
+    pediatrics:
+      scoreText(text, PEDS_ANYWHERE_PHRASES, []) +
+      scoreText(title, PEDS_TITLE_PHRASES, []) +
+      scorePediatricsMesh(kws),
+    "diagnostic-stewardship":
+      scoreText(text, DIAGNOSTIC_PHRASES, DIAGNOSTIC_WORDS) +
+      scoreKeywords(kws, DIAGNOSTIC_MESH_KW),
+    allergy:
+      scoreText(text, ALLERGY_PHRASES, []) +
+      scoreKeywords(kws, ALLERGY_MESH_KW),
+    "surgical-prophylaxis": scoreSurgicalProphylaxis(text),
     "artificial-intelligence":
       scoreText(text, AI_PHRASES, AI_WORDS) +
       scoreKeywords(kws, AI_MESH_KW),
@@ -268,7 +517,7 @@ export function classifyArticleTopics(params: {
 
   return (Object.entries(scores) as [ArticleTopic, number][])
     .filter(([topic, score]) => {
-      const floor = topic === "artificial-intelligence" ? MIN_SCORE_AI : MIN_SCORE;
+      const floor = STRICT_TOPICS.has(topic) ? MIN_SCORE_STRICT : MIN_SCORE;
       return score >= floor;
     })
     .sort((a, b) => {

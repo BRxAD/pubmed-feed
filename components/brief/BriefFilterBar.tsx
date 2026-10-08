@@ -95,19 +95,25 @@ export default function BriefFilterBar({
           value={topic}
           open={open === "topic"}
           onOpenChange={(next) => setOpen(next ? "topic" : null)}
-          options={BRIEF_TOPIC_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: opt.label,
-            href: briefHomeHref({
-              setting: setting || undefined,
-              topic: opt.value || undefined,
-              region: region || undefined,
-              q: q || undefined,
-            }),
-            swatch: opt.value
-              ? ARTICLE_TOPIC_SWATCH[opt.value as ArticleTopic]
-              : undefined,
-          }))}
+          options={[...BRIEF_TOPIC_OPTIONS]
+            .sort((a, b) => {
+              if (!a.value) return -1;
+              if (!b.value) return 1;
+              return a.label.localeCompare(b.label);
+            })
+            .map((opt) => ({
+              value: opt.value,
+              label: opt.label,
+              href: briefHomeHref({
+                setting: setting || undefined,
+                topic: opt.value || undefined,
+                region: region || undefined,
+                q: q || undefined,
+              }),
+              swatch: opt.value
+                ? ARTICLE_TOPIC_SWATCH[opt.value as ArticleTopic]
+                : undefined,
+            }))}
         />
 
         <BriefSelect

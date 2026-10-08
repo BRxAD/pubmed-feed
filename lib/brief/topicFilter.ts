@@ -19,20 +19,29 @@ export const BRIEF_TOPIC_OPTIONS: {
   })),
 ];
 
+const TOPIC_ALIASES: Record<string, ArticleTopic> = {
+  ssti: "skin-soft-tissue",
+  skin: "skin-soft-tissue",
+  ai: "artificial-intelligence",
+  diagnostic: "diagnostic-stewardship",
+  peds: "pediatrics",
+  pediatric: "pediatrics",
+  paediatric: "pediatrics",
+  cdiff: "c-difficile",
+  "c-diff": "c-difficile",
+  difficile: "c-difficile",
+  fungal: "antifungal",
+  bone: "bone-joint",
+  joint: "bone-joint",
+  osteomyelitis: "bone-joint",
+  prophylaxis: "surgical-prophylaxis",
+};
+
 export function parseBriefTopic(raw: string | undefined): BriefTopicFilter {
   const v = raw?.trim().toLowerCase() ?? "";
-  if (
-    v === "urinary" ||
-    v === "respiratory" ||
-    v === "skin-soft-tissue" ||
-    v === "artificial-intelligence"
-  ) {
-    return v;
-  }
-  // Friendly aliases
-  if (v === "ssti" || v === "skin") return "skin-soft-tissue";
-  if (v === "ai") return "artificial-intelligence";
-  return "";
+  if (!v) return "";
+  if ((ARTICLE_TOPIC_ORDER as string[]).includes(v)) return v as ArticleTopic;
+  return TOPIC_ALIASES[v] ?? "";
 }
 
 function parseStoredTopics(raw: string[] | null | undefined): ArticleTopic[] {

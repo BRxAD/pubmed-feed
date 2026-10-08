@@ -109,7 +109,7 @@ export default function BriefSelect({
             id={listId}
             role="listbox"
             aria-labelledby={buttonId}
-            className="relative w-max min-w-[9.5rem] rounded-[3px] border border-[#C8C4B8] bg-white py-1 shadow-[0_2px_10px_rgba(28,11,25,0.12)]"
+            className="relative max-h-[min(70vh,28rem)] w-max min-w-[9.5rem] overflow-y-auto rounded-[3px] border border-[#C8C4B8] bg-white py-1 shadow-[0_2px_10px_rgba(28,11,25,0.12)]"
           >
             {options.map((opt) => {
               const isActive = opt.value === value;

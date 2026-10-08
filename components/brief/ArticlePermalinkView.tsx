@@ -16,7 +16,7 @@ import {
 } from "@/lib/classifyTopic";
 import { useBriefSaved } from "@/components/brief/SaveStreak";
 import ShareMenu from "@/components/brief/ShareMenu";
-import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
+import VisualAbstractButton from "@/components/brief/VisualAbstractButton";
 import { formatJournalTitle } from "@/lib/brief/formatJournal";
 
 function formatDate(iso: string | null): string {
@@ -42,7 +42,8 @@ export default function ArticlePermalinkView({
   openTakeaway?: boolean;
 }) {
   const { saved, toggleSave, signedIn } = useBriefSaved();
-  const [takeawayOpen, setTakeawayOpen] = useState(openTakeaway);
+  // ?takeaway=1 (links in author emails and shares) opens the dialog: the visual abstract, or the text graphic.
+  const [visualOpen, setVisualOpen] = useState(openTakeaway);
   const [imageBroken, setImageBroken] = useState(false);
   const [showSavedBanner, setShowSavedBanner] = useState(autoSaved);
 
@@ -259,16 +260,13 @@ export default function ArticlePermalinkView({
           Read on PubMed ↗
         </a>
 
-        <ShareMenu
-          item={item}
-          onGraphicTakeaway={() => setTakeawayOpen(true)}
-        />
+        <ShareMenu item={item} onVisualAbstract={() => setVisualOpen(true)} />
 
-        <GraphicTakeawayButton
+        <VisualAbstractButton
           item={item}
           image={image}
-          open={takeawayOpen}
-          onOpenChange={setTakeawayOpen}
+          open={visualOpen}
+          onOpenChange={setVisualOpen}
         />
       </div>
 

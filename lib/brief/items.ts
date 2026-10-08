@@ -348,6 +348,11 @@ export async function getBriefItems(options?: {
    * handcrafted-only rows — used for Top 10 egress.
    */
   storedPriorityMin?: number;
+  /**
+   * Skip the keyword/MeSH hydrate. Use for a cached filter index that only
+   * needs stored settings, topics, and regions. Display still hydrates winners.
+   */
+  skipKeywordHydrate?: boolean;
 }): Promise<BriefFeedResult> {
   const topicId = await getDefaultTopicId();
   if (!topicId) {
@@ -842,7 +847,11 @@ export async function getBriefItems(options?: {
 
   // Page-hydrate keywords/mesh for survivors (story images + soft setting match).
   // Unscored rows already have fields from the handcrafted path above.
-  const needKw = items.filter((i) => i.keywords.length === 0).map((i) => i.pmid);
+  // Filter index skips this — stored auto_settings / auto_topics / auto_who_regions
+  // are enough to filter, and bodies are hydrated only for the rows we show.
+  const needKw = options?.skipKeywordHydrate
+    ? []
+    : items.filter((i) => i.keywords.length === 0).map((i) => i.pmid);
   if (needKw.length > 0) {
     const kwFields = await hydrateArticleFieldsByPmid(supabase, needKw);
     for (const item of items) {

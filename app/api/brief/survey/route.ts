@@ -13,6 +13,7 @@ import {
   recordSurveyShown,
   surveyMayShow,
 } from "@/lib/brief/surveyStore";
+import { SURVEY_PAUSE_NEW_VISITORS } from "@/lib/brief/surveyPause";
 
 export const runtime = "nodejs";
 
@@ -42,9 +43,12 @@ export async function GET(request: NextRequest) {
     // If the table is missing, getSurveyPrompt returns null → allow show;
     // client localStorage still enforces the two-prompt rule.
     const show = surveyMayShow(row);
+    const pausedNew =
+      SURVEY_PAUSE_NEW_VISITORS && !show && (!row || row.showCount < 1);
     return NextResponse.json({
       ok: true,
       show,
+      pausedNew,
       status: row?.status ?? null,
       showCount: row?.showCount ?? 0,
     });

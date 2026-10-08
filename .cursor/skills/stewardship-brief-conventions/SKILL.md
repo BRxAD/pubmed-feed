@@ -64,6 +64,7 @@ Think of the product like a newspaper desk:
 - Change Brief ≥5 / Top 10 ≥6 / date windows without asking.
 - Commit/push unless the user asks.
 - Backfill OpenAlex more than 28 days unless asked.
+- Make a **visual abstract** at ingest, on page load, in the email, for a crawler, or for anyone not signed in (a signed-in click only), or raise its caps without asking.
 
 ---
 
@@ -73,7 +74,7 @@ Think of the product like a newspaper desk:
 |--------|--------|
 | `scripts/add_ml_priority.sql` | **Applied** |
 | `scripts/add_auto_settings.sql` | **Applied** (GIN on `auto_settings`) |
-| `scripts/add_auto_topics.sql` | **Run in Supabase** (topic capsules: Urinary / Respiratory / SSTI / AI) |
+| `scripts/add_auto_topics.sql` | **Run in Supabase** (topic capsules: Urinary / Respiratory / SSTI / Bone & Joint / C. difficile / Antifungal / Pediatrics / Diagnostic Stewardship / Allergy / Surgical Prophylaxis / AI) |
 | `scripts/add_auto_who_regions.sql` | **Run in Supabase** (WHO regions on summaries for Brief / later filters) |
 | `scripts/optimize_postgres_hot_paths.sql` | **Applied** (indexes + RLS on core tables; ASCII-only comments) |
 | `scripts/fix_topic_query_animals_not_humans.sql` | **Applied** (main topic animal filter) |
@@ -84,6 +85,7 @@ Think of the product like a newspaper desk:
 | `scripts/add_articles_doi.sql` | **Applied** (doi / openalex_id / landing_url + rekey_article_pmid) |
 | `scripts/add_auth_users_created_at.sql` | **Applied** (`auth_users.created_at` for /feed account counts) |
 | `scripts/expand_admin_setting_check.sql` | **Applied** (admin_setting allows dentistry, one-health, global-health) |
+| `scripts/add_visual_abstracts.sql` | **Not run yet** (visual abstract (beta): `visual_abstracts` table + public `visual-abstracts` bucket; see `docs/VISUAL_ABSTRACT.md`) |
 
 New environments: run these in the Supabase SQL Editor. SQL comments must stay **ASCII-only** (no fancy dashes) — Supabase editor can choke on unicode.
 
@@ -178,7 +180,7 @@ Main topic animal exclusion must be:
 ## Surfaces
 
 - **PubMed + OpenAlex.** Same 2× daily ingest. OpenAlex covers **CID, OFID, ASHE, ICHE, CMI** journal articles only (no preprints; same letter/editorial/case-report/animal-only drops). **OFID** further requires stewardship / antibiotic / antimicrobial / antifungal / prescribing / named drug in title or abstract (HIV/viral OFID stays out). Other journals stay PubMed-only. Merge on DOI: one row. OpenAlex-first uses work id until a PMID exists, then rewrite PK, keep summary/headline/`fetched_at`, switch the public link to PubMed. PubMed-first: stamp `openalex_id`, do not summarize again. Also poll **Crossref published-online** for those ISSNs in the same 28-day window — Cambridge FirstView papers that OpenAlex stamps as `YYYY-01-01` are missed by OpenAlex publication-date search. Store the DOI online date, not the year stamp. `/feed` shows one list with tags `OpenAlex` / `OpenAlex · PubMed` / `PubMed`. No source switcher. Brief / email / Top 10: one card, no API label. GET `/api/ingest/openalex` is a health probe (`enabled: true`); POST runs ingest.
-- **Brief** — curated, effective priority ≥5, **28-day article-date** window. Cached ready payload (~1 h, key `v11`): All → sticky lead → images; filter setting + **topic** tabs in memory.
+- **Brief** — curated, effective priority ≥5, **28-day article-date** window when search and filters are off. Cached ready payload (~1 h, key `v21`): All → sticky lead → images. A **setting, topic, or region** filter uses a separate slim **365-day** pool (cached ~1 h, same bust tag; no abstracts), then hydrates only the stories shown (up to 120) and keeps the normal lead + columns layout. **Search** is not date-limited, uses two columns, and shows no photos.
   - Setting + Topic: compact text menus (default All), Flickr-style attached list. Topic keeps color swatches. URL `?setting=` / `?topic=`.
   - **Lead-by-recency (default):** sort by `max(publish date, ingest/fetched_at)` so a fresh ingest can surface when there is no newer publication to feature; then prefer published date, then ingest, then priority. Priority-first mode still uses that same recency as the tie-break.
   - **Sticky lead (current rule):** pins the natural #1 for the Eastern calendar day against *lower*-priority churn. Natural #1 with **equal or higher** effective priority **always replaces** the pin (so a newer same-score story can take the lead when lead-by-recency is on). **Old rule (do not restore):** only *strictly higher* priority could replace — that blocked same-day equal-priority updates.
@@ -247,7 +249,7 @@ Main topic animal exclusion must be:
 
 - Prefer stored `rank_score` for relevance sort when present.
 - Settings are **single-label** (`lib/classifySetting.ts`): highest score at/above floor (ties → `ARTICLE_SETTING_ORDER`). Labels: Hospital, Community, Long-term care, …. ED evidence still boosts hospital + community scores, but only the winner is saved/shown. Legacy multi-value `auto_settings` arrays: use **first** element only.
-- Topic capsules are **multi-label** (`lib/classifyTopic.ts`): Urinary, Respiratory (incl. ENT), Skin & Soft Tissue (no bare abscess / no osteomyelitis), Artificial Intelligence (higher score floor). Saved as `auto_topics` at ingest going forward.
+- Topic capsules are **multi-label** (`lib/classifyTopic.ts`): Urinary, Respiratory (incl. ENT), Skin & Soft Tissue (no bare abscess / no osteomyelitis), Bone & Joint, C. difficile, Antifungal, Pediatrics (title age-words or MeSH; abstract “children” alone does not count), Diagnostic Stewardship, Allergy (drug/antibiotic allergy phrases, not the bare word), Surgical Prophylaxis, Artificial Intelligence. Diagnostic Stewardship, Antifungal, and AI use a higher score floor. Saved as `auto_topics` at ingest going forward. No bloodstream capsule.
 - WHO regions are **multi-label** (`lib/classifyWhoRegion.ts`): African Region, Region of the Americas, South-East Asia Region, European Region, Eastern Mediterranean Region, Western Pacific Region. From author affiliations + country names in title/keywords/MeSH. Saved as `auto_who_regions` at ingest going forward. Shown in More detail (below Results, above Original title). No Brief/email filter yet.
 - Prefer stored `auto_settings` / `auto_topics` / `auto_who_regions` on page load; do not re-classify from keywords/MeSH when stored arrays are present.
 - **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
@@ -264,7 +266,18 @@ Main topic animal exclusion must be:
 - Stock photos that depict a specific subject must gate on that subject (e.g. dog photo → require “dog”/“dogs” only — not generic animal / One Health / veterinary).
 - Do not re-assign images per setting tab.
 - Skip server-side URL health probes for curated catalog hosts (Unsplash/Pexels/Wikimedia/local); client `onError` demotes broken images.
-- **Graphic takeaway:** dark navy left shade (`#1C0B19`) over the story photo, white type, inverted logo — use the article’s assigned image when present.
+- **Graphic takeaway:** dark navy left shade (`#1C0B19`) over the story photo, white type, inverted logo — use the article’s assigned image when present. It is now the **fallback** inside the visual abstract dialog (and the only graphic for papers without a PubMed ID).
+
+## Visual abstract (beta) (hard)
+
+Full notes: `docs/VISUAL_ABSTRACT.md`. Replaces the Graphic takeaway button; always written **“Visual abstract (beta)”** on the button, Share menu item and dialog title.
+
+- **Click only, signed in only.** POST `/api/brief/visual-abstract` from a signed-in click. Never at ingest, page load, email or by a crawler. A signed-out reader gets the sign-in panel and the text graphic.
+- **One look:** Stewardship Brief, Simple, 16:9, 1600 x 900 PNG, from the Visual Abstract service (separate deployment; `VISUAL_ABSTRACT_URL` + `VISUAL_ABSTRACT_KEY`, key never in the browser).
+- **Cost and egress:** one row per paper in `visual_abstracts` (findings JSON ~15 KB read **by pmid only**, never in bulk); picture ~150 KB in the public `visual-abstracts` bucket. Caps: **5** new papers per person per hour, **40** per day (`VISUAL_ABSTRACT_USER_PER_HOUR`, `VISUAL_ABSTRACT_PER_DAY`); a paper gets at most **3** attempts; a paper the maker cannot draw is not retried. Repeat clicks and saved findings are free. Kill switch: `VISUAL_ABSTRACT_ENABLED=0`.
+- **Hobby plan:** no cron (one run a day only), 1 hour of logs. So state moves only on a click or on the open dialog’s status check, and every failure reason is stored in the table.
+- **Never a dead end:** every failure shows one plain sentence plus “Use the text graphic instead”.
+- Do not regenerate existing pictures unless asked (delete the row to make one again).
 
 ## Ingest & cron
 
@@ -287,7 +300,7 @@ Main topic animal exclusion must be:
 
 - Keep existing Brief/feed look; avoid generic AI aesthetics.
 - One job per section; don’t turn Brief into a stats console.
-- **Homepage survey:** after **15s** on Brief homepage only; anonymous; emailed to `BRIEF_SURVEY_EMAIL` or `brad.langford@gmail.com`. Max **two** prompts per hashed IP (+ localStorage): “Ask me later” allows one more visit, then never. SQL: `scripts/add_survey_prompts.sql`.
+- **Homepage survey:** after **15s** on Brief homepage only; anonymous; emailed to `BRIEF_SURVEY_EMAIL` or `brad.langford@gmail.com`. Max **two** prompts per hashed IP (+ localStorage): “Ask me later” allows one more visit, then never. **Paused for new visitors** (`SURVEY_PAUSE_NEW_VISITORS` in `lib/brief/surveyPause.ts`): someone never asked is skipped and not marked finished. A visitor already on “Ask me later” can still get the one follow-up. SQL: `scripts/add_survey_prompts.sql`.
 - **Graphic takeaway:** quiet salmon chip (same light pink as Your Brief), not a solid loud CTA. Opens a preview popup for download/share. Share menu “Share graphic takeaway” opens that same popup (menu is portaled above story photos). Card art: dark navy left shade over the article’s assigned photo, white type, inverted logo, **via www.stewardshipbrief.com**. Copied links are HTML: PubMed URL + `via www.stewardshipbrief.com` as two clickable links (plain-text fallback uses `via https://www.stewardshipbrief.com`). Do not put that via line in the digest email.
 - Digest email: headline links to the Brief permalink; article date sits tightly above the headline; journal name in smaller type below the headline. Each story has **Read article** (PubMed or DOI) plus Email share links (no LinkedIn, X, or Facebook). No via-line in email. Copy, native Share, and Graphic takeaway cannot run in email. Avoid em dashes (use `:` or `-`). Deliverability: send from verified Resend domain (`BRIEF_FROM_EMAIL`), List-Unsubscribe + List-Id, prefer brand links in chrome (header/footer) over mostly-PubMed URLs; see `docs/DAILY_DIGEST.md` spam checklist.
 - Feed: show slim last-ingest line (when / ingested / summarized / ML ≥ 5) via `loadLastIngestStats` — counts + tiny `pmid, ml_priority` slice only.

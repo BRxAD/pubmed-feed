@@ -47,3 +47,48 @@ const loadCachedHomepageReady = unstable_cache(
 export async function getCachedHomepageReady(): Promise<HomepageReadyPayload> {
   return loadCachedHomepageReady();
 }
+
+/**
+ * How far back a setting, topic, or region filter may look.
+ * The default homepage (no filter, no search) stays at 28 days.
+ */
+export const BRIEF_FILTER_ARTICLE_WINDOW_DAYS = 365;
+
+/** Slim index size for that longer filter list (no summary or abstract bodies). */
+const FILTER_POOL_MAX_ITEMS = 400;
+
+/**
+ * Stories actually drawn for one filter. Bodies are loaded only for these,
+ * after the slim pool is filtered in memory.
+ */
+export const BRIEF_FILTER_DISPLAY_MAX = 120;
+
+async function loadBriefFilterPool(): Promise<BriefItem[]> {
+  const brief = await getBriefItems({
+    setting: "",
+    daysBack: BRIEF_FILTER_ARTICLE_WINDOW_DAYS,
+    maxLookbackDays: BRIEF_FILTER_ARTICLE_WINDOW_DAYS,
+    maxItems: FILTER_POOL_MAX_ITEMS,
+    articleDateWithinDays: BRIEF_FILTER_ARTICLE_WINDOW_DAYS,
+    skipHeadlines: true,
+    skipKeywordHydrate: true,
+  });
+  return brief.items;
+}
+
+const loadCachedBriefFilterPool = unstable_cache(
+  loadBriefFilterPool,
+  ["brief-filter-pool-v1"],
+  {
+    revalidate: HOMEPAGE_READY_CACHE_SECONDS,
+    tags: [BRIEF_HOMEPAGE_CACHE_TAG],
+  }
+);
+
+/**
+ * Priority ≥ 5 stories from the last year, newest first.
+ * Slim fields only (no abstracts). Cached ~1 h; busts with the homepage.
+ */
+export async function getCachedBriefFilterPool(): Promise<BriefItem[]> {
+  return loadCachedBriefFilterPool();
+}

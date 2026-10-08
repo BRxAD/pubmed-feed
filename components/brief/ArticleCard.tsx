@@ -14,7 +14,7 @@ import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import { formatJournalTitle } from "@/lib/brief/formatJournal";
 import { brief } from "@/components/brief/briefTheme";
 import ShareMenu from "@/components/brief/ShareMenu";
-import GraphicTakeawayButton from "@/components/brief/GraphicTakeawayButton";
+import VisualAbstractButton from "@/components/brief/VisualAbstractButton";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -207,7 +207,7 @@ function StoryActions({
   skipMethodsResults?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [takeawayOpen, setTakeawayOpen] = useState(false);
+  const [visualOpen, setVisualOpen] = useState(false);
   const showDetail = hasDetailContent(item, { skipMethodsResults });
 
   return (
@@ -249,15 +249,12 @@ function StoryActions({
         >
           Read article
         </a>
-        <ShareMenu
-          item={item}
-          onGraphicTakeaway={() => setTakeawayOpen(true)}
-        />
-        <GraphicTakeawayButton
+        <ShareMenu item={item} onVisualAbstract={() => setVisualOpen(true)} />
+        <VisualAbstractButton
           item={item}
           image={image}
-          open={takeawayOpen}
-          onOpenChange={setTakeawayOpen}
+          open={visualOpen}
+          onOpenChange={setVisualOpen}
         />
       </div>
       {expanded && showDetail && (
