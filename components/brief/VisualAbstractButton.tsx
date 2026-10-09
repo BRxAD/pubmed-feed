@@ -234,7 +234,7 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
   const intro =
     view.kind === "text"
       ? "Preview, then download or share."
-      : "Made automatically from the abstract. Check the paper before you rely on it.";
+      : "Made automatically from the abstract. Check the paper for accuracy before use.";
 
   return (
     <>
@@ -291,7 +291,7 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
               {view.step === "extract" ? "Reading the abstract…" : "Drawing the picture…"}
             </span>
             <span className="mt-1 block">
-              This takes about 30 seconds the first time. You can close this window; it keeps going.
+              This takes about 30 seconds the first time. Feel free to close this window and come back!
             </span>
           </Placeholder>
         )}
@@ -379,13 +379,32 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
   );
 }
 
+function BookFlip() {
+  return (
+    <div className="brief-book" aria-hidden="true">
+      <div className="brief-book-page brief-book-page-left" />
+      <div className="brief-book-page brief-book-page-right" />
+      <div className="brief-book-flip">
+        <div className="brief-book-flip-face brief-book-flip-front" />
+        <div className="brief-book-flip-face brief-book-flip-back" />
+      </div>
+      <div className="brief-book-flip brief-book-flip-late">
+        <div className="brief-book-flip-face brief-book-flip-front" />
+        <div className="brief-book-flip-face brief-book-flip-back" />
+      </div>
+      <div className="brief-book-capsule" />
+    </div>
+  );
+}
+
 function Placeholder({ children, busy = false }: { children: React.ReactNode; busy?: boolean }) {
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-4 text-center ${brief.sans} text-sm ${brief.muted} ${busy ? "animate-pulse" : ""}`}
+      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-4 text-center ${brief.sans} text-sm ${brief.muted}`}
     >
+      {busy && <BookFlip />}
       <div>{children}</div>
     </div>
   );

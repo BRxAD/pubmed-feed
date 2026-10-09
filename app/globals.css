@@ -89,9 +89,94 @@ body {
   background-size: 100% 1px;
 }
 
+/* Open book, in the logo colors, while a visual abstract is being made. */
+.brief-book {
+  position: relative;
+  width: 5.5rem;
+  height: 4rem;
+  margin-inline: auto;
+  margin-bottom: 1rem;
+  perspective: 800px;
+}
+
+.brief-book-page {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+}
+
+.brief-book-page-left {
+  left: 0;
+  background: #9a9b78;
+  border-radius: 0.45rem 0.12rem 0.35rem 0.75rem;
+}
+
+.brief-book-page-right {
+  right: 0;
+  background: #3a2438;
+  border-radius: 0.12rem 0.45rem 0.75rem 0.35rem;
+}
+
+.brief-book-flip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 50%;
+  height: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  animation: brief-page-flip 1.4s ease-in-out infinite;
+}
+
+.brief-book-flip-late {
+  animation-delay: -0.7s;
+}
+
+.brief-book-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 0.08rem 0.4rem 0.7rem 0.12rem;
+}
+
+.brief-book-flip-front {
+  background: #f4f1e8;
+}
+
+.brief-book-flip-back {
+  background: #c5c6a6;
+  transform: rotateY(180deg);
+}
+
+.brief-book-capsule {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  z-index: 2;
+  width: 0.72rem;
+  height: 68%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(#ffa69e 0 50%, #2a79a7 50% 100%);
+  box-shadow: 0 0 0 2px #efece4;
+}
+
+@keyframes brief-page-flip {
+  0% {
+    transform: rotateY(0deg);
+  }
+  46%,
+  100% {
+    transform: rotateY(-180deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .brief-masthead-settle,
-  .brief-lead-fade {
+  .brief-lead-fade,
+  .brief-book-flip {
     animation: none;
   }
 
