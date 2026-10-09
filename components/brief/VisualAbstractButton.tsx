@@ -286,11 +286,9 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
         )}
 
         {view.kind === "working" && (
-          <Placeholder busy>
-            <span className="block font-medium text-[#1C0B19]">
-              {view.step === "extract" ? "Reading the abstract…" : "Drawing the picture…"}
-            </span>
-            <span className="mt-1 block">
+          <Placeholder>
+            <WorkProgress step={view.step} />
+            <span className="mt-3 block">
               This takes about 30 seconds the first time. Feel free to close this window and come back!
             </span>
           </Placeholder>
@@ -379,33 +377,53 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
   );
 }
 
-function BookFlip() {
+function WorkProgress({ step }: { step: "extract" | "draw" }) {
+  const [pct, setPct] = useState(step === "draw" ? 62 : 8);
+  useEffect(() => {
+    const floor = step === "extract" ? 8 : 62;
+    const cap = step === "extract" ? 58 : 92;
+    setPct((current) => Math.max(current, floor));
+    const timer = window.setInterval(() => {
+      setPct((current) => {
+        if (current >= cap) return current;
+        return Math.min(cap, current + Math.max(0.6, (cap - current) * 0.045));
+      });
+    }, 450);
+    return () => window.clearInterval(timer);
+  }, [step]);
+  const shown = Math.round(pct);
+  const label = step === "extract" ? "Reading the abstract…" : "Drawing the picture…";
   return (
-    <div className="brief-book" aria-hidden="true">
-      <div className="brief-book-page brief-book-page-left" />
-      <div className="brief-book-page brief-book-page-right" />
-      <div className="brief-book-flip">
-        <div className="brief-book-flip-face brief-book-flip-front" />
-        <div className="brief-book-flip-face brief-book-flip-back" />
+    <div className="w-full max-w-sm">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="font-medium text-[#1C0B19]">{label}</span>
+        <span className="tabular-nums text-[#1C0B19]">{shown}%</span>
       </div>
-      <div className="brief-book-flip brief-book-flip-late">
-        <div className="brief-book-flip-face brief-book-flip-front" />
-        <div className="brief-book-flip-face brief-book-flip-back" />
+      <div
+        className="h-1 overflow-hidden rounded-full bg-[#D8D4C8]"
+        role="progressbar"
+        aria-valuenow={shown}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
+        <div
+          className="brief-va-bar-fill h-full rounded-full bg-[#2A79A7]"
+          style={{ width: `${shown}%`, transition: "width 0.45s ease" }}
+        />
       </div>
-      <div className="brief-book-capsule" />
     </div>
   );
 }
 
-function Placeholder({ children, busy = false }: { children: React.ReactNode; busy?: boolean }) {
+function Placeholder({ children }: { children: React.ReactNode }) {
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-4 text-center ${brief.sans} text-sm ${brief.muted}`}
+      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-6 text-center ${brief.sans} text-sm ${brief.muted}`}
     >
-      {busy && <BookFlip />}
-      <div>{children}</div>
+      <div className="w-full">{children}</div>
     </div>
   );
 }
