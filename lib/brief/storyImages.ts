@@ -30,6 +30,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1576086213369", // clinical lab aisle — over-matched
   "photo-1622253692010", // clinician in scrubs — used on too many physician headlines
   "photos/8460157", // labeled urine testing, file is a male portrait
+  "photo-1516549655169", // labeled emergency department, file is an operating room
   "photos/7089020", // team huddle — over-matched generic
   "photo-1529107386315", // city network lights — not stewardship/global health
   "photo-1631217868264", // clinicians discussion — user-rejected
@@ -49,6 +50,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "hospital-staff",
   "white-coat",
   "pexels-urine-dipstick",
+  "emergency-care",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -307,7 +309,16 @@ export function bestStrictImagePlan(
   return { score: best, preferGenerate };
 }
 
-/** Generic stewardship photos only — never organ-specific scenes. */
+/**
+ * Last-resort still lifes of medicine only. No people, rooms, or culture plates,
+ * so a blank photo slot can be filled without a scene a reader could call wrong.
+ */
+const SAFE_GENERIC_IDS = new Set([
+  "local-generic-04",
+  "local-generic-08",
+  "local-medications-antibiotics",
+]);
+
 function genericFallbackCandidates(
   item: StoryImageFields,
   used: UsageTracker
@@ -324,7 +335,7 @@ function genericFallbackCandidates(
 
   const out: Array<{ entry: CatalogEntry; confidence: number }> = [];
   for (const entry of STORY_IMAGE_CATALOG) {
-    if (!entry.generic) continue;
+    if (!SAFE_GENERIC_IDS.has(entry.id)) continue;
     if (!isUnused(entry, used)) continue;
     if (isBlockedCatalogEntry(entry)) continue;
     out.push({

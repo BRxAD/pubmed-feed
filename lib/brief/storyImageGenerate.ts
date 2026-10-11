@@ -144,6 +144,9 @@ function sceneMotif(text: string): string | null {
   if (bacteremia) {
     return "Sealed blood culture bottles on a clean bench. No people. No petri dishes. No syringe. No dental chair.";
   }
+  if (/\bmultiplex\b|\bpathogen panel\b|\brespiratory panel\b/.test(t)) {
+    return "A laboratory multiplex PCR cartridge: one flat sealed plastic pouch standing in a small benchtop instrument slot. Not a home rapid test, not a lateral-flow cassette, not a pregnancy-test shape. No people. No operating room, surgical lights, or operating table. No syringe. No readable labels. No petri dishes.";
+  }
   if (dental) {
     return "Dental instruments and a mouth mirror on a tray, chair empty. No patient.";
   }

@@ -18,10 +18,11 @@ export const STORY_IMAGE_POLICY = {
 
   /**
    * Within the photo-eligible band (excluding lead), allow thematic matches.
-   * Generics off — blank is better than an off-topic stock photo.
+   * If nothing topical fits, use a plain medicine still life so a photo card
+   * is not left blank beside another photo.
    */
   secondaryStrictOnly: false,
-  secondaryAllowGeneric: false,
+  secondaryAllowGeneric: true,
 
   /**
    * On photo stories, show a short abstract-derived quote under the image
