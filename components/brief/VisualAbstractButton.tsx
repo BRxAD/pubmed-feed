@@ -288,9 +288,6 @@ function VisualAbstract({ item, image, open: openProp, onOpenChange }: Props) {
         {view.kind === "working" && (
           <Placeholder>
             <WorkProgress step={view.step} />
-            <span className="mt-3 block">
-              This takes about 30 seconds the first time. Feel free to close this window and come back!
-            </span>
           </Placeholder>
         )}
 
@@ -394,13 +391,13 @@ function WorkProgress({ step }: { step: "extract" | "draw" }) {
   const shown = Math.round(pct);
   const label = step === "extract" ? "Reading the abstract…" : "Drawing the picture…";
   return (
-    <div className="w-full max-w-sm">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
+    <div className="mx-auto w-full max-w-xl text-left">
+      <div className="mb-2 flex items-baseline justify-between gap-4">
         <span className="font-medium text-[#1C0B19]">{label}</span>
-        <span className="tabular-nums text-[#1C0B19]">{shown}%</span>
+        <span className="shrink-0 tabular-nums text-[#1C0B19]">{shown}%</span>
       </div>
       <div
-        className="h-1 overflow-hidden rounded-full bg-[#D8D4C8]"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-[#C4C0B4]"
         role="progressbar"
         aria-valuenow={shown}
         aria-valuemin={0}
@@ -412,6 +409,9 @@ function WorkProgress({ step }: { step: "extract" | "draw" }) {
           style={{ width: `${shown}%`, transition: "width 0.45s ease" }}
         />
       </div>
+      <p className="mt-3 text-center">
+        This takes about 30 seconds the first time. Feel free to close this window and come back!
+      </p>
     </div>
   );
 }
@@ -421,7 +421,7 @@ function Placeholder({ children }: { children: React.ReactNode }) {
     <div
       role="status"
       aria-live="polite"
-      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-6 text-center ${brief.sans} text-sm ${brief.muted}`}
+      className={`mt-4 flex aspect-video flex-col items-center justify-center rounded-sm border border-[#D8D4C8] bg-[#EFECE4] px-6 text-center sm:px-10 ${brief.sans} text-sm ${brief.muted}`}
     >
       <div className="w-full">{children}</div>
     </div>
