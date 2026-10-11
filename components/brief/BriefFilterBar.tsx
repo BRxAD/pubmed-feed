@@ -27,11 +27,14 @@ export default function BriefFilterBar({
   topic = "",
   region = "",
   q = "",
+  visibleTopics = [],
 }: {
   setting: BriefSettingFilter;
   topic?: BriefTopicFilter;
   region?: BriefWhoRegionFilter;
   q?: string;
+  /** Topic menu entries that have enough stories. All stays first. */
+  visibleTopics?: ArticleTopic[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<"setting" | "topic" | "region" | null>(null);
@@ -95,7 +98,12 @@ export default function BriefFilterBar({
           value={topic}
           open={open === "topic"}
           onOpenChange={(next) => setOpen(next ? "topic" : null)}
-          options={[...BRIEF_TOPIC_OPTIONS]
+          options={BRIEF_TOPIC_OPTIONS.filter(
+            (opt) =>
+              opt.value === "" ||
+              visibleTopics.includes(opt.value) ||
+              opt.value === topic
+          )
             .sort((a, b) => {
               if (!a.value) return -1;
               if (!b.value) return 1;

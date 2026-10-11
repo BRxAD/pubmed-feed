@@ -11,6 +11,7 @@ import {
 import {
   matchesBriefTopicFilter,
   parseBriefTopic,
+  topicsWithEnoughArticles,
 } from "@/lib/brief/topicFilter";
 import {
   matchesBriefWhoRegionFilter,
@@ -69,10 +70,12 @@ export default async function HomePage({
   );
 
   try {
-    const [topPriority, newsItems] = await Promise.all([
+    const [topPriority, newsItems, topicPool] = await Promise.all([
       getTopPriorityYearItems(setting, topic),
       listApprovedNewsForBrief(6),
+      getCachedBriefFilterPool(),
     ]);
+    const visibleTopics = topicsWithEnoughArticles(topicPool);
 
     if (q) {
       // Search is not limited to the last 28 days. Two columns, no photos.
@@ -90,6 +93,7 @@ export default async function HomePage({
           images={{}}
           newsItems={newsItems}
           googleEnabled={googleEnabled}
+          visibleTopics={visibleTopics}
         />
       );
     }
@@ -97,7 +101,7 @@ export default async function HomePage({
     const hasFilter = Boolean(setting || topic || region);
     if (hasFilter) {
       // Filters may include the past year. Layout stays lead + columns.
-      const pool = await getCachedBriefFilterPool();
+      const pool = topicPool;
       const matched = applyBriefFilters(pool, setting, topic, region).slice(
         0,
         BRIEF_FILTER_DISPLAY_MAX
@@ -122,6 +126,7 @@ export default async function HomePage({
           images={images}
           newsItems={newsItems}
           googleEnabled={googleEnabled}
+          visibleTopics={visibleTopics}
         />
       );
     }
@@ -141,6 +146,7 @@ export default async function HomePage({
         images={ready.images}
         newsItems={newsItems}
         googleEnabled={googleEnabled}
+        visibleTopics={visibleTopics}
       />
     );
   } catch (err) {

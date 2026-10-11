@@ -88,6 +88,28 @@ export function matchesBriefTopicFilter(
   return getItemTopics(item).includes(filter);
 }
 
+/** Hide a topic in the homepage menu until it has this many stories. */
+export const BRIEF_TOPIC_MIN_ARTICLES = 5;
+
+/**
+ * Topics with at least BRIEF_TOPIC_MIN_ARTICLES matches.
+ * Count the year-long filter pool (the list a topic opens), not the 28-day homepage.
+ */
+export function topicsWithEnoughArticles(
+  items: BriefItem[],
+  min: number = BRIEF_TOPIC_MIN_ARTICLES
+): ArticleTopic[] {
+  return ARTICLE_TOPIC_ORDER.filter((topic) => {
+    let count = 0;
+    for (const item of items) {
+      if (!matchesBriefTopicFilter(item, topic)) continue;
+      count += 1;
+      if (count >= min) return true;
+    }
+    return false;
+  });
+}
+
 export function briefTopicLabel(topic: ArticleTopic | null): string | null {
   if (!topic) return null;
   return ARTICLE_TOPIC_LABELS[topic] ?? topic;

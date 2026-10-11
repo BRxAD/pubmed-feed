@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { classifyArticleTopics } from "./classifyTopic";
+import { classifyArticleTopics, type ArticleTopic } from "./classifyTopic";
+import { topicsWithEnoughArticles } from "./brief/topicFilter";
+import type { BriefItem } from "./brief/items";
+
+function topicItem(topic: ArticleTopic): BriefItem {
+  return { topics: [topic] } as BriefItem;
+}
+
+describe("topicsWithEnoughArticles", () => {
+  it("keeps a topic at 5 stories and hides one at 4", () => {
+    const items = [
+      ...Array.from({ length: 5 }, () => topicItem("urinary")),
+      ...Array.from({ length: 4 }, () => topicItem("allergy")),
+    ];
+    const shown = topicsWithEnoughArticles(items);
+    assert.ok(shown.includes("urinary"));
+    assert.equal(shown.includes("allergy"), false);
+  });
+});
 
 describe("classifyArticleTopics", () => {
   it("tags diagnostic stewardship from a phrase, not from a lone weak word", () => {

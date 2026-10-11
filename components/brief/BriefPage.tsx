@@ -20,6 +20,7 @@ import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
 import type { BriefTopicFilter } from "@/lib/brief/topicFilter";
+import type { ArticleTopic } from "@/lib/classifyTopic";
 import type { BriefWhoRegionFilter } from "@/lib/brief/whoRegionFilter";
 import Link from "next/link";
 
@@ -42,6 +43,7 @@ export default function BriefPage({
   images,
   newsItems = [],
   googleEnabled = true,
+  visibleTopics = [],
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
@@ -52,6 +54,7 @@ export default function BriefPage({
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
   googleEnabled?: boolean;
+  visibleTopics?: ArticleTopic[];
 }) {
   const { saved, savedItems, toggleSave, signedIn, syncError, loginPrompt } =
     useBriefSaved();
@@ -86,7 +89,13 @@ export default function BriefPage({
       />
 
       <div className={`${brief.shell} py-4 sm:py-5`}>
-        <BriefFilterBar setting={setting} topic={topic} region={region} q={q} />
+        <BriefFilterBar
+          setting={setting}
+          topic={topic}
+          region={region}
+          q={q}
+          visibleTopics={visibleTopics}
+        />
 
         {q && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D4C8]/60 pb-3 text-sm text-[#1C0B19]">
