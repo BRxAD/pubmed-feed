@@ -147,10 +147,6 @@ export async function summarizeNewRecords(options: {
 
     const batchResults = await Promise.allSettled(
       batch.map(async (r, batchIdx) => {
-        const { summaryText } = await summarizeAbstract(r.abstract!, {
-          title: r.title ?? undefined,
-          publicationTypes: r.publicationTypes,
-        });
         let headline: string | null = null;
         try {
           headline = await generateBriefHeadline({
@@ -164,6 +160,11 @@ export async function summarizeNewRecords(options: {
             headlineErr instanceof Error ? headlineErr.message : headlineErr
           );
         }
+        const { summaryText } = await summarizeAbstract(r.abstract!, {
+          title: r.title ?? undefined,
+          publicationTypes: r.publicationTypes,
+          headline,
+        });
         const classification = await classifyStudyAbstract({
           title: r.title,
           abstract: r.abstract,

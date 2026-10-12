@@ -204,10 +204,6 @@ async function runOneTopic(
 
     const batchResults = await Promise.allSettled(
       batch.map(async (r) => {
-        const { summaryText } = await summarizeAbstract(r.abstract!, {
-          title: r.title ?? undefined,
-          publicationTypes: r.publicationTypes,
-        });
         let headline: string | null = null;
         try {
           headline = await generateBriefHeadline({
@@ -221,6 +217,11 @@ async function runOneTopic(
             headlineErr instanceof Error ? headlineErr.message : headlineErr
           );
         }
+        const { summaryText } = await summarizeAbstract(r.abstract!, {
+          title: r.title ?? undefined,
+          publicationTypes: r.publicationTypes,
+          headline,
+        });
         const classification = await classifyStudyAbstract({
           title: r.title,
           abstract: r.abstract,
