@@ -18,6 +18,7 @@ import { getBriefItems } from "@/lib/brief/items";
 import { applyStickyHomepageLead } from "@/lib/brief/leadStory";
 import { BRIEF_ARTICLE_WINDOW_DAYS } from "@/lib/brief/priority";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
+import { buildStoryImagePrompt } from "@/lib/brief/storyImagePrompt";
 import { assignStoryImages, bestStrictImagePlan } from "@/lib/brief/storyImages";
 
 const BUDGET_START_KEY = "story_image_budget_start";
@@ -111,85 +112,7 @@ export function storyImageTags(
   return out.slice(0, 16);
 }
 
-/**
- * One safe subject. If the headline does not make an object certain,
- * use a person or organ that cannot be factually wrong.
- * Never invent a syringe for a medicine that is swallowed.
- */
-function sceneMotif(text: string): string | null {
-  const t = text.toLowerCase();
-  const pregnant = /\bpregnan/.test(t);
-  const child = /\b(child|children|pediatric|paediatric|infant|newborn|neonat)\b/.test(t);
-  const nicu = /\b(nicu|preterm|neonat)\b/.test(t);
-  const tb = /\btuberculosis\b|\btb\b/.test(t);
-  const bacteremia = /\b(bacteremi[aa]|bloodstream|blood culture)\b|\bbsi\b/.test(t);
-  const urine = /\b(urine|urinary|cystitis|bacteriuria|pyelonephritis|bladder)\b/.test(t);
-  const lung = /\b(pneumonia|lung|respiratory|ventilat)\b/.test(t);
-  const dental = /\b(dental|dentist|dentistry|odontogenic|periodont)\b/.test(t);
-  const infusion = /\b(intravenous|infusion|parenteral)\b/.test(t);
-  const nurse = /\b(nurse|nurses|nursing)\b/.test(t);
-
-  if (pregnant) {
-    return "A clothed pregnant woman, calm, visibly pregnant, soft daylight, magazine portrait. No men. No procedure. No nudity. No syringe.";
-  }
-  if (nicu) {
-    return "Close-up of a clear neonatal incubator with a baby's hand resting inside. Peaceful. No adult faces. No distress. No blood. No syringe in the foreground.";
-  }
-  if (tb && child) {
-    return "A calm child, fully clothed, soft daylight, magazine portrait. No hospital bed, no syringe, no needle, no device, no lesions.";
-  }
-  if (tb) {
-    return "A chest radiograph on a lightbox showing lungs only. No readable text. No patient. No syringe.";
-  }
-  if (bacteremia) {
-    return "Sealed blood culture bottles on a clean bench. No people. No petri dishes. No syringe. No dental chair.";
-  }
-  if (/\bmultiplex\b|\bpathogen panel\b|\brespiratory panel\b/.test(t)) {
-    return "A laboratory multiplex PCR cartridge: one flat sealed plastic pouch standing in a small benchtop instrument slot. Not a home rapid test, not a lateral-flow cassette, not a pregnancy-test shape. No people. No operating room, surgical lights, or operating table. No syringe. No readable labels. No petri dishes.";
-  }
-  if (dental) {
-    return "Dental instruments and a mouth mirror on a tray, chair empty. No patient.";
-  }
-  if (urine) {
-    return "A lidded urine specimen cup on a clean tray. No people. No syringe.";
-  }
-  if (lung) {
-    return "A chest radiograph on a lightbox showing lungs only. No readable text. No patient. No syringe.";
-  }
-  if (infusion) {
-    return "An IV bag hanging in an empty room. No people. No syringe in a hand.";
-  }
-  if (nurse) {
-    return "A nurses' station counter with a closed binder. No petri dishes. No people unless a nurse is clearly at work, turned away.";
-  }
-  if (child) {
-    return "A calm child, fully clothed, soft daylight. No devices. No syringe. No distress.";
-  }
-  return null;
-}
-
-const DEFAULT_MOTIF =
-  "Unlabeled medicine bottles on a linen cloth. No people. No syringe. No needle. No petri dishes. No dental chair.";
-
-export function buildStoryImagePrompt(candidate: BriefPhotoCandidate): string {
-  const headline = (candidate.headline ?? "").replace(/\s+/g, " ").trim();
-  const title = (candidate.title ?? "").replace(/\s+/g, " ").trim();
-  const subject = (headline || title || "antimicrobial stewardship").slice(0, 180);
-  const motif =
-    sceneMotif(headline) ??
-    sceneMotif(`${headline} ${title}`) ??
-    DEFAULT_MOTIF;
-  return [
-    "Editorial photograph for a newspaper or magazine. Photorealistic, landscape, natural light, shallow depth of field. Not an illustration.",
-    "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted.",
-    `Show only this: ${motif}.`,
-    "If an object is not named above, do not add it. Do not invent syringes, needles, or injections for medicines that are swallowed.",
-    "Do not show the wrong sex. A story about women or pregnancy must not show a man.",
-    `Headline, for context only, do not add objects from it: ${subject}.`,
-    "Professional and respectful. No nudity, no distress, no graphic disease, wounds, blood, rashes, or lesions, no weapons, no stereotypes.",
-    "No text, no letters, no logos, no flags, no watermarks, no readable documents, no charts.",
-  ].join(" ");
-}
+export { buildStoryImagePrompt } from "@/lib/brief/storyImagePrompt";
 
 type ImageUsage = {
   input_tokens_details?: { image_tokens?: number; text_tokens?: number };
