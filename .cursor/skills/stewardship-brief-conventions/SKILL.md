@@ -273,7 +273,7 @@ Main topic animal exclusion must be:
 Full notes: `docs/VISUAL_ABSTRACT.md`. Replaces the Graphic takeaway button; always written **“Visual abstract (beta)”** on the button, Share menu item and dialog title.
 
 - **Click only, signed in only.** POST `/api/brief/visual-abstract` from a signed-in click. Never at ingest, page load, email or by a crawler. A signed-out reader gets the sign-in panel and the text graphic.
-- **One look:** Stewardship Brief, Simple, 16:9, 1600 x 900 PNG, from the Visual Abstract service (separate deployment; `VISUAL_ABSTRACT_URL` + `VISUAL_ABSTRACT_KEY`, key never in the browser).
+- **One look:** Stewardship Brief, Advanced, 16:9, 1600 x 900 PNG, from the Visual Abstract service (separate deployment; `VISUAL_ABSTRACT_URL` + `VISUAL_ABSTRACT_KEY`, key never in the browser). A picture already saved stays until its row is deleted. Findings saved in the older Simple shape are still drawn as that plate.
 - **Cost and egress:** one row per paper in `visual_abstracts` (findings JSON ~15 KB read **by pmid only**, never in bulk); picture ~150 KB in the public `visual-abstracts` bucket. Caps: **5** new papers per person per hour, **40** per day (`VISUAL_ABSTRACT_USER_PER_HOUR`, `VISUAL_ABSTRACT_PER_DAY`); a paper gets at most **3** attempts; a paper the maker cannot draw is not retried. Repeat clicks and saved findings are free. Kill switch: `VISUAL_ABSTRACT_ENABLED=0`.
 - **Hobby plan:** no cron (one run a day only), 1 hour of logs. So state moves only on a click or on the open dialog’s status check, and every failure reason is stored in the table.
 - **Never a dead end:** every failure shows one plain sentence plus “Use the text graphic instead”.
