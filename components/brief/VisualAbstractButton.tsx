@@ -83,8 +83,8 @@ function afterSignInUrl(pmid: string): string {
 
 /**
  * Pink "Visual abstract (beta)" button to the right of Share. A click (by a signed-in reader) asks for a picture of the
- * paper's findings, made from its abstract; nothing is made before a click. It takes about 30 seconds the first time
- * and is instant after that. If it cannot be made, or the reader is not signed in, the text graphic takeaway is one
+ * paper's findings, made from its abstract; nothing is made before a click. It may take up to 30 seconds.
+ * If it cannot be made, or the reader is not signed in, the text graphic takeaway is one
  * button away. Papers without a PubMed ID get the text graphic only.
  */
 export default function VisualAbstractButton(props: Props) {
@@ -410,7 +410,7 @@ function WorkProgress({ step }: { step: "extract" | "draw" }) {
         />
       </div>
       <p className="mt-3 text-center">
-        This takes about 30 seconds the first time. Feel free to close this window and come back!
+        This may take up to 30 seconds to load
       </p>
     </div>
   );
