@@ -1,4 +1,4 @@
-import type { VaErrorCode, VaExtraction, VaImages, VaRow, VaStatus, VaStore } from "./types";
+import type { VaErrorCode, VaExtraction, VaImages, VaRow, VaSourceArticle, VaStatus, VaStore } from "./types";
 
 /**
  * A store that lives in a Map. Used by the tests; it has the same one-winner rules as the database (an insert of an
@@ -8,6 +8,7 @@ import type { VaErrorCode, VaExtraction, VaImages, VaRow, VaStatus, VaStore } fr
 export class MemoryStore implements VaStore {
   readonly rows = new Map<string, VaRow & { content: unknown | null; cost_usd: number }>();
   readonly articles = new Set<string>();
+  readonly sources = new Map<string, VaSourceArticle>();
   /** Calls that read the findings: they are read for one paper at a time, never in bulk. */
   contentReads: string[] = [];
   /** Set to make the next write fail, to see what the pipeline does when the database is down. */
@@ -31,6 +32,10 @@ export class MemoryStore implements VaStore {
 
   async articleExists(pmid: string): Promise<boolean> {
     return this.articles.has(pmid);
+  }
+
+  async loadSource(pmid: string): Promise<VaSourceArticle | null> {
+    return this.sources.get(pmid) ?? null;
   }
 
   async countRequests(sinceIso: string, userId?: string): Promise<number> {

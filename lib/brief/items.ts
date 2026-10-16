@@ -1,6 +1,7 @@
 import "server-only";
 import { getDefaultTopicId, type FeedItem } from "@/lib/feed";
 import { computeBreakdown } from "@/lib/ranking";
+import { compareBriefDisplay, compareBriefRank } from "@/lib/brief/briefOrder";
 import { mergeFeedSettings, toRankingWeights, toPenaltyWeights } from "@/lib/brief/feedSettings";
 import type { ScoringOptions } from "@/lib/ranking";
 import {
@@ -164,26 +165,6 @@ function articleTimestamp(item: {
   return parseTimestamp(item.date ?? item.createdAt);
 }
 
-/** First-seen ingest time; fall back to summary created_at. */
-function ingestTimestamp(item: {
-  fetchedAt?: string | null;
-  createdAt: string;
-}): number {
-  return parseTimestamp(item.fetchedAt ?? item.createdAt);
-}
-
-/**
- * Recency for lead-by-recency: prefer a fresh publish date, but let a newer
- * ingest surface when there is no newer publication to feature.
- */
-function briefRecencyTimestamp(item: {
-  date: string | null;
-  fetchedAt?: string | null;
-  createdAt: string;
-}): number {
-  return Math.max(articleTimestamp(item), ingestTimestamp(item));
-}
-
 function parseStoredMlPriority(raw: unknown): number | null {
   if (raw == null || !Number.isFinite(Number(raw))) return null;
   const n = Math.round(Number(raw));
@@ -330,13 +311,12 @@ export async function getBriefItems(options?: {
    */
   articleDateWithinDays?: number;
   /**
-   * Ordering applied before the maxItems cut. "recency" (default) follows the
-   * brief's leadByRecency setting (max of publish date and ingest time, then
-   * publish, then ingest, then priority). "priority" ranks purely by effective
-   * priority, so an older-but-higher-rated study is never cut from the pool by
-   * a newer, lower-rated one.
+   * Ordering applied before the maxItems cut. Default groups stories into
+   * 24-hour ingest periods (newest period first) and ranks inside each period
+   * by priority, then relevance. "priority" ignores the period so a year-long
+   * pool (Top 10) is not cut down to only the newest ingests.
    */
-  rankBy?: "recency" | "priority";
+  rankBy?: "ingest-period" | "priority";
   /**
    * Override Brief eligibility floor (default from feed settings / BRIEF_MIN_PRIORITY).
    * Top 10 passes 6 so the year pool is narrower than the main Brief (≥5).
@@ -800,37 +780,10 @@ export async function getBriefItems(options?: {
     candidates.push(item);
   }
 
-  const priorityFirst =
-    options?.rankBy === "priority" || !feedSettings.brief.leadByRecency;
-
-  candidates.sort((a, b) => {
-    if (priorityFirst) {
-      if (b.effectivePriority !== a.effectivePriority) {
-        return b.effectivePriority - a.effectivePriority;
-      }
-      const recencyDiff = briefRecencyTimestamp(b) - briefRecencyTimestamp(a);
-      if (recencyDiff !== 0) return recencyDiff;
-      const pubDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (pubDiff !== 0) return pubDiff;
-      const ingestDiff = ingestTimestamp(b) - ingestTimestamp(a);
-      if (ingestDiff !== 0) return ingestDiff;
-    } else {
-      // Prefer newest publish; if nothing newer was published, newest ingest wins.
-      const recencyDiff = briefRecencyTimestamp(b) - briefRecencyTimestamp(a);
-      if (recencyDiff !== 0) return recencyDiff;
-      const pubDiff = articleTimestamp(b) - articleTimestamp(a);
-      if (pubDiff !== 0) return pubDiff;
-      const ingestDiff = ingestTimestamp(b) - ingestTimestamp(a);
-      if (ingestDiff !== 0) return ingestDiff;
-      if (b.effectivePriority !== a.effectivePriority) {
-        return b.effectivePriority - a.effectivePriority;
-      }
-    }
-    if (b.relevancePercent !== a.relevancePercent) {
-      return b.relevancePercent - a.relevancePercent;
-    }
-    return 0;
-  });
+  const priorityPool = options?.rankBy === "priority";
+  candidates.sort((a, b) =>
+    priorityPool ? compareBriefRank(a, b) : compareBriefDisplay(a, b)
+  );
 
   let filtered = candidates;
   if (articleWindow > 0) {

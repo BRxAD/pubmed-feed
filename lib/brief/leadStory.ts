@@ -1,5 +1,6 @@
 import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { ingestPeriodIndex } from "@/lib/brief/briefOrder";
 import type { BriefItem } from "@/lib/brief/items";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
 
@@ -79,12 +80,12 @@ function withLeadFirst(items: BriefItem[], leadPmid: string): BriefItem[] {
 /**
  * Homepage-only sticky lead for the calendar day (Eastern midnight).
  *
- * - Ranking rules produce a natural candidate (items[0]) — recency-first
- *   (newest of publish date or ingest) or priority-first depending on brief settings.
+ * - Ranking rules produce a natural candidate (items[0]): the top-ranked story
+ *   ingested in the last 24 hours (priority, then relevance).
  * - That candidate becomes the day's lead.
- * - Sticky only blocks *lower*-priority churn from stealing the lead mid-day.
- *   Equal or higher priority at natural #1 always wins (so a newer same-score
- *   story can replace yesterday's pin under lead-by-recency).
+ * - Sticky only blocks *lower*-priority churn from the same 24-hour ingest
+ *   period. A pin from an older ingest period gives way to the new period's
+ *   top story. Equal or higher priority at natural #1 always replaces the pin.
  * - Filtered setting views are left alone so sticky lead is not rewritten.
  */
 export async function applyStickyHomepageLead(
@@ -114,10 +115,12 @@ export async function applyStickyHomepageLead(
     return items;
   }
 
+  // A pin from an earlier ingest period gives way to this period's top story.
+  const pinIsOlderPeriod = ingestPeriodIndex(stickyInPool) > 0;
   // Natural #1 with equal-or-higher priority replaces sticky.
   if (
     natural.pmid !== stickyInPool.pmid &&
-    natural.effectivePriority >= stickyInPool.effectivePriority
+    (pinIsOlderPeriod || natural.effectivePriority >= stickyInPool.effectivePriority)
   ) {
     await saveStickyLead({
       pmid: natural.pmid,

@@ -5,7 +5,7 @@ import { signIn, useSession } from "next-auth/react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import type { VaStatusResponse } from "@/lib/brief/visualAbstract/types";
-import { isNumericPmid } from "@/lib/doi";
+import { isVisualAbstractPaperId } from "@/lib/doi";
 import { graphicTakeawayShareText } from "@/lib/brief/shareAttribution";
 import { brief } from "@/components/brief/briefTheme";
 import { downloadBlob } from "@/components/brief/composeVisualSummary";
@@ -88,7 +88,7 @@ function afterSignInUrl(pmid: string): string {
  * button away. Papers without a PubMed ID get the text graphic only.
  */
 export default function VisualAbstractButton(props: Props) {
-  if (!isNumericPmid(props.item.pmid)) return <GraphicTakeawayButton {...props} />;
+  if (!isVisualAbstractPaperId(props.item.pmid)) return <GraphicTakeawayButton {...props} />;
   return <VisualAbstract {...props} />;
 }
 

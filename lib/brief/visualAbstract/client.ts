@@ -1,5 +1,5 @@
 import { asVaErrorCode } from "./messages";
-import { VaError, type VaExtraction, type VaPicture, type VaServiceClient } from "./types";
+import { VaError, type VaExtraction, type VaPicture, type VaServiceClient, type VaSourceArticle } from "./types";
 
 /** The service reads one abstract with one model call (a second only to repair a bad answer). */
 export const EXTRACT_TIMEOUT_MS = 150_000;
@@ -65,8 +65,12 @@ export function createServiceClient(settings: { url: string; key: string }, fetc
   };
 
   return {
-    async extract(pmid: string): Promise<VaExtraction> {
-      const response = await call("/api/v1/extract", { pmid }, EXTRACT_TIMEOUT_MS);
+    async extract(pmid: string, article?: VaSourceArticle | null): Promise<VaExtraction> {
+      const response = await call(
+        "/api/v1/extract",
+        article ? { article: { ...article, id: article.id || pmid } } : { pmid },
+        EXTRACT_TIMEOUT_MS
+      );
       let body: { content?: unknown; version?: { content?: unknown }; usage?: { estimated_usd?: unknown } };
       try {
         body = await response.json();

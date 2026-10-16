@@ -1,3 +1,4 @@
+import { isVisualAbstractPaperId } from "@/lib/doi";
 import { capDecision, DAY_MS, HOUR_MS } from "./caps";
 import type { VaConfig } from "./config";
 import { asVaErrorCode, isRetryable, messageFor } from "./messages";
@@ -108,7 +109,14 @@ export async function extractStep(deps: VaDeps, pmid: string): Promise<void> {
   try {
     if (!deps.client) throw new VaError("NOT_CONFIGURED", "The service is not configured.");
     if (!(await deps.store.transition(pmid, ["pending"], "extracting", stamp(deps)))) return;
-    const extraction = await deps.client.extract(pmid);
+    const article = PMID_RE.test(pmid) ? null : await deps.store.loadSource(pmid);
+    if (!article && !PMID_RE.test(pmid)) {
+      throw new VaError("NO_ABSTRACT", "This paper has no abstract saved, so a visual abstract cannot be made.");
+    }
+    if (article && !article.abstract.trim()) {
+      throw new VaError("NO_ABSTRACT", "This paper has no abstract saved, so a visual abstract cannot be made.");
+    }
+    const extraction = await deps.client.extract(pmid, article);
     await deps.store.saveContent(pmid, extraction, stamp(deps));
   } catch (error) {
     await recordFailure(deps, pmid, error);
@@ -130,7 +138,7 @@ export type StartResult = {
 export async function requestVisualAbstract(deps: VaDeps, input: { pmid: string; userId: string }): Promise<StartResult> {
   const { pmid, userId } = input;
   const { store, config } = deps;
-  if (!PMID_RE.test(pmid)) return { response: failed("NOT_FOUND", false), run: null };
+  if (!isVisualAbstractPaperId(pmid)) return { response: failed("NOT_FOUND", false), run: null };
   if (config.state === "off") return { response: { status: "disabled", message: messageFor("DISABLED") }, run: null };
   if (config.state === "unconfigured" || !deps.client) return { response: { status: "disabled", message: messageFor("NOT_CONFIGURED") }, run: null };
 
@@ -195,7 +203,7 @@ export async function requestVisualAbstract(deps: VaDeps, input: { pmid: string;
  * drawn now, and a row quiet for too long is marked failed.
  */
 export async function checkVisualAbstract(deps: VaDeps, pmid: string): Promise<VaStatusResponse> {
-  if (!PMID_RE.test(pmid)) return failed("NOT_FOUND", false);
+  if (!isVisualAbstractPaperId(pmid)) return failed("NOT_FOUND", false);
   let row = await deps.store.get(pmid);
   if (!row) return { status: "none" };
   const age = clock(deps) - Date.parse(row.updated_at);

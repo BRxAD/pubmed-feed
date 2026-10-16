@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { BriefItem } from "@/lib/brief/items";
-import { isNumericPmid } from "@/lib/doi";
+import { isVisualAbstractPaperId } from "@/lib/doi";
 import { brief } from "@/components/brief/briefTheme";
 import {
   copyArticleLinks,
@@ -121,7 +121,7 @@ export default function ShareMenu({ item, onVisualAbstract }: Props) {
                 onVisualAbstract();
               }}
             >
-              {isNumericPmid(item.pmid) ? "Share visual abstract (beta)" : "Share graphic takeaway"}
+              {isVisualAbstractPaperId(item.pmid) ? "Share visual abstract (beta)" : "Share graphic takeaway"}
             </MenuButton>
             <MenuButton onClick={() => void copyPubmedLink()}>
               {copied ? "Link copied" : "Copy PubMed link"}

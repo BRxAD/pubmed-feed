@@ -662,16 +662,11 @@ export default function SettingsDashboard({ initialSecret }: Props) {
           />
         </div>
         <div className="mt-6">
-          <ToggleRow
-            label="Lead by recency, then priority"
-            hint="On (default): newest publish or ingest first (prefer published, else latest ingest); highest priority wins ties. Off: highest priority first, then that same recency."
-            checked={settings.brief.leadByRecency}
-            onChange={(v) =>
-              setSettings((s) =>
-                s ? { ...s, brief: { ...s.brief, leadByRecency: v } } : s
-              )
-            }
-          />
+          <p className={`${brief.sans} text-sm leading-relaxed text-[#1C0B19]`}>
+            The lead is the highest-priority story ingested in the last 24
+            hours. Relevance breaks a tie. Older stories follow in 24-hour
+            ingest groups, ranked the same way.
+          </p>
         </div>
       </section>
 

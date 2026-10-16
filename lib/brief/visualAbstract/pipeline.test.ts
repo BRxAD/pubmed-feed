@@ -26,11 +26,13 @@ const ON = readVaConfig({ VISUAL_ABSTRACT_URL: "https://va.example.com", VISUAL_
 
 class FakeService implements VaServiceClient {
   extracts: string[] = [];
+  supplied: Array<unknown> = [];
   renders = 0;
   extractError: VaError | null = null;
   renderError: VaError | null = null;
-  async extract(pmid: string) {
+  async extract(pmid: string, article?: { abstract?: string } | null) {
     this.extracts.push(pmid);
+    if (article) this.supplied.push(article);
     if (this.extractError) throw this.extractError;
     return { content: { findings: [pmid] }, contentVersion: "1.0.0+v1", costUsd: 0.05 };
   }
@@ -95,6 +97,28 @@ describe("a click makes the visual abstract, once, and a repeat click is free", 
     assert.deepEqual(unknown.response, { status: "failed", code: "NOT_FOUND", message: messageFor("NOT_FOUND"), retryable: false });
     assert.equal(service.extracts.length, 0);
     assert.equal(PMID_RE.test("40123456"), true);
+  });
+
+  it("an OpenAlex paper is made from the abstract already saved", async () => {
+    const { deps, store, service } = setup();
+    const id = "W7221829353";
+    const source = {
+      id,
+      title: "Effect of Social Norm Messages on US Adults' Antibiotic Use Intentions",
+      abstract: "US adults who saw a social-norm message reported different intentions to use antibiotics for a viral illness.",
+      journal: "Open Forum Infectious Diseases",
+      year: 2026,
+      doi: "10.1093/ofid/ofag664",
+      link: "https://doi.org/10.1093/ofid/ofag664",
+    };
+    store.articles.add(id);
+    store.sources.set(id, source);
+    const started = await requestVisualAbstract(deps, { pmid: id, userId: USER });
+    assert.equal(started.response.status, "working");
+    await started.run!();
+    assert.deepEqual(service.extracts, [id]);
+    assert.deepEqual(service.supplied, [source]);
+    assert.equal((await checkVisualAbstract(deps, id)).status, "ready");
   });
 
   it("three people clicking the same new paper start one job", async () => {

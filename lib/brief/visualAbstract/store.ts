@@ -1,6 +1,6 @@
 import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import type { VaErrorCode, VaExtraction, VaImages, VaRow, VaStatus, VaStore } from "./types";
+import type { VaErrorCode, VaExtraction, VaImages, VaRow, VaSourceArticle, VaStatus, VaStore } from "./types";
 
 const TABLE = "visual_abstracts";
 const BUCKET = "visual-abstracts";
@@ -45,6 +45,38 @@ export function supabaseVaStore(): VaStore {
         .eq("pmid", pmid);
       if (error) fail(error, "article lookup");
       return (count ?? 0) > 0;
+    },
+
+    async loadSource(pmid: string): Promise<VaSourceArticle | null> {
+      const { data, error } = await db()
+        .from("articles")
+        .select("pmid, title, abstract, journal, pub_date, doi, authors, landing_url")
+        .eq("pmid", pmid)
+        .maybeSingle();
+      if (error) fail(error, "article text");
+      if (!data) return null;
+      const row = data as {
+        pmid?: string;
+        title?: string | null;
+        abstract?: string | null;
+        journal?: string | null;
+        pub_date?: string | null;
+        doi?: string | null;
+        authors?: string[] | null;
+        landing_url?: string | null;
+      };
+      const year = Number(String(row.pub_date ?? "").slice(0, 4));
+      const doi = row.doi?.trim() || null;
+      return {
+        id: String(row.pmid ?? pmid),
+        title: row.title?.trim() || "",
+        abstract: row.abstract?.trim() || "",
+        journal: row.journal?.trim() || null,
+        year: year >= 1900 && year <= 2100 ? year : null,
+        doi,
+        authors: Array.isArray(row.authors) ? row.authors.filter((name) => typeof name === "string" && name.trim()) : null,
+        link: row.landing_url?.trim() || (doi ? `https://doi.org/${doi}` : null),
+      };
     },
 
     async countRequests(sinceIso: string, userId?: string): Promise<number> {

@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono, Newsreader, Libre_Franklin } from "next/font/google";
 import { Providers } from "@/components/Providers";
+import {
+  BRIEF_SHARE_DESCRIPTION,
+  BRIEF_SHARE_TITLE,
+  BRIEF_SITE_URL,
+} from "@/lib/brief/shareAttribution";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = "G-R3CGC4MY67";
@@ -30,9 +35,25 @@ const libreFranklin = Libre_Franklin({
 });
 
 export const metadata: Metadata = {
-  title: "The Stewardship Brief",
-  description:
-    "Daily briefing of high-priority antimicrobial stewardship research.",
+  metadataBase: new URL(BRIEF_SITE_URL),
+  title: BRIEF_SHARE_TITLE,
+  description: BRIEF_SHARE_DESCRIPTION,
+  openGraph: {
+    title: BRIEF_SHARE_TITLE,
+    description: BRIEF_SHARE_DESCRIPTION,
+    url: BRIEF_SITE_URL,
+    siteName: BRIEF_SHARE_TITLE,
+    type: "website",
+    images: [
+      { url: "/stewardship-brief-logo.png", alt: BRIEF_SHARE_TITLE },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: BRIEF_SHARE_TITLE,
+    description: BRIEF_SHARE_DESCRIPTION,
+    images: ["/stewardship-brief-logo.png"],
+  },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },

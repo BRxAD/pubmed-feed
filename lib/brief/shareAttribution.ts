@@ -3,6 +3,32 @@ export const BRIEF_SITE_URL = "https://www.stewardshipbrief.com";
 export const BRIEF_SITE_HOST = "www.stewardshipbrief.com";
 export const BRIEF_VIA_LINE = `via ${BRIEF_SITE_HOST}`;
 
+/** LinkedIn / social card: bold line, then the line under it. */
+export const BRIEF_SHARE_TITLE = "The Stewardship Brief";
+export const BRIEF_SHARE_DESCRIPTION =
+  "High Priority Antimicrobial Stewardship, Delivered Daily";
+
+/**
+ * Landscape crop (about 1.91:1) so LinkedIn does not letterbox a tall photo.
+ * Other hosts are left as stored.
+ */
+export function sharePreviewImageUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.hostname === "images.unsplash.com" || u.hostname === "images.pexels.com") {
+      u.searchParams.set("auto", u.hostname === "images.pexels.com" ? "compress" : "format");
+      u.searchParams.set("fit", "crop");
+      u.searchParams.set("w", "1200");
+      u.searchParams.set("h", "630");
+      if (u.hostname === "images.unsplash.com") u.searchParams.set("q", "80");
+      return u.toString();
+    }
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

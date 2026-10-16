@@ -73,9 +73,21 @@ export type VaPicture = {
   renderVersion: string;
 };
 
+/** An OpenAlex paper's saved abstract, sent to the service because PubMed does not have it yet. */
+export type VaSourceArticle = {
+  id: string;
+  title: string;
+  abstract: string;
+  journal?: string | null;
+  year?: number | null;
+  doi?: string | null;
+  authors?: string[] | null;
+  link?: string | null;
+};
+
 /** The service, as the pipeline sees it (the real client, or a fake in tests). */
 export interface VaServiceClient {
-  extract(pmid: string): Promise<VaExtraction>;
+  extract(pmid: string, article?: VaSourceArticle | null): Promise<VaExtraction>;
   render(content: unknown): Promise<VaPicture>;
 }
 
@@ -83,6 +95,8 @@ export interface VaServiceClient {
 export interface VaStore {
   get(pmid: string): Promise<VaRow | null>;
   articleExists(pmid: string): Promise<boolean>;
+  /** Title and abstract for one paper. Used when the id is an OpenAlex work, not a PubMed ID. */
+  loadSource(pmid: string): Promise<VaSourceArticle | null>;
   /** Requests started since `sinceIso`, in total or by one person. */
   countRequests(sinceIso: string, userId?: string): Promise<number>;
   /** Create a pending row; false when the paper already has one. */

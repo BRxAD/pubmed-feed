@@ -36,7 +36,7 @@ async function loadHomepageReady(): Promise<HomepageReadyPayload> {
 
 const loadCachedHomepageReady = unstable_cache(
   loadHomepageReady,
-  ["brief-homepage-ready-v23"],
+  ["brief-homepage-ready-v25"],
   {
     revalidate: HOMEPAGE_READY_CACHE_SECONDS,
     tags: [BRIEF_HOMEPAGE_CACHE_TAG],
@@ -78,7 +78,7 @@ async function loadBriefFilterPool(): Promise<BriefItem[]> {
 
 const loadCachedBriefFilterPool = unstable_cache(
   loadBriefFilterPool,
-  ["brief-filter-pool-v1"],
+  ["brief-filter-pool-v2"],
   {
     revalidate: HOMEPAGE_READY_CACHE_SECONDS,
     tags: [BRIEF_HOMEPAGE_CACHE_TAG],

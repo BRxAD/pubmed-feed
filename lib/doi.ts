@@ -33,3 +33,12 @@ export function isNumericPmid(id: string | null | undefined): boolean {
 export function isOpenAlexWorkId(id: string | null | undefined): boolean {
   return /^W\d+$/i.test(String(id ?? "").trim());
 }
+
+/**
+ * A paper the visual abstract can be made for: a PubMed ID, or an OpenAlex work
+ * id long enough to be a real work (the abstract is the one we already saved).
+ */
+export function isVisualAbstractPaperId(id: string | null | undefined): boolean {
+  const s = String(id ?? "").trim();
+  return /^[1-9]\d{0,8}$/.test(s) || /^W\d{5,20}$/i.test(s);
+}

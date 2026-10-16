@@ -9,7 +9,7 @@ A picture of one paper's main results, made from its abstract. It replaces the *
 - **Beta.** The words "(beta)" sit next to "Visual abstract" on the button, the Share menu and the dialog title.
 - **One look:** Stewardship Brief, Advanced, 16:9, 1600 x 900. A picture already saved stays until its row is deleted.
 - **Always an exit.** If it cannot be made, the dialog says so in one plain sentence and offers the text graphic. That graphic is the old canvas one, unchanged.
-- **Papers without a PubMed ID** (OpenAlex-only rows) keep the old "Graphic takeaway" button.
+- **OpenAlex-only papers** (no PubMed ID yet) use the same visual abstract button. The click sends the abstract already saved with the paper. Anything that is neither a PubMed ID nor an OpenAlex work id keeps the old "Graphic takeaway" button.
 - Author-outreach links (`/article/<pmid>?takeaway=1`) still open the dialog. A signed-out author sees the sign-in panel with "Use the text graphic instead".
 
 ## How it works

@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import {
   BRIEF_FILTER_DISPLAY_MAX,
   getCachedBriefFilterPool,
   getCachedHomepageReady,
 } from "@/lib/brief/homepageCache";
+import {
+  BRIEF_SHARE_DESCRIPTION,
+  BRIEF_SHARE_TITLE,
+  BRIEF_SITE_URL,
+  sharePreviewImageUrl,
+} from "@/lib/brief/shareAttribution";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
 import {
   matchesBriefSettingFilter,
@@ -23,6 +30,54 @@ import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import { assignStoryImages } from "@/lib/brief/storyImages";
 import type { BriefItem } from "@/lib/brief/items";
 import BriefPage from "@/components/brief/BriefPage";
+
+export async function generateMetadata(): Promise<Metadata> {
+  let imageUrl = "/stewardship-brief-logo.png";
+  let imageAlt = BRIEF_SHARE_TITLE;
+  let sized = false;
+  try {
+    const ready = await getCachedHomepageReady();
+    const lead = ready.items[0];
+    const match =
+      (lead && ready.images[lead.pmid]) ||
+      ready.items
+        .map((item) => ready.images[item.pmid])
+        .find((image) => image?.url) ||
+      null;
+    if (match?.url) {
+      imageUrl = sharePreviewImageUrl(match.url);
+      imageAlt = match.label || BRIEF_SHARE_TITLE;
+      sized = imageUrl !== match.url;
+    }
+  } catch {
+    // Keep the logo if the brief cannot be loaded.
+  }
+
+  return {
+    title: BRIEF_SHARE_TITLE,
+    description: BRIEF_SHARE_DESCRIPTION,
+    openGraph: {
+      title: BRIEF_SHARE_TITLE,
+      description: BRIEF_SHARE_DESCRIPTION,
+      url: BRIEF_SITE_URL,
+      siteName: BRIEF_SHARE_TITLE,
+      type: "website",
+      images: [
+        {
+          url: imageUrl,
+          alt: imageAlt,
+          ...(sized ? { width: 1200, height: 630 } : {}),
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: BRIEF_SHARE_TITLE,
+      description: BRIEF_SHARE_DESCRIPTION,
+      images: [imageUrl],
+    },
+  };
+}
 
 function applyBriefFilters(
   items: BriefItem[],
