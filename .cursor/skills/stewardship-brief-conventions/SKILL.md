@@ -30,8 +30,9 @@ Think of the product like a newspaper desk:
 1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), **topic capsules** (`auto_topics`), **WHO regions** (`auto_who_regions`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto setting (both are one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
 3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Order: newest **24-hour ingest period** first (`fetched_at`); inside a period, highest effective priority, then relevance. The lead is the top-ranked story ingested in the last 24 hours. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn in that same period only.
-4. **Top 10** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
-5. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. After the ridge score, an **editorial overlay** caps **single-center** papers in weaker journals at **4** (sample size ignored) and adds **+1** for multi-center / national work in high-impact venues. Manual force: `npm run retrain:priority` or cron `?force=1`.
+4. **Top 10 by priority** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory.
+5. **Top 10 most cited** — Same **365** days, every article with at least one OpenAlex citation. Rank: citations ÷ months since publication (a paper under one month counts as one month). Raw count is shown. Nightly job, batches of 100, stores one integer. Not on page load.
+6. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. After the ridge score, an **editorial overlay** caps **single-center** papers in weaker journals at **4** (sample size ignored) and adds **+1** for multi-center / national work in high-impact venues. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
 ### Words we use
 
@@ -117,8 +118,9 @@ Also: **do not commit or push** unless the user asks.
 | Brief email | **08:30** Eastern → UTC **12:30**; auto-hold if &lt; **2** new stories | `vercel.json`, `BRIEF_EMAIL_MIN_ITEMS` |
 | Ingest summarize cap | default **40** (`DIGEST_MAX_SUMMARIES`) | `lib/digest/config.ts` |
 | Priority model retrain | every **7 days** (daily cron check 18:00 ET); not per rating | `lib/brief/retrainSchedule.ts`, `/api/cron/retrain-priority` |
-| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v25` | `lib/brief/homepageCache.ts` |
+| Brief homepage cache | ~**1 h** ready payload (All + lead + images); bust on ingest + admin rating/setting; key `brief-homepage-ready-v27` | `lib/brief/homepageCache.ts` |
 | Top 10 cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topPriority.ts` |
+| Top 10 cited cache | ~**3 days** TTL; **no** ingest/rating bust; All-pool once | `lib/brief/topCited.ts` |
 | Feed slim / keyword index | ~**3 h**; bust on **ingest only** | `lib/feedCache.ts` |
 | Feed default sort | **Ingested**: newest `fetched_at`, then ML grade (not admin), then PMID — rating must not reshuffle | `lib/feed.ts` |
 | Trending keywords | ~**6 h**; bust with feed slim tag (ingest) | `lib/feed.ts` |
@@ -255,6 +257,7 @@ Main topic animal exclusion must be:
 - **Admin setting is exclusive:** when `admin_setting` is set, `getItemSettings` / Brief filters / display use **only** that label. Never soft-match an admin-tagged paper into another capsule (e.g. admin=community must not appear under Hospital).
 - Brief filter bar is a reduced set — don’t silently drop classifier labels.
 - **Top 10 rank:** effective priority desc → human-rated before ML-only → relevance % → journal impact. Window 365 days; scan floor ≥ 6.
+- **Top 10 cited:** citations ÷ months since publication (minimum 1 month). Window 365 days. No priority floor. Count is OpenAlex `cited_by_count`, saved on `articles`, refreshed by `/api/cron/citations` (batches of 100). Show the raw count in More detail.
 
 ## Story images (hard)
 

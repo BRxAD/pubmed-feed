@@ -62,6 +62,7 @@ const demoItem = {
   keywords: [],
   meshTerms: [],
   abstractSnippet: null,
+  citedByCount: null,
 } satisfies BriefItem;
 
 export default function GraphicTakeawayVariants() {

@@ -137,7 +137,9 @@ function DetailPanel({
     .map((r) => whoRegionLabel(r))
     .filter((s): s is string => Boolean(s));
   const showWho = whoLabels.length > 0;
-  const showOriginal = Boolean(item.title || item.journal || item.jif != null);
+  const showOriginal = Boolean(
+    item.title || item.journal || item.jif != null || item.citedByCount != null
+  );
   return (
     <div
       className={`w-full mt-4 p-4 sm:p-5 space-y-4 ${brief.detailPanel} ${brief.sans} text-sm leading-[1.6] ${brief.ink}`}
@@ -172,7 +174,7 @@ function DetailPanel({
           {item.title && (
             <p className={`mt-1.5 leading-relaxed ${brief.muted}`}>{item.title}</p>
           )}
-          {(item.journal || item.jif != null) && (
+          {(item.journal || item.jif != null || item.citedByCount != null) && (
             <p className={`mt-2 text-[0.8125rem] leading-relaxed ${brief.muted}`}>
               {item.journal && <span>{formatJournalTitle(item.journal)}</span>}
               {item.jif != null && (
@@ -180,6 +182,12 @@ function DetailPanel({
                   {item.journal ? " · " : ""}
                   JIF {item.jif.toFixed(1)}
                   {item.jifIsHigh ? " ★" : ""}
+                </span>
+              )}
+              {item.citedByCount != null && (
+                <span>
+                  {item.journal || item.jif != null ? " · " : ""}
+                  Cited by {item.citedByCount}
                 </span>
               )}
             </p>

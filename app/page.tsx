@@ -11,6 +11,7 @@ import {
   sharePreviewImageUrl,
 } from "@/lib/brief/shareAttribution";
 import { getTopPriorityYearItems } from "@/lib/brief/topPriority";
+import { getTopCitedYearItems } from "@/lib/brief/topCited";
 import {
   matchesBriefSettingFilter,
   parseBriefSetting,
@@ -125,8 +126,9 @@ export default async function HomePage({
   );
 
   try {
-    const [topPriority, newsItems, topicPool] = await Promise.all([
+    const [topPriority, topCited, newsItems, topicPool] = await Promise.all([
       getTopPriorityYearItems(setting, topic),
+      getTopCitedYearItems(setting, topic),
       listApprovedNewsForBrief(6),
       getCachedBriefFilterPool(),
     ]);
@@ -141,6 +143,7 @@ export default async function HomePage({
         <BriefPage
           items={items}
           topPriority={topPriority}
+          topCited={topCited}
           setting={setting}
           topic={topic}
           region={region}
@@ -174,6 +177,7 @@ export default async function HomePage({
         <BriefPage
           items={items}
           topPriority={topPriority}
+          topCited={topCited}
           setting={setting}
           topic={topic}
           region={region}
@@ -194,6 +198,7 @@ export default async function HomePage({
       <BriefPage
         items={items}
         topPriority={topPriority}
+        topCited={topCited}
         setting={setting}
         topic={topic}
         region={region}

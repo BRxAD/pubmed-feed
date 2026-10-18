@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { BriefItem } from "@/lib/brief/items";
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
+import type { TopCitedItem } from "@/lib/brief/topCited";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
 import type { StoryImageMatch } from "@/lib/brief/storyImageTypes";
 import Masthead from "@/components/brief/Masthead";
@@ -10,6 +11,7 @@ import SiteNav from "@/components/brief/SiteNav";
 import SiteFooter from "@/components/brief/SiteFooter";
 import BriefFilterBar from "@/components/brief/BriefFilterBar";
 import TopPriorityPanel from "@/components/brief/TopPriorityPanel";
+import TopCitedPanel from "@/components/brief/TopCitedPanel";
 import InTheNewsPanel from "@/components/brief/InTheNewsPanel";
 import SaveStreak, { useBriefSaved } from "@/components/brief/SaveStreak";
 import DigestSignup from "@/components/brief/DigestSignup";
@@ -36,6 +38,7 @@ function formatToday(): string {
 export default function BriefPage({
   items,
   topPriority,
+  topCited,
   setting,
   topic = "",
   region = "",
@@ -47,6 +50,7 @@ export default function BriefPage({
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
+  topCited: TopCitedItem[];
   setting: BriefSettingFilter;
   topic?: BriefTopicFilter;
   region?: BriefWhoRegionFilter;
@@ -143,6 +147,12 @@ export default function BriefPage({
                     signedIn={signedIn}
                     syncError={syncError}
                     loginPrompt={loginPrompt}
+                  />
+                </SidebarCard>
+                <SidebarCard accent="steel">
+                  <TopCitedPanel
+                    items={topCited}
+                    filtered={Boolean(setting || topic)}
                   />
                 </SidebarCard>
                 <SidebarCard accent="sky">

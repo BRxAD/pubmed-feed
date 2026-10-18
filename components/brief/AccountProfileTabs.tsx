@@ -73,6 +73,7 @@ function fallbackBriefItem(savedItem: SavedBriefItem): BriefItem {
     keywords: [],
     meshTerms: [],
     abstractSnippet: null,
+    citedByCount: null,
   };
 }
 

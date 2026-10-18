@@ -23,6 +23,7 @@ import { resolveStoredHeadline } from "@/lib/brief/ensureHeadlines";
 import { getItemTopics } from "@/lib/brief/topicFilter";
 import { getItemWhoRegions } from "@/lib/brief/whoRegionFilter";
 import { effectivePriority } from "@/lib/brief/priority";
+import { parseCitedByCount } from "@/lib/brief/citationRate";
 import type { SavedBriefItem } from "@/lib/savedArticleTypes";
 import { sanitizePmid } from "@/lib/savedArticleTypes";
 
@@ -57,6 +58,7 @@ type SavedSummaryRow = {
     doi?: string | null;
     openalex_id?: string | null;
     landing_url?: string | null;
+    cited_by_count?: number | null;
   } | null;
 };
 
@@ -216,6 +218,7 @@ function rowToBriefItem(row: SavedSummaryRow): BriefItem | null {
     keywords: keywords.slice(0, 8),
     meshTerms: meshTerms.slice(0, 12),
     abstractSnippet,
+    citedByCount: parseCitedByCount(row.articles?.cited_by_count),
   };
 }
 
@@ -256,11 +259,12 @@ function fallbackBriefItem(saved: SavedBriefItem): BriefItem {
     keywords: [],
     meshTerms: [],
     abstractSnippet: null,
+    citedByCount: null,
   };
 }
 
 const SELECT =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, summary_text, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, abstract, source, doi, openalex_id, landing_url)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, summary_text, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, keywords, mesh_terms, authors, abstract, source, doi, openalex_id, landing_url, cited_by_count)";
 
 /**
  * Fetch a single BriefItem by its PMID. Tries the default topic summary,
@@ -304,7 +308,7 @@ export async function getBriefItemByPmid(
 
   const { data: artData } = await supabase
     .from("articles")
-    .select("pmid, title, journal, pub_date, release_date, abstract, authors, keywords, mesh_terms, source, doi, openalex_id, landing_url")
+    .select("pmid, title, journal, pub_date, release_date, abstract, authors, keywords, mesh_terms, source, doi, openalex_id, landing_url, cited_by_count")
     .eq("pmid", pmid)
     .maybeSingle();
 
@@ -323,6 +327,7 @@ export async function getBriefItemByPmid(
       doi?: string | null;
       openalex_id?: string | null;
       landing_url?: string | null;
+      cited_by_count?: number | null;
     };
     const title = decodeHtmlEntities(row.title?.trim() || `PMID ${pmid}`);
     const date = row.release_date || row.pub_date || null;
@@ -365,6 +370,7 @@ export async function getBriefItemByPmid(
       keywords: Array.isArray(row.keywords) ? row.keywords : [],
       meshTerms: Array.isArray(row.mesh_terms) ? row.mesh_terms : [],
       abstractSnippet: row.abstract?.trim() ? row.abstract.trim().slice(0, 1200) : null,
+      citedByCount: parseCitedByCount(row.cited_by_count),
     };
   }
 

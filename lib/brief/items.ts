@@ -27,6 +27,7 @@ import {
   effectivePriority,
   meetsBriefThreshold,
 } from "@/lib/brief/priority";
+import { parseCitedByCount } from "@/lib/brief/citationRate";
 import {
   loadPriorityModel,
   predictArticlePriority,
@@ -102,6 +103,8 @@ export type BriefItem = {
   meshTerms: string[];
   /** First ~1200 chars of abstract for image matching and photo captions. */
   abstractSnippet: string | null;
+  /** OpenAlex citation count. Null until the nightly lookup has seen this paper. */
+  citedByCount: number | null;
 };
 
 export type BriefFeedResult = {
@@ -173,10 +176,10 @@ function parseStoredMlPriority(raw: unknown): number | null {
 
 /** Slim Brief index: no abstract / summary_text / keywords / mesh bodies. */
 const BRIEF_SELECT_SLIM =
-  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url)";
+  "pmid, headline, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url, cited_by_count)";
 
 const BRIEF_SELECT_SLIM_NO_HEADLINE =
-  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url)";
+  "pmid, created_at, subheading, label, admin_priority, admin_setting, auto_settings, auto_topics, auto_who_regions, ml_priority, rank_score, articles!inner(title, journal, pub_date, release_date, fetched_at, publication_types, source, doi, openalex_id, landing_url, cited_by_count)";
 
 const HYDRATE_CHUNK = 80;
 
@@ -487,7 +490,8 @@ export async function getBriefItems(options?: {
     errMsg.includes("auto_who_regions") ||
     errMsg.includes("authors") ||
     errMsg.includes("ml_priority") ||
-    errMsg.includes("rank_score")
+    errMsg.includes("rank_score") ||
+    errMsg.includes("cited_by_count")
   ) {
     if (errMsg.includes("headline")) slimSelect = BRIEF_SELECT_SLIM_NO_HEADLINE;
     if (errMsg.includes("mesh_terms")) {
@@ -516,6 +520,9 @@ export async function getBriefItems(options?: {
     }
     if (errMsg.includes("rank_score")) {
       slimSelect = slimSelect.replace(", rank_score", "");
+    }
+    if (errMsg.includes("cited_by_count")) {
+      slimSelect = slimSelect.replace(", cited_by_count", "");
     }
     slimResult = await fetchRows(slimSelect);
   }
@@ -549,6 +556,7 @@ export async function getBriefItems(options?: {
       doi?: string | null;
       openalex_id?: string | null;
       landing_url?: string | null;
+      cited_by_count?: number | null;
     } | null;
   };
 
@@ -774,6 +782,7 @@ export async function getBriefItems(options?: {
       keywords: keywords.slice(0, 8),
       meshTerms: meshTerms.slice(0, 12),
       abstractSnippet: null,
+      citedByCount: parseCitedByCount(row.articles?.cited_by_count),
     };
 
     if (!matchesBriefSettingFilter(item, settingFilter)) continue;

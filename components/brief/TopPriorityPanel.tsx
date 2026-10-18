@@ -12,7 +12,7 @@ export default function TopPriorityPanel({
   return (
     <section aria-labelledby="top10-heading">
       <SidebarHeading id="top10-heading">
-        Top 10 · past 12 months
+        Top 10 · by priority
       </SidebarHeading>
       {items.length === 0 ? (
         <p className={`${brief.sans} text-sm ${brief.muted}`}>

@@ -152,6 +152,7 @@ function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
     keywords: item.keywords ?? [],
     meshTerms: item.meshTerms ?? [],
     abstractSnippet: null,
+    citedByCount: null,
   };
 }
 
