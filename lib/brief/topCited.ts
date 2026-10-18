@@ -18,6 +18,12 @@ import {
   matchesBriefTopicFilter,
   type BriefTopicFilter,
 } from "@/lib/brief/topicFilter";
+import {
+  getItemWhoRegions,
+  matchesBriefWhoRegionFilter,
+  type BriefWhoRegionFilter,
+} from "@/lib/brief/whoRegionFilter";
+import type { WhoRegion } from "@/lib/classifyWhoRegion";
 import type { BriefItem } from "@/lib/brief/items";
 import { articleExternalUrl, isLiveFeedArticle } from "@/lib/feedSource";
 import { decodeHtmlEntities } from "@/lib/decodeHtmlEntities";
@@ -49,6 +55,8 @@ export type TopCitedItem = {
   settings: ArticleSetting[];
   topics: ArticleTopic[];
   autoTopics: ArticleTopic[] | null;
+  /** Stored WHO regions. Empty when the summary has none. */
+  whoRegions: WhoRegion[];
 };
 
 type ArticleCandidate = {
@@ -69,6 +77,7 @@ type SummaryHead = {
   admin_setting: string | null;
   auto_settings: string[] | null;
   auto_topics: string[] | null;
+  auto_who_regions?: string[] | null;
 };
 
 function asBriefForFilter(item: TopCitedItem): BriefItem {
@@ -91,8 +100,8 @@ function asBriefForFilter(item: TopCitedItem): BriefItem {
     adminSetting: item.adminSetting,
     topics: item.topics,
     autoTopics: item.autoTopics,
-    whoRegions: [],
-    autoWhoRegions: null,
+    whoRegions: item.whoRegions,
+    autoWhoRegions: item.whoRegions,
     studyLabel: null,
     methods: null,
     results: null,
@@ -123,22 +132,44 @@ async function loadSummaryHeads(
     const chunk = pmids.slice(i, i + 100);
     const { data, error } = await supabase
       .from("summaries")
-      .select("pmid, headline, admin_setting, auto_settings, auto_topics")
+      .select(
+        "pmid, headline, admin_setting, auto_settings, auto_topics, auto_who_regions"
+      )
       .eq("topic_id", topicId)
       .in("pmid", chunk);
     if (error) {
-      if (error.message.toLowerCase().includes("auto_topics")) {
+      const message = error.message.toLowerCase();
+      if (message.includes("auto_topics") || message.includes("auto_who_regions")) {
         const retry = await supabase
           .from("summaries")
-          .select("pmid, headline, admin_setting, auto_settings")
+          .select("pmid, headline, admin_setting, auto_settings, auto_topics")
           .eq("topic_id", topicId)
           .in("pmid", chunk);
         if (retry.error) {
+          if (retry.error.message.toLowerCase().includes("auto_topics")) {
+            const slim = await supabase
+              .from("summaries")
+              .select("pmid, headline, admin_setting, auto_settings")
+              .eq("topic_id", topicId)
+              .in("pmid", chunk);
+            if (slim.error) {
+              console.warn("[topCited] summary read failed:", slim.error.message);
+              continue;
+            }
+            for (const row of (slim.data ?? []) as SummaryHead[]) {
+              map.set(row.pmid, {
+                ...row,
+                auto_topics: null,
+                auto_who_regions: null,
+              });
+            }
+            continue;
+          }
           console.warn("[topCited] summary read failed:", retry.error.message);
           continue;
         }
         for (const row of (retry.data ?? []) as SummaryHead[]) {
-          map.set(row.pmid, { ...row, auto_topics: null });
+          map.set(row.pmid, { ...row, auto_who_regions: null });
         }
         continue;
       }
@@ -215,6 +246,13 @@ async function loadTopCitedPool(): Promise<TopCitedItem[]> {
     const autoTopics = Array.isArray(head?.auto_topics)
       ? (head.auto_topics.filter(Boolean) as ArticleTopic[])
       : null;
+    const storedRegions = head?.auto_who_regions;
+    const whoRegions = getItemWhoRegions({
+      autoWhoRegions: Array.isArray(storedRegions)
+        ? (storedRegions.filter(Boolean) as WhoRegion[])
+        : null,
+      title,
+    });
     const feedLike: FeedItem = {
       pmid: row.pmid,
       summary_text: null,
@@ -272,6 +310,7 @@ async function loadTopCitedPool(): Promise<TopCitedItem[]> {
         settings,
         topics,
         autoTopics,
+        whoRegions,
       },
     });
   }
@@ -289,18 +328,19 @@ async function loadTopCitedPool(): Promise<TopCitedItem[]> {
 
 const loadCachedTopCitedPool = unstable_cache(
   loadTopCitedPool,
-  ["brief-top-cited-pool-v2"],
+  ["brief-top-cited-pool-v4"],
   { revalidate: TOP_CITED_CACHE_SECONDS, tags: [TOP_CITED_CACHE_TAG] }
 );
 
 /**
  * Top 10 by citations per month, past 365 days.
  * All articles with a saved count of at least 1. No priority floor.
- * Cached ~3 days. Setting and topic tabs filter the pool in memory.
+ * Cached ~3 days. Setting, topic, and region tabs filter the pool in memory.
  */
 export async function getTopCitedYearItems(
   setting: BriefSettingFilter = "",
-  topic: BriefTopicFilter = ""
+  topic: BriefTopicFilter = "",
+  region: BriefWhoRegionFilter = ""
 ): Promise<TopCitedItem[]> {
   const pool = await loadCachedTopCitedPool();
   let out = pool;
@@ -312,6 +352,11 @@ export async function getTopCitedYearItems(
   if (topic) {
     out = out.filter((item) =>
       matchesBriefTopicFilter(asBriefForFilter(item), topic)
+    );
+  }
+  if (region) {
+    out = out.filter((item) =>
+      matchesBriefWhoRegionFilter(asBriefForFilter(item), region)
     );
   }
   return out.slice(0, 10);

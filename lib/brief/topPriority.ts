@@ -12,6 +12,10 @@ import {
   matchesBriefTopicFilter,
   type BriefTopicFilter,
 } from "@/lib/brief/topicFilter";
+import {
+  matchesBriefWhoRegionFilter,
+  type BriefWhoRegionFilter,
+} from "@/lib/brief/whoRegionFilter";
 
 /** Top 10 sidebar uses a full year of article dates (main brief stays 28 days). */
 export const TOP_PRIORITY_ARTICLE_WINDOW_DAYS = 365;
@@ -47,6 +51,8 @@ export type TopPriorityItem = Pick<
   | "setting"
   | "settings"
   | "topics"
+  | "whoRegions"
+  | "autoWhoRegions"
   | "keywords"
   | "meshTerms"
   | "jif"
@@ -102,6 +108,8 @@ function toTopPriorityItem(item: BriefItem): TopPriorityItem {
     setting: item.setting,
     settings: item.settings,
     topics: item.topics,
+    whoRegions: item.whoRegions,
+    autoWhoRegions: item.autoWhoRegions,
     keywords: item.keywords,
     meshTerms: item.meshTerms,
     jif: item.jif,
@@ -136,8 +144,8 @@ function asBriefForSettingFilter(item: TopPriorityItem): BriefItem {
     adminSetting: item.adminSetting,
     topics: item.topics ?? [],
     autoTopics: null,
-    whoRegions: [],
-    autoWhoRegions: null,
+    whoRegions: item.whoRegions ?? [],
+    autoWhoRegions: item.autoWhoRegions ?? [],
     studyLabel: null,
     methods: null,
     results: null,
@@ -226,7 +234,7 @@ async function loadTopPriorityYearPool(): Promise<TopPriorityItem[]> {
 
 const loadCachedTopPriorityYearPool = unstable_cache(
   loadTopPriorityYearPool,
-  ["brief-top-priority-year-pool-v1"],
+  ["brief-top-priority-year-pool-v2"],
   { revalidate: TOP_PRIORITY_CACHE_SECONDS, tags: [TOP_PRIORITY_CACHE_TAG] }
 );
 
@@ -239,7 +247,8 @@ const loadCachedTopPriorityYearPool = unstable_cache(
  */
 export async function getTopPriorityYearItems(
   setting: BriefSettingFilter = "",
-  topic: BriefTopicFilter = ""
+  topic: BriefTopicFilter = "",
+  region: BriefWhoRegionFilter = ""
 ): Promise<TopPriorityItem[]> {
   const pool = await loadCachedTopPriorityYearPool();
   let out = pool;
@@ -251,6 +260,11 @@ export async function getTopPriorityYearItems(
   if (topic) {
     out = out.filter((item) =>
       matchesBriefTopicFilter(asBriefForSettingFilter(item), topic)
+    );
+  }
+  if (region) {
+    out = out.filter((item) =>
+      matchesBriefWhoRegionFilter(asBriefForSettingFilter(item), region)
     );
   }
   return out.slice(0, 10);

@@ -127,8 +127,8 @@ export default async function HomePage({
 
   try {
     const [topPriority, topCited, newsItems, topicPool] = await Promise.all([
-      getTopPriorityYearItems(setting, topic),
-      getTopCitedYearItems(setting, topic),
+      getTopPriorityYearItems(setting, topic, region),
+      getTopCitedYearItems(setting, topic, region),
       listApprovedNewsForBrief(6),
       getCachedBriefFilterPool(),
     ]);

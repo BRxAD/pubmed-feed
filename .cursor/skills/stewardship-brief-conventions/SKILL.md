@@ -30,8 +30,8 @@ Think of the product like a newspaper desk:
 1. **Ingest (the night shift)** — New PubMed papers arrive. We write a short summary + headline, compute relevance (`rank_score`), save **care-setting labels** (`auto_settings`), **topic capsules** (`auto_topics`), **WHO regions** (`auto_who_regions`), and give a **priority grade 1–10** (`ml_priority`) using the smart model **including embeddings**. Saved **once** on the summary row. Stamp `fetched_at` on **first insert only**; refreshes must keep the original stamp.
 2. **Your rating (editor override)** — Human `admin_priority` always wins over the machine grade. Human `admin_setting` always wins over auto setting (both are one label only). Brief/Top 10 use **effective** priority, so an admin 4 hides an ML 5/6.
 3. **Homepage / Brief** — Show strong stories (effective priority ≥ **5**) from the last **28** days by **article date**. Order: newest **24-hour ingest period** first (`fetched_at`); inside a period, highest effective priority, then relevance. The lead is the top-ranked story ingested in the last 24 hours. Do **not** re-run embeddings per visitor. Read saved grades + saved settings. Story photos are assigned on the **All** pool so they stay the same across setting tabs. Sticky lead pins the day’s #1 against *lower*-priority churn in that same period only.
-4. **Top 10 by priority** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting tabs filter in memory. The sidebar label is **relevance** (flame = cited, target = relevance).
-5. **Top 10 most cited** — Same **365** days, every article with at least one OpenAlex citation. Rank: citations ÷ months since publication (a paper under one month counts as one month). Raw count is shown. Nightly job, batches of 100, stores one integer. Not on page load.
+4. **Top 10 by priority** — Last **365** days, but only **scan** saved priority ≥ **6**. Rank: highest effective priority, human-rated before ML-only on ties. No re-embedding. Cached as one **All** pool; setting, topic, and region filters apply in memory. The sidebar label is **relevance** (flame = cited, target = relevance).
+5. **Top 10 most cited** — Same **365** days, every article with at least one OpenAlex citation. Rank: citations ÷ months since publication (a paper under one month counts as one month). Raw count is shown. Nightly job, batches of 100, stores one integer. Not on page load. Same in-memory setting, topic, and region filters. Region uses the saved label when present; if it was never saved, the title already loaded is enough. Do not fetch affiliations or abstracts for this.
 6. **Retrain** — Rebuilds the grading rubric from your ratings + embeddings on a **weekly** schedule (not every rating). Improves **future** ingest only — does **not** rewrite old `ml_priority` unless you ask. After the ridge score, an **editorial overlay** caps **single-center** papers in weaker journals at **4** (sample size ignored) and adds **+1** for multi-center / national work in high-impact venues. Manual force: `npm run retrain:priority` or cron `?force=1`.
 
 ### Words we use
@@ -208,7 +208,7 @@ Main topic animal exclusion must be:
    - **Top 10:** TTL only (~3 days). Tag kept for rare manual bust — never on ingest/rating.
    - **Human-rated total on `/feed`:** TTL only (~24 h); SQL `count` head — no row bodies.
    - **Account signups on `/feed`:** TTL only (~1 h); two SQL `count` heads (`auth_users` total + `created_at` last 7 days) — no row bodies.
-7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting tabs in memory.
+7. Top 10: cache **All** pool once (`getTopPriorityYearItems`); filter setting, topic, and region in memory.
 8. Ingest cron (`/api/cron/daily-digest`): OpenAlex journals first, then PubMed, **shared** summarize cap — **no** legacy ASP emails, **no** abstract digest pulls. Brief email is `/api/cron/brief-digest` only.
 9. Indexes/RLS: keep `optimize_postgres_hot_paths.sql` applied; re-run after new filter columns. Keep `scripts/add_auto_settings.sql` + `scripts/add_auto_topics.sql` + `scripts/add_auto_who_regions.sql` applied.
 10. Prefer API URL (`*.supabase.co`) for supabase-js — not direct Postgres port 5432 from serverless.
@@ -328,7 +328,7 @@ Full notes: `docs/VISUAL_ABSTRACT.md`. Replaces the Graphic takeaway button; alw
 - [ ] Durable write + cheap read for new ML work
 - [ ] Dual ingest: OpenAlex journals + PubMed; DOI merge; Brief unlabeled; `/feed` tags only
 - [ ] Cache bust: ingest → Brief + feed slim; rating/setting → Brief only; Top 10 TTL-only
-- [ ] Top 10 All-pool cache; setting tabs filter in memory
+- [ ] Top 10 All-pool cache; setting, topic, and region filters in memory
 - [ ] Feed sort: ingested default; ML tie-break (not admin); unrated-only drops after rate; feed shell dark
 - [ ] Brief sort: newest 24h ingest period, then priority, then relevance; sticky yields to a new period
 - [ ] Digest email: headline → Brief permalink; date above headline; Read article (PubMed or DOI) + share links; no via-line in email

@@ -152,7 +152,7 @@ export default function BriefPage({
                 <SidebarCard accent="salmon" wash="cited">
                   <TopCitedPanel
                     items={topCited}
-                    filtered={Boolean(setting || topic)}
+                    filtered={Boolean(setting || topic || region)}
                     saved={saved}
                     onToggleSave={toggleSave}
                   />
@@ -160,6 +160,7 @@ export default function BriefPage({
                 <SidebarCard accent="steel" wash="relevance">
                   <TopPriorityPanel
                     items={topPriority}
+                    filtered={Boolean(setting || topic || region)}
                     saved={saved}
                     onToggleSave={toggleSave}
                   />

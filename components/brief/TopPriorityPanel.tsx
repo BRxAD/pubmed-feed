@@ -7,10 +7,12 @@ import { TopTenList } from "@/components/brief/TopTenActions";
 
 export default function TopPriorityPanel({
   items,
+  filtered = false,
   saved,
   onToggleSave,
 }: {
   items: TopPriorityItem[];
+  filtered?: boolean;
   saved: Set<string>;
   onToggleSave: (
     pmid: string,
@@ -27,7 +29,9 @@ export default function TopPriorityPanel({
       </div>
       {items.length === 0 ? (
         <p className={`${brief.sans} text-sm ${brief.muted}`}>
-          No high-relevance studies in the past 12 months yet.
+          {filtered
+            ? "No high-relevance studies in this filter yet."
+            : "No high-relevance studies in the past 12 months yet."}
         </p>
       ) : (
         <TopTenList items={items} saved={saved} onToggleSave={onToggleSave} />
