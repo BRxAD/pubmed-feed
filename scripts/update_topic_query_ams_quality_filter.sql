@@ -23,6 +23,9 @@
 --    Not all of IJAA.
 -- 9) antifungal* in TITLE in CMI / CID / OFID / Lancet Infect Dis / NEJM
 --    only. Not antifungal MAJR. Not CMI all-pubs.
+-- 10) Azithromycin in TITLE plus wheeze/preschool in TITLE, NEJM or JAMA
+--     only. Catches trials such as AZ-SWED, whose title names the drug
+--     rather than the word antibiotic. Not azithromycin in any journal.
 -- Animal exclusion stays (animals NOT humans) plus veterinary journals/titles.
 -- Also NOT case series / a case of / case-report journals; NOT Microbiology
 -- Spectrum unless stewardship / diagnostic stewardship in Title/Abstract;
@@ -406,6 +409,21 @@ SET query_string = '(
       OR "Lancet Infect Dis"[Journal]
       OR "N Engl J Med"[Journal]
       OR "New England Journal of Medicine"[Journal]
+    )
+  )
+  OR
+  (
+    azithromycin[Title]
+    AND
+    (
+      wheez*[Title]
+      OR preschool*[Title]
+    )
+    AND
+    (
+      "N Engl J Med"[Journal]
+      OR "New England Journal of Medicine"[Journal]
+      OR "JAMA"[Journal]
     )
   )
 )
