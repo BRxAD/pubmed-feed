@@ -3,20 +3,31 @@
 import type { TopCitedItem } from "@/lib/brief/topCited";
 import { brief } from "@/components/brief/briefTheme";
 import { SidebarHeading } from "@/components/brief/SidebarCard";
+import { TopTenList } from "@/components/brief/TopTenActions";
 
 export default function TopCitedPanel({
   items,
   filtered = false,
+  saved,
+  onToggleSave,
 }: {
   items: TopCitedItem[];
   filtered?: boolean;
+  saved: Set<string>;
+  onToggleSave: (
+    pmid: string,
+    meta?: { title?: string | null; pubmedUrl?: string | null }
+  ) => void;
 }) {
   return (
     <section aria-labelledby="top-cited-heading">
-      <SidebarHeading id="top-cited-heading">
-        Top 10 · most cited
-      </SidebarHeading>
-      <p className={`${brief.sans} -mt-2 mb-4 text-[0.75rem] leading-snug ${brief.muted}`}>
+      <div className="mb-1 flex items-center gap-2">
+        <RankFlame />
+        <SidebarHeading id="top-cited-heading" className="mb-0">
+          Top 10 · most cited
+        </SidebarHeading>
+      </div>
+      <p className={`${brief.sans} mb-4 text-[0.75rem] leading-snug ${brief.muted}`}>
         Citations per month · past 12 months
       </p>
       {items.length === 0 ? (
@@ -26,37 +37,34 @@ export default function TopCitedPanel({
             : "Citation counts are still being collected."}
         </p>
       ) : (
-        <ol className="space-y-3.5">
-          {items.map((item, i) => (
-            <li key={item.pmid} className={`${brief.sans} text-sm`}>
-              <a
-                href={item.pubmedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`group flex gap-2.5 ${brief.ink} ${brief.accentHover}`}
-              >
-                <span
-                  className={`${brief.muted} tabular-nums shrink-0 w-5 pt-0.5`}
-                >
-                  {i + 1}.
-                </span>
-                <span className="min-w-0">
-                  <span
-                    className={`${brief.serif} text-[0.9375rem] leading-snug font-semibold group-hover:text-[#2A79A7] transition-colors`}
-                  >
-                    {item.headline}
-                  </span>
-                  <span className={`mt-0.5 block text-[0.75rem] ${brief.muted}`}>
-                    {item.citedByCount === 1
-                      ? "1 citation"
-                      : `${item.citedByCount} citations`}
-                  </span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ol>
+        <TopTenList
+          items={items}
+          saved={saved}
+          onToggleSave={onToggleSave}
+          note={(item) =>
+            item.citedByCount === 1
+              ? "1 citation"
+              : `${item.citedByCount} citations`
+          }
+        />
       )}
     </section>
+  );
+}
+
+function RankFlame() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5 shrink-0 text-[#C4544A]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
   );
 }

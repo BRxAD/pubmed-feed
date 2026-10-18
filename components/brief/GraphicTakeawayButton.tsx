@@ -16,6 +16,8 @@ type Props = {
   image?: StoryImageMatch | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** False when another control, such as a Top 10 menu, opens the dialog. */
+  showButton?: boolean;
 };
 
 type Prepared = {
@@ -35,6 +37,7 @@ export default function GraphicTakeawayButton({
   image,
   open: openProp,
   onOpenChange,
+  showButton = true,
 }: Props) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = openProp !== undefined;
@@ -264,16 +267,18 @@ export default function GraphicTakeawayButton({
 
   return (
     <>
-      <button
-        type="button"
-        className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-2 py-0.5 text-[0.7rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20`}
-        onClick={() => {
-          setError(null);
-          setOpen(true);
-        }}
-      >
-        Graphic takeaway
-      </button>
+      {showButton && (
+        <button
+          type="button"
+          className={`${brief.sans} rounded-sm border border-[#FFA69E]/25 bg-[#FFA69E]/12 px-2 py-0.5 text-[0.7rem] font-medium tracking-wide text-[#1C0B19] transition-colors hover:bg-[#FFA69E]/20`}
+          onClick={() => {
+            setError(null);
+            setOpen(true);
+          }}
+        >
+          Graphic takeaway
+        </button>
+      )}
       {dialog}
     </>
   );

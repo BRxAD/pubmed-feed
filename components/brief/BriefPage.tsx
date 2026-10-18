@@ -149,14 +149,20 @@ export default function BriefPage({
                     loginPrompt={loginPrompt}
                   />
                 </SidebarCard>
-                <SidebarCard accent="steel">
+                <SidebarCard accent="salmon" wash="cited">
                   <TopCitedPanel
                     items={topCited}
                     filtered={Boolean(setting || topic)}
+                    saved={saved}
+                    onToggleSave={toggleSave}
                   />
                 </SidebarCard>
-                <SidebarCard accent="sky">
-                  <TopPriorityPanel items={topPriority} />
+                <SidebarCard accent="steel" wash="relevance">
+                  <TopPriorityPanel
+                    items={topPriority}
+                    saved={saved}
+                    onToggleSave={toggleSave}
+                  />
                 </SidebarCard>
                 <SidebarCard accent="olive">
                   <DigestSignup googleEnabled={googleEnabled} />
