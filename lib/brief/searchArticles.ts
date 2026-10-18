@@ -33,9 +33,13 @@ export function computeSearchRelevance(
   const bottomLine = (item.bottomLine || "").toLowerCase();
   const abstract = (item.abstractSnippet || "").toLowerCase();
   const titleHeadline = `${headline} ${title}`;
+  const authorText = (item.authors || []).join(" ").toLowerCase();
   const summaryText = `${item.methods || ""} ${item.results || ""} ${bottomLine}`.toLowerCase();
 
-  // 2. Exact phrase match in title or headline
+  // 2. Exact phrase match in title, headline, or author list
+  if (authorText.includes(query)) {
+    score += 180;
+  }
   if (titleHeadline.includes(query)) {
     score += 150;
   } else if (summaryText.includes(query)) {
@@ -68,6 +72,8 @@ export function computeSearchRelevance(
   if (terms.length > 1) {
     const allInTitle = terms.every((t) => titleHeadline.includes(t));
     if (allInTitle) score += 60;
+    const allInAuthors = terms.every((t) => authorText.includes(t));
+    if (allInAuthors) score += 80;
 
     const allInSummary = terms.every(
       (t) => summaryText.includes(t) || titleHeadline.includes(t)
@@ -78,6 +84,9 @@ export function computeSearchRelevance(
   for (const term of terms) {
     if (titleHeadline.includes(term)) {
       score += 25;
+    }
+    if (authorText.includes(term)) {
+      score += 30;
     }
     if (summaryText.includes(term)) {
       score += 10;
@@ -99,7 +108,7 @@ export function computeSearchRelevance(
 }
 
 /**
- * Searches the PubMed article corpus by title and abstract.
+ * Searches the article corpus by title, abstract, and author name.
  *
  * Rules:
  * - Only includes articles with priority rating >= 5 (effective priority: admin override or ML grade).
@@ -183,6 +192,26 @@ export async function searchBriefArticles(
         }
       }
     }
+  }
+
+  // Author names are not in the title/abstract index. Merge those ids
+  // so a name still matches when the RPC already returned other papers.
+  try {
+    const { data: authorRows, error: authorError } = await supabase.rpc(
+      "search_article_author_pmids",
+      {
+        search_query: query,
+        result_limit: Math.min(40, Math.max(limit, 20)),
+      }
+    );
+    if (!authorError && Array.isArray(authorRows)) {
+      for (const row of authorRows) {
+        const pmid = String(row.pmid ?? "");
+        if (pmid && !candidatePmids.includes(pmid)) candidatePmids.push(pmid);
+      }
+    }
+  } catch {
+    // Author lookup is optional if the function is not installed yet.
   }
 
   if (candidatePmids.length === 0) return [];

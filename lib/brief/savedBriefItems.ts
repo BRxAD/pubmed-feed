@@ -222,6 +222,13 @@ function rowToBriefItem(row: SavedSummaryRow): BriefItem | null {
   };
 }
 
+function isPlaceholderTitle(title: string, pmid: string): boolean {
+  const text = title.trim();
+  if (!text) return true;
+  if (text.toLowerCase() === `pmid ${pmid}`.toLowerCase()) return true;
+  return /^pmid\s+w?\d+$/i.test(text);
+}
+
 function fallbackBriefItem(saved: SavedBriefItem): BriefItem {
   const title = saved.title || `PMID ${saved.pmid}`;
   return {
@@ -377,6 +384,57 @@ export async function getBriefItemByPmid(
   return null;
 }
 
+type ArticleHead = {
+  pmid: string;
+  title?: string | null;
+  journal?: string | null;
+  pub_date?: string | null;
+  release_date?: string | null;
+  source?: string | null;
+  doi?: string | null;
+  openalex_id?: string | null;
+  landing_url?: string | null;
+  authors?: string[] | null;
+};
+
+/** Title and link only — no abstract — for search hits that have no summary yet. */
+async function articleHeadsByPmid(pmids: string[]): Promise<Map<string, BriefItem>> {
+  const map = new Map<string, BriefItem>();
+  if (pmids.length === 0) return map;
+  const supabase = getSupabaseServerClient();
+  for (let i = 0; i < pmids.length; i += CHUNK) {
+    const chunk = pmids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("articles")
+      .select(
+        "pmid, title, journal, pub_date, release_date, source, doi, openalex_id, landing_url, authors"
+      )
+      .in("pmid", chunk);
+    if (error || !data) continue;
+    for (const raw of data as ArticleHead[]) {
+      const pmid = raw.pmid?.trim();
+      const title = decodeHtmlEntities(raw.title?.trim() || "");
+      if (!pmid || !title || isPlaceholderTitle(title, pmid)) continue;
+      const source = raw.source === "openalex" ? "openalex" : "pubmed";
+      map.set(pmid, {
+        ...fallbackBriefItem({
+          pmid,
+          title,
+          pubmedUrl: articleExternalUrl(pmid, source, {
+            doi: raw.doi,
+            landingUrl: raw.landing_url,
+            openalexId: raw.openalex_id,
+          }),
+        }),
+        journal: raw.journal?.trim() || null,
+        date: raw.release_date || raw.pub_date || null,
+        authors: (raw.authors ?? []).map((name) => String(name).trim()).filter(Boolean),
+      });
+    }
+  }
+  return map;
+}
+
 /**
  * Load Brief-shaped stories for an ordered list of saved PMIDs.
  * Only those IDs are fetched (bounded; no Brief date/priority gates).
@@ -414,16 +472,14 @@ export async function getBriefItemsForSaved(
     }
   }
 
-  return ordered.map((pmid) => {
-    const found = byPmid.get(pmid);
-    if (found) return found;
+  const missing = ordered.filter((pmid) => !byPmid.has(pmid));
+  const fromArticles = await articleHeadsByPmid(missing);
+
+  return ordered.flatMap((pmid) => {
+    const found = byPmid.get(pmid) ?? fromArticles.get(pmid);
+    if (found) return [found];
     const meta = saved.find((s) => s.pmid === pmid);
-    return fallbackBriefItem(
-      meta ?? {
-        pmid,
-        title: `PMID ${pmid}`,
-        pubmedUrl: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-      }
-    );
+    if (!meta || isPlaceholderTitle(meta.title, pmid)) return [];
+    return [fallbackBriefItem(meta)];
   });
 }
