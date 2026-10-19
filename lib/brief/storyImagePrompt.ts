@@ -9,6 +9,8 @@ export type StoryImagePromptInput = {
   abstract: string | null;
   keywords: string[];
   meshTerms: string[];
+  /** Care setting. A community study must not be drawn as a hospital. */
+  settings?: string[] | null;
 };
 
 /**
@@ -74,7 +76,7 @@ const DEFAULT_MOTIF =
 /** A named germ, drawn as the organism itself. Checked before a medicine bottle. */
 const ORGANISM_SCENES: Array<[RegExp, string]> = [
   [/\bh\.?\s*pylori\b|\bhelicobacter\b/, "A close-up scientific photograph of curved spiral bacteria on a plain warm-gray background. No bottles. No people."],
-  [/\bc\.?\s*diff(?:icile)?\b|\bclostridioides\b|\bclostridium difficile\b/, "A close-up scientific photograph of rod-shaped bacteria on a plain warm-gray background. No bottles. No people."],
+  [/\bc\.?\s*diff(?:icile)?\b|\bclostridioides\b|\bclostridium difficile\b|\bcdi\b/, "A close-up scientific photograph of rod-shaped bacteria and a few round spores on a plain warm-gray background. No hospital, no ward, no bottles, no people."],
   [/\bmrsa\b|\bstaphylococcus aureus\b|\bs\.?\s*aureus\b/, "A close-up scientific photograph of round bacteria in grape-like clusters on a plain warm-gray background. No bottles. No people."],
   [/\bpseudomonas\b/, "A close-up scientific photograph of slender rod-shaped bacteria on a plain warm-gray background. No bottles. No people."],
   [/\bklebsiella\b/, "A close-up scientific photograph of short rod-shaped bacteria on a plain warm-gray background. No bottles. No people."],
@@ -112,14 +114,31 @@ function organismScene(text: string): string | null {
   return null;
 }
 
+function neighborhoodScene(text: string): string | null {
+  if (!/\b(neighbourhood|neighborhood)s?\b/.test(text)) return null;
+  return "A quiet residential neighborhood in daylight: houses, trees, and a sidewalk. No hospital, no clinic, no ward, no corridor, no people close up, no signs, no letters.";
+}
+
+/** A photo of a hospital place. Labs, germs, and medicine bottles are not places. */
+export function isHospitalPlaceImage(entry: { id: string; label: string }): boolean {
+  const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
+  return /\b(hospitals?|inpatient|ward|icu|corridor|nosocomial|atrium)\b/.test(about);
+}
+
+export function isCommunityStudy(settings: string[] | null | undefined): boolean {
+  return Boolean(settings?.includes("community") && !settings.includes("hospital"));
+}
+
 function pictureMotif(primary: string, extra: string): string {
   return (
     sceneMotif(primary) ??
     organismScene(primary) ??
     drugScene(primary) ??
+    neighborhoodScene(primary) ??
     sceneMotif(extra) ??
     organismScene(extra) ??
     drugScene(extra) ??
+    neighborhoodScene(extra) ??
     DEFAULT_MOTIF
   );
 }
@@ -132,13 +151,19 @@ export function buildStoryImagePrompt(candidate: StoryImagePromptInput): string 
     .replace(/\s+/g, " ")
     .trim();
   const motif = pictureMotif(`${headline} ${title}`.toLowerCase(), extra.toLowerCase());
+  const communityNote = isCommunityStudy(candidate.settings)
+    ? "The study is in the community. Do not show a hospital, ward, corridor, hospital bed, inpatient room, or emergency department."
+    : "";
   return [
     "Photorealistic photograph, landscape, natural light, shallow depth of field. Not an illustration, not a poster, not a cover.",
     "Color grade: warm cream, olive green, deep plum, soft salmon, and steel blue. Muted.",
     `Show only this: ${motif}.`,
+    communityNote,
     "If an object is not named above, do not add it. Do not invent syringes, needles, or injections for medicines that are swallowed.",
     "Do not show the wrong sex. A story about women or pregnancy must not show a man.",
     "Professional and respectful. No nudity, no distress, no graphic disease, wounds, blood, rashes, or lesions, no weapons, no stereotypes.",
     "The picture contains no text of any kind. No title, no headline, no caption, no words, no letters, no numbers, no title bar, no beige text band, no labels, no logos, no flags, no watermarks, no readable documents, no charts.",
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }

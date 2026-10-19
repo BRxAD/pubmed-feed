@@ -9,7 +9,7 @@ import {
 } from "@/lib/brief/idAcronyms";
 import {
   allowsCausalLanguage,
-  INTERVENTION_CAUSAL_RE,
+  hasInterventionCausalVerb,
   STRONG_CAUSAL_RE,
 } from "@/lib/brief/causality";
 
@@ -69,9 +69,10 @@ Do not over-promise (critical):
 - When primary and sensitivity analyses disagree, headline the durable takeaway (safety / non-inferior pattern / practice feasibility), not the fragile point estimate
 
 Causality (critical):
-- Use causal language ONLY for randomized trials (RCT), or systematic reviews / meta-analyses clearly limited to RCT evidence — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
+- Use causal verbs ONLY for randomized trials (RCT), or systematic reviews / meta-analyses clearly limited to RCT evidence — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
 - Systematic reviews / meta-analyses that mix RCTs and observational studies are NOT a free pass for causal verbs
-- Interrupted time series, pre-post, retrospective, cohort, cross-sectional, quasi-experimental, target-trial emulation, and any other non-RCT design are non-causal — never "led to", "resulted in", "caused", "drove", "triggered", "reduced", or "significantly reduced"
+- Interrupted time series, pre-post, retrospective, cohort, cross-sectional, ecological, quasi-experimental, target-trial emulation, and any other non-RCT design are non-causal. Do not write that an exposure reduced, increased, cut, or led to an outcome ("antibiotic use increased infection rates", "rates were reduced", "reduced by 13%")
+- A modifier is not a causal verb. "Reduced doses", "increased dosing", and "increased C. difficile rates" may stay when the word only describes the noun
 - For non-RCT studies, use varied non-causal framing: state the pattern directly ("use varied widely…", "prescribing was higher among…"), or soft association verbs (associated with, tied to, coincided with, correlated with, aligned with, accompanied by)
 - Do NOT reach for "linked to" by default — vary phrasing across headlines; many observational findings read best as plain descriptive statements
 - When unsure of design, default to non-causal / descriptive language
@@ -279,7 +280,7 @@ export function validateHeadlineQuality(
   if (!causalAllowed && STRONG_CAUSAL_RE.test(h)) {
     issues.push('causal wording ("led to/resulted in") on non-RCT study');
   }
-  if (!causalAllowed && INTERVENTION_CAUSAL_RE.test(h)) {
+  if (!causalAllowed && hasInterventionCausalVerb(h)) {
     issues.push(
       "intervention-style causal verb on non-RCT study — use descriptive or non-causal phrasing"
     );

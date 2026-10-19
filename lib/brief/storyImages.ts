@@ -12,6 +12,7 @@ import {
 } from "@/lib/brief/storyImageCatalog";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
+import { isHospitalPlaceImage } from "@/lib/brief/storyImagePrompt";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   isRecyclableStoryImage,
@@ -153,6 +154,13 @@ function scoreEntry(
 ): number {
   if (!hasRequiredGate(corpus, entry)) return 0;
   if (subjectConflict(corpus, entry)) return 0;
+  if (
+    settings.includes("community") &&
+    !settings.includes("hospital") &&
+    isHospitalPlaceImage(entry)
+  ) {
+    return 0;
+  }
 
   let matchedWeight = 0;
   let matchedCount = 0;
