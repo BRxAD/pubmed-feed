@@ -4,7 +4,7 @@ import OpenAI from "openai";
 
 export const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 export const OPENAI_EMBEDDING_DIMS = 1536;
-export const EMBEDDING_PCA_DIMS = 8;
+export const EMBEDDING_PCA_DIMS = 16;
 
 const SETTINGS_KEY_PREFIX = "emb:oai3s:";
 /** Keep each request well under the 1M TPM ceiling when many articles land at once. */

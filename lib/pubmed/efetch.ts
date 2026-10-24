@@ -124,6 +124,92 @@ function extractArticle(article: unknown): Partial<PubMedRecord> {
   return { title, abstract, journal, pubDate, articleDate, publicationTypes: pubTypes };
 }
 
+function labeledAbstract(abstractObj: unknown): string | null {
+  if (abstractObj == null) return null;
+  const texts = toArray(
+    (abstractObj as Record<string, unknown>).AbstractText,
+    (x) => {
+      const label = textVal((x as Record<string, unknown>)["@_Label"]);
+      const body = textVal(x);
+      if (!body) return null;
+      return label ? `${label}: ${body}` : body;
+    }
+  ).filter((s): s is string => s != null);
+  return texts.length > 0 ? texts.join("\n\n") : null;
+}
+
+function doiFromArticleIds(idList: unknown): string | null {
+  const ids = toArray(
+    (idList as Record<string, unknown> | undefined)?.ArticleId,
+    (x) => x
+  );
+  for (const raw of ids) {
+    const idType = textVal((raw as Record<string, unknown>)["@_IdType"]);
+    if (String(idType ?? "").toLowerCase() !== "doi") continue;
+    const value = normalizeDoi(textVal(raw));
+    if (value) return value;
+  }
+  return null;
+}
+
+/** NIHR and other PubMed Books records (for example ALABAMA) are not journal articles. */
+function extractBook(bookArticle: unknown): PubMedRecord | null {
+  const root = (bookArticle ?? {}) as Record<string, unknown>;
+  const doc = root.BookDocument as Record<string, unknown> | undefined;
+  if (!doc) return null;
+  const book = (doc.Book ?? {}) as Record<string, unknown>;
+
+  const pmid = textVal(doc.PMID);
+  if (!pmid || !/^\d+$/.test(pmid)) return null;
+
+  const pubDateObj = book.PubDate as Record<string, unknown> | undefined;
+  let pubDate: string | null = null;
+  if (pubDateObj) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const y = textVal(pubDateObj.Year);
+    const monthRaw = textVal(pubDateObj.Month);
+    const monthNum = monthRaw ? Number(monthRaw) : NaN;
+    const m =
+      monthRaw && monthNum >= 1 && monthNum <= 12
+        ? months[monthNum - 1]
+        : monthRaw;
+    const d = textVal(pubDateObj.Day);
+    if (y && m && d) pubDate = `${y} ${m} ${d}`;
+    else if (y && m) pubDate = `${y} ${m}`;
+    else if (y) pubDate = y;
+  }
+
+  const authorList = book.AuthorList;
+  const authors = extractAuthors(authorList);
+  const affiliations = extractAffiliations(authorList);
+  const corresponding = extractCorrespondingAuthor(authorList);
+  const { epubDate, pubmedDate } = extractHistoryDates({
+    History: (root.PubmedBookData as Record<string, unknown> | undefined)?.History,
+  });
+
+  return {
+    pmid,
+    title: textVal(book.BookTitle),
+    abstract: labeledAbstract(doc.Abstract),
+    journal: textVal(book.CollectionTitle) ?? textVal(
+      (book.Publisher as Record<string, unknown> | undefined)?.PublisherName
+    ),
+    pubDate,
+    epubDate,
+    pubmedDate,
+    publicationTypes: toArray(doc.PublicationType, (x) => textVal(x)).filter(
+      (s): s is string => s != null
+    ),
+    meshTerms: [],
+    keywords: extractKeywords(doc.KeywordList),
+    authors,
+    affiliations,
+    correspondingAuthorEmail: corresponding.email,
+    correspondingAuthorName: corresponding.name,
+    doi: doiFromArticleIds(doc.ArticleIdList),
+  };
+}
+
 /**
  * Extract epublish and pubmed entry dates from PubmedData/History.
  * Returns { epubDate, pubmedDate } — both may be null.
@@ -292,6 +378,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
   }
 
   const articles = toArray(articleSet.PubmedArticle, (x) => x);
+  const books = toArray(articleSet.PubmedBookArticle, (x) => x);
 
   function getPmid(art: Record<string, unknown>): string | null {
     const raw = (art?.MedlineCitation as Record<string, unknown> | undefined)?.PMID;
@@ -311,7 +398,7 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
     return /^\d+$/.test(trimmed) ? trimmed : null;
   }
 
-  return articles.map((article) => {
+  const journalRecords = articles.map((article) => {
     const art = article as Record<string, unknown>;
     const medline = art.MedlineCitation as Record<string, unknown> | undefined;
     const pmid = getPmid(art);
@@ -345,7 +432,15 @@ async function fetchOneChunk(pmids: string[]): Promise<PubMedRecord[]> {
       correspondingAuthorName: corresponding.name,
       doi: normalizeDoi(doi),
     };
-  }).filter((r) => r.pmid && /^\d+$/.test(r.pmid));
+  });
+
+  const bookRecords = books
+    .map((book) => extractBook(book))
+    .filter((r): r is PubMedRecord => r != null);
+
+  return [...journalRecords, ...bookRecords].filter(
+    (r) => r.pmid && /^\d+$/.test(r.pmid)
+  );
 }
 
 export async function fetchPubMedRecords(

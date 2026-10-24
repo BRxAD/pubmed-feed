@@ -12,6 +12,7 @@ import {
   hasInterventionCausalVerb,
   STRONG_CAUSAL_RE,
 } from "@/lib/brief/causality";
+import { headlineScopeIssues } from "@/lib/brief/headlineScope";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -67,6 +68,13 @@ Do not over-promise (critical):
 - Prefer cautious stewardship-useful framing ("signal of benefit", "no excess harm", "reasonable alternative", "comparable outcomes") over a single flashy RR/% that does not survive sensitivity checks
 - Never claim "reduced mortality by X%" (or similar) when sensitivity analyses remove or erase that signal
 - When primary and sensitivity analyses disagree, headline the durable takeaway (safety / non-inferior pattern / practice feasibility), not the fragile point estimate
+
+Scope of the result (critical):
+- The headline is about the people the result is about. Do not use "despite" to attach a different fact
+- If co-infection, bacterial infection, resistance, or another condition was uncommon, do not write as if the finding is about those patients
+- Bad: "High antibiotic use in COVID-19 patients showed no mortality benefit despite co-infections" (co-infection was 8%; antibiotics were given to about 76% — "despite" makes it sound like antibiotics failed in the co-infected patients)
+- Good: "High antibiotic use in COVID-19 patients was not associated with improved outcomes"
+- "No benefit" or "no mortality benefit" is a causal claim. On a non-RCT, say the exposure was not associated with a better outcome
 
 Causality (critical):
 - Use causal verbs ONLY for randomized trials (RCT), or systematic reviews / meta-analyses clearly limited to RCT evidence — then you may use direct verbs (cut, reduced, lowered, boosted) for findings the abstract attributes to the intervention
@@ -285,6 +293,7 @@ export function validateHeadlineQuality(
       "intervention-style causal verb on non-RCT study — use descriptive or non-causal phrasing"
     );
   }
+  issues.push(...headlineScopeIssues(h, causalAllowed));
   if (opts?.requireNamedRates && hasUnspecifiedRateNoun(h)) {
     issues.push(
       "name the measured outcome (e.g. cure rates, mortality rates) — do not say only rates"

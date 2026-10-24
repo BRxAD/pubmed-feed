@@ -18,7 +18,7 @@ export const STORY_IMAGE_POLICY = {
 
   /**
    * Within the photo-eligible band (excluding lead), allow thematic matches.
-   * If nothing topical fits, use a plain medicine still life so a photo card
+   * If nothing topical fits, use a clinician-at-work photo so a photo card
    * is not left blank beside another photo.
    */
   secondaryStrictOnly: false,

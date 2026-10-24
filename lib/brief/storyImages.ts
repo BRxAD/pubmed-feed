@@ -33,6 +33,7 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photos/8460157", // labeled urine testing, file is a male portrait
   "photo-1516549655169", // labeled emergency department, file is an operating room
   "photos/7089020", // team huddle — over-matched generic
+  "Agar_plates_with_bacterial_colonies", // file returns 404, so the story looks blank
   "photo-1529107386315", // city network lights — not stewardship/global health
   "photo-1631217868264", // clinicians discussion — user-rejected
   "/brief-images/heart-endocarditis",
@@ -52,6 +53,7 @@ const BLOCKED_IMAGE_IDS = new Set([
   "white-coat",
   "pexels-urine-dipstick",
   "emergency-care",
+  "wikimedia-agar-plates",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -318,13 +320,12 @@ export function bestStrictImagePlan(
 }
 
 /**
- * Last-resort still lifes of medicine only. No people, rooms, or culture plates,
- * so a blank photo slot can be filled without a scene a reader could call wrong.
+ * Last-resort photos are a clinician at work. An unlabeled medicine bottle
+ * is not used to fill a blank.
  */
 const SAFE_GENERIC_IDS = new Set([
-  "local-generic-04",
-  "local-generic-08",
-  "local-medications-antibiotics",
+  "local-ehr-technology",
+  "local-interprofessional-team",
 ]);
 
 function genericFallbackCandidates(

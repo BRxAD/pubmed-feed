@@ -24,7 +24,7 @@ import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
 import { OPENALEX_JOURNAL_LABELS } from "@/lib/openalex/journals";
-import { refineOpenAlexRecordDates, toDateOnly } from "@/lib/openalex/dates";
+import { refineOpenAlexRecordDates, resolvePublicationDates } from "@/lib/openalex/dates";
 
 export const OPENALEX_INGEST_MAX_ARTICLES = 200;
 
@@ -39,12 +39,6 @@ function getSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-}
-
-function clampToToday(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const today = getTodayISO();
-  return dateStr > today ? today : dateStr;
 }
 
 type TopicRow = {
@@ -236,17 +230,19 @@ export async function runOpenAlexIngest(options: {
   }
 
   const articleRows = toInsert.map((r) => {
-    const pubDate = toDateOnly(r.pubDate);
-    const releaseDate = clampToToday(pubDate) ?? todayStr;
+    const dates = resolvePublicationDates({
+      pubDate: r.pubDate,
+      today: todayStr,
+    });
     return {
       pmid: r.pmid,
       title: r.title ?? null,
       abstract: r.abstract ?? null,
       journal: r.journal ?? null,
-      pub_date: pubDate,
-      article_date: pubDate,
-      epub_date: pubDate,
-      release_date: releaseDate,
+      pub_date: dates.pubDate,
+      article_date: dates.pubDate,
+      epub_date: dates.pubDate,
+      release_date: dates.releaseDate,
       publication_types: r.publicationTypes ?? [],
       keywords: r.keywords ?? [],
       mesh_terms: r.meshTerms ?? [],

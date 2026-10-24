@@ -87,6 +87,21 @@ describe("classifyArticleTopics", () => {
       ),
       false
     );
+    assert.equal(
+      classifyArticleTopics({
+        title:
+          "Cefiderocol versus standard care for Gram-negative bloodstream infection",
+        abstract:
+          "Infectious complications (multidrug-resistant bacteria colonization and/or candidemia) occurred in both arms.",
+      }).includes("antifungal"),
+      false
+    );
+    assert.ok(
+      classifyArticleTopics({
+        title: "Shorter therapy for bloodstream infection",
+        abstract: "Patients with candidemia were treated with an echinocandin.",
+      }).includes("antifungal")
+    );
     assert.ok(
       classifyArticleTopics({ title: "Osteomyelitis after foot infection" }).includes(
         "bone-joint"

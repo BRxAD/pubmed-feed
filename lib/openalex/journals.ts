@@ -1,5 +1,6 @@
 /**
- * OpenAlex journal allowlist: CID, OFID, ASHE, ICHE, CMI.
+ * OpenAlex journal allowlist: CID, OFID, ASHE, ICHE, CMI,
+ * and Lancet Primary Care (AMS signal required; see filter.ts).
  * ISSN filter is journal-articles only (no preprint servers).
  */
 export const OPENALEX_JOURNAL_ISSNS = [
@@ -16,6 +17,8 @@ export const OPENALEX_JOURNAL_ISSNS = [
   // Clinical Microbiology and Infection
   "1198-743X",
   "1469-0691",
+  // The Lancet Primary Care
+  "3050-5143",
 ] as const;
 
 export const OPENALEX_JOURNAL_LABELS = [
@@ -24,6 +27,7 @@ export const OPENALEX_JOURNAL_LABELS = [
   "ASHE",
   "ICHE",
   "CMI",
+  "Lancet Primary Care",
 ] as const;
 
 /** OpenAlex `filter=` fragment: these ISSNs, journal articles + reviews. */

@@ -13,6 +13,7 @@ const HUMAN_RE =
   /\b(patient(s)?|human(s)?|hospital|clinical|adult(s)?|pediatric|children|icu|inpatient|outpatient)\b/i;
 
 const OFID_JOURNAL_RE = /\bopen forum infectious diseases\b/i;
+const LANCET_PRIMARY_CARE_RE = /\blancet primary care\b/i;
 
 const OFID_AMS_SIGNAL_RE =
   /\b(stewardship|antibiotic|antimicrobial|antifungal|prescrib|de-escalat|deescalat|duration of therapy|days of therapy|oral switch|oral step-?down|iv.?to.?oral)\b/i;
@@ -24,7 +25,7 @@ function isOfidJournal(journal: string | null | undefined): boolean {
   return OFID_JOURNAL_RE.test(journal ?? "");
 }
 
-function ofidHasAmsOrDrugSignal(title: string, abstract: string): boolean {
+function hasAmsOrDrugSignal(title: string, abstract: string): boolean {
   const text = `${title} ${abstract}`;
   return OFID_AMS_SIGNAL_RE.test(text) || NAMED_DRUG_RE.test(text);
 }
@@ -46,7 +47,9 @@ export function passesClinicalInclusionFilter(
 
   if (ANIMAL_RE.test(combined) && !HUMAN_RE.test(combined)) return false;
 
-  if (isOfidJournal(rec.journal) && !ofidHasAmsOrDrugSignal(title, abstract)) {
+  const needsAmsSignal =
+    isOfidJournal(rec.journal) || LANCET_PRIMARY_CARE_RE.test(rec.journal ?? "");
+  if (needsAmsSignal && !hasAmsOrDrugSignal(title, abstract)) {
     return false;
   }
 

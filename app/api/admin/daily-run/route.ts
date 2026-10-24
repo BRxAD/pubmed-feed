@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { searchPubMed } from "@/lib/pubmed/esearch";
 import { fetchPubMedRecords } from "@/lib/pubmed/efetch";
+import { resolvePublicationDates } from "@/lib/openalex/dates";
 import { summarizeAbstract } from "@/lib/summarize";
 import { generateBriefHeadline } from "@/lib/brief/generateHeadline";
 import { classifyStudyAbstract } from "@/lib/classifyStudy";
@@ -61,22 +62,6 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Missing Supabase env vars");
   return createClient(url, key);
-}
-
-function toDateOnly(value: string | null | undefined): string | null {
-  if (!value || !String(value).trim()) return null;
-  const d = new Date(String(value).trim());
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function clampToToday(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  return dateStr > today ? today : dateStr;
 }
 
 function delay(ms: number): Promise<void> {
@@ -130,22 +115,23 @@ async function runOneTopic(
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const articleRows = validRecords.map((r) => {
-    const pubDate = toDateOnly(r.pubDate);
-    const articleDate = toDateOnly(r.articleDate ?? null);
-    const epubDate = toDateOnly(r.epubDate ?? null);
-    const pubmedDate = toDateOnly(r.pubmedDate ?? null);
-    const releaseDateRaw = articleDate ?? epubDate ?? pubmedDate ?? pubDate ?? todayStr;
-    const releaseDate = clampToToday(releaseDateRaw) ?? todayStr;
+    const dates = resolvePublicationDates({
+      pubDate: r.pubDate,
+      articleDate: r.articleDate,
+      epubDate: r.epubDate,
+      pubmedDate: r.pubmedDate,
+      today: todayStr,
+    });
     return {
       pmid: r.pmid,
       title: r.title ?? null,
       abstract: r.abstract ?? null,
       journal: r.journal ?? null,
-      pub_date: pubDate,
-      article_date: articleDate,
-      epub_date: epubDate,
-      pubmed_date: pubmedDate,
-      release_date: releaseDate,
+      pub_date: dates.pubDate,
+      article_date: dates.articleDate,
+      epub_date: dates.epubDate,
+      pubmed_date: dates.pubmedDate,
+      release_date: dates.releaseDate,
       publication_types: r.publicationTypes ?? [],
       keywords: r.keywords ?? [],
       mesh_terms: r.meshTerms ?? [],

@@ -29,6 +29,7 @@ import {
   getDateNDaysAgo,
   getTodayISO,
 } from "@/lib/pubmed/watermark";
+import { resolvePublicationDates } from "@/lib/openalex/dates";
 import { FEED_SLIM_INDEX_CACHE_TAG } from "@/lib/feedCache";
 import { BRIEF_HOMEPAGE_CACHE_TAG } from "@/lib/brief/homepageCache";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
@@ -92,22 +93,6 @@ function getSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-}
-
-function toDateOnly(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  const d = new Date(value.trim());
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function clampToToday(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const today = getTodayISO();
-  return dateStr > today ? today : dateStr;
 }
 
 type TopicRow = {
@@ -468,12 +453,13 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
     };
 
     const articleRows: ArticleRow[] = records.map((r) => {
-      const pubDate = toDateOnly(r.pubDate);
-      const articleDate = toDateOnly(r.articleDate ?? null);
-      const epubDate = toDateOnly(r.epubDate ?? null);
-      const pubmedDate = toDateOnly(r.pubmedDate ?? null);
-      const releaseDateRaw = articleDate ?? epubDate ?? pubmedDate ?? pubDate ?? todayStr;
-      const releaseDate = clampToToday(releaseDateRaw) ?? todayStr;
+      const dates = resolvePublicationDates({
+        pubDate: r.pubDate,
+        articleDate: r.articleDate,
+        epubDate: r.epubDate,
+        pubmedDate: r.pubmedDate,
+        today: todayStr,
+      });
       const prior = existingMeta.get(r.pmid) ?? (r.doi ? byDoi.get(normalizeDoi(r.doi) ?? "") : undefined);
       const parsedEmail = r.correspondingAuthorEmail?.trim() || null;
       const parsedName = r.correspondingAuthorName?.trim() || null;
@@ -486,11 +472,11 @@ async function runIngest(request: NextRequest): Promise<NextResponse> {
         title: r.title ?? null,
         abstract: r.abstract ?? null,
         journal: r.journal ?? null,
-        pub_date: pubDate,
-        article_date: articleDate,
-        epub_date: epubDate,
-        pubmed_date: pubmedDate,
-        release_date: releaseDate,
+        pub_date: dates.pubDate,
+        article_date: dates.articleDate,
+        epub_date: dates.epubDate,
+        pubmed_date: dates.pubmedDate,
+        release_date: dates.releaseDate,
         publication_types: r.publicationTypes ?? [],
         keywords: r.keywords ?? [],
         mesh_terms: r.meshTerms ?? [],

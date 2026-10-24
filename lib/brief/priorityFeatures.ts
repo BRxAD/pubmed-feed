@@ -57,15 +57,11 @@ export const PRIORITY_FEATURE_LABELS: Record<string, string> = {
   isRetrospectiveOrSurvey: "Retrospective / survey",
   isSingleCenter: "Single-center",
   isMultiCenter: "Multi-center / national",
-  embPca1: "Text embedding PC1",
-  embPca2: "Text embedding PC2",
-  embPca3: "Text embedding PC3",
-  embPca4: "Text embedding PC4",
-  embPca5: "Text embedding PC5",
-  embPca6: "Text embedding PC6",
-  embPca7: "Text embedding PC7",
-  embPca8: "Text embedding PC8",
 };
+
+for (let i = 1; i <= EMBEDDING_PCA_DIMS; i++) {
+  PRIORITY_FEATURE_LABELS[`embPca${i}`] = `Text embedding PC${i}`;
+}
 
 /** Features that are 0/1 flags (dashboard formats as % present). */
 export const PRIORITY_BINARY_FEATURES: ReadonlySet<string> = new Set([

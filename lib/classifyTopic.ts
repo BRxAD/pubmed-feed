@@ -434,6 +434,17 @@ function scorePediatricsMesh(kws: string[]): number {
   return score;
 }
 
+function scoreAntifungal(text: string, kws: string[]): number {
+  // A complication named only in parentheses ("and/or candidemia") is not
+  // the subject of the paper. Cefiderocol and other antibacterial studies
+  // often list it that way.
+  const body = text.replace(/\([^)]*\)/g, " ");
+  return (
+    scoreText(body, ANTIFUNGAL_PHRASES, ANTIFUNGAL_WORDS) +
+    scoreKeywords(kws, ANTIFUNGAL_MESH_KW)
+  );
+}
+
 function scoreSurgicalProphylaxis(text: string): number {
   let score = scoreText(text, SURGICAL_PROPHYLAXIS_PHRASES, []);
   const lower = text.toLowerCase();
@@ -484,9 +495,7 @@ export function scoreAllTopics(params: {
     "c-difficile":
       scoreText(text, CDI_PHRASES, CDI_WORDS) +
       scoreKeywords(kws, CDI_MESH_KW),
-    antifungal:
-      scoreText(text, ANTIFUNGAL_PHRASES, ANTIFUNGAL_WORDS) +
-      scoreKeywords(kws, ANTIFUNGAL_MESH_KW),
+    antifungal: scoreAntifungal(text, kws),
     pediatrics:
       scoreText(text, PEDS_ANYWHERE_PHRASES, []) +
       scoreText(title, PEDS_TITLE_PHRASES, []) +

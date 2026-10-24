@@ -26,6 +26,14 @@
 -- 10) Azithromycin in TITLE plus wheeze/preschool in TITLE, NEJM or JAMA
 --     only. Catches trials such as AZ-SWED, whose title names the drug
 --     rather than the word antibiotic. Not azithromycin in any journal.
+-- 11) The use/exposure block also accepts prescribing outcome phrases
+--     (antibiotic prescribing, prescription(s), course(s), prophylaxis).
+--     Still requires the design/scope block. Not bare antibiotic treatment.
+-- 12) Electronic prescribing / e-prescribing only with antibiotic,
+--     antimicrobial, stewardship, or drug allergy. Not every prescribing
+--     system paper.
+-- 13) Lancet Primary Care (NLM: Lancet Prim Care) joins the
+--     antibiotic-in-title journal list. Not all papers from that journal.
 -- Animal exclusion stays (animals NOT humans) plus veterinary journals/titles.
 -- Also NOT case series / a case of / case-report journals; NOT Microbiology
 -- Spectrum unless stewardship / diagnostic stewardship in Title/Abstract;
@@ -45,6 +53,13 @@ SET query_string = '(
       OR "antimicrobial use"[Title/Abstract]
       OR "antimicrobial exposure"[Title/Abstract]
       OR "antibiotic exposure"[Title/Abstract]
+      OR "antibiotic prescribing"[Title/Abstract]
+      OR "antimicrobial prescribing"[Title/Abstract]
+      OR "antibiotic prescription"[Title/Abstract]
+      OR "antibiotic prescriptions"[Title/Abstract]
+      OR "antibiotic course"[Title/Abstract]
+      OR "antibiotic courses"[Title/Abstract]
+      OR "antibiotic prophylaxis"[Title/Abstract]
     )
     AND
     (
@@ -123,6 +138,8 @@ SET query_string = '(
       OR "Lancet Reg Health West Pac"[Journal]
       OR "Lancet Reg Health Southeast Asia"[Journal]
       OR "EClinicalMedicine"[Journal]
+      OR "Lancet Prim Care"[Journal]
+      OR "Lancet Primary Care"[Journal]
 
       OR "N Engl J Med"[Journal]
       OR "New England Journal of Medicine"[Journal]
@@ -424,6 +441,22 @@ SET query_string = '(
       "N Engl J Med"[Journal]
       OR "New England Journal of Medicine"[Journal]
       OR "JAMA"[Journal]
+    )
+  )
+  OR
+  (
+    (
+      "electronic prescribing"[Title/Abstract]
+      OR "e-prescribing"[Title/Abstract]
+      OR eprescribing[Title/Abstract]
+    )
+    AND
+    (
+      antibiotic*[Title/Abstract]
+      OR antimicrobial*[Title/Abstract]
+      OR stewardship[Title/Abstract]
+      OR "drug allergy"[Title/Abstract]
+      OR "drug-allergy"[Title/Abstract]
     )
   )
 )

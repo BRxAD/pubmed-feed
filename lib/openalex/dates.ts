@@ -10,14 +10,113 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** YYYY-MM-DD, or null if unparseable. */
+const MONTH_NUM: Record<string, string> = {
+  jan: "01",
+  january: "01",
+  feb: "02",
+  february: "02",
+  mar: "03",
+  march: "03",
+  apr: "04",
+  april: "04",
+  may: "05",
+  jun: "06",
+  june: "06",
+  jul: "07",
+  july: "07",
+  aug: "08",
+  august: "08",
+  sep: "09",
+  sept: "09",
+  september: "09",
+  oct: "10",
+  october: "10",
+  nov: "11",
+  november: "11",
+  dec: "12",
+  december: "12",
+};
+
+function isoDate(year: string, month: string, day: string): string | null {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!Number.isInteger(y) || y < 1800 || y > 9999) return null;
+  if (!Number.isInteger(m) || m < 1 || m > 12) return null;
+  if (!Number.isInteger(d) || d < 1 || d > 31) return null;
+  return `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/**
+ * Calendar date as YYYY-MM-DD.
+ * Accepts ISO dates and PubMed forms ("2026 Jul 1", "2025 Nov", "2026 Jul-Aug").
+ * A year alone becomes January 1. Unparseable values return null — never today.
+ */
 export function toDateOnly(value: string | null | undefined): string | null {
   if (!value?.trim()) return null;
   const trimmed = value.trim();
   if (/^\d{4}$/.test(trimmed)) return `${trimmed}-01-01`;
-  const d = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+  if (iso) return isoDate(iso[1], iso[2], iso[3]);
+
+  const numeric = trimmed.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})\b/);
+  if (numeric) return isoDate(numeric[1], numeric[2], numeric[3]);
+
+  const spaced = trimmed.match(/^(\d{4})\s+(\d{1,2})(?:\s+(\d{1,2}))?\b/);
+  if (spaced) return isoDate(spaced[1], spaced[2], spaced[3] ?? "1");
+
+  const yearMonth = trimmed.match(/^(\d{4})\s+([A-Za-z]{3,9})(?:\s+(\d{1,2}))?\b/);
+  if (yearMonth) {
+    const month = MONTH_NUM[yearMonth[2].toLowerCase()];
+    if (month) return isoDate(yearMonth[1], month, yearMonth[3] ?? "1");
+  }
+
+  const dayMonthYear = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\b/);
+  if (dayMonthYear) {
+    const month = MONTH_NUM[dayMonthYear[2].toLowerCase()];
+    if (month) return isoDate(dayMonthYear[3], month, dayMonthYear[1]);
+  }
+
+  const monthYear = trimmed.match(/^([A-Za-z]{3,9})\s+(\d{4})\b/);
+  if (monthYear) {
+    const month = MONTH_NUM[monthYear[1].toLowerCase()];
+    if (month) return isoDate(monthYear[2], month, "1");
+  }
+
+  return null;
+}
+
+export type PublicationDateInput = {
+  pubDate?: string | null;
+  articleDate?: string | null;
+  epubDate?: string | null;
+  pubmedDate?: string | null;
+  today: string;
+};
+
+export type PublicationDates = {
+  pubDate: string | null;
+  articleDate: string | null;
+  epubDate: string | null;
+  pubmedDate: string | null;
+  releaseDate: string;
+};
+
+/**
+ * The date we show is the paper's publication date: electronic date, then
+ * journal issue date. The PubMed indexing date is only a last resort.
+ * Today is used only when PubMed gave no date at all. A future date is capped
+ * at today.
+ */
+export function resolvePublicationDates(input: PublicationDateInput): PublicationDates {
+  const pubDate = toDateOnly(input.pubDate);
+  const articleDate = toDateOnly(input.articleDate);
+  const epubDate = toDateOnly(input.epubDate);
+  const pubmedDate = toDateOnly(input.pubmedDate);
+  const chosen = articleDate ?? epubDate ?? pubDate ?? pubmedDate ?? input.today;
+  const releaseDate = chosen > input.today ? input.today : chosen;
+  return { pubDate, articleDate, epubDate, pubmedDate, releaseDate };
 }
 
 /**

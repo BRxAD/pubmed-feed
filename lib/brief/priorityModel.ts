@@ -24,7 +24,7 @@ export const MIN_PRIORITY_TRAINING_SAMPLES = 8;
 const RIDGE_LAMBDA = 1.5;
 
 export type PriorityModel = {
-  version: 7;
+  version: 8;
   method: "ridge_regression";
   trainedAt: string;
   sampleCount: number;
@@ -33,7 +33,7 @@ export type PriorityModel = {
   stds: number[];
   weights: number[];
   bias: number;
-  /** OpenAI embedding → PCA projection used for embPca1..8. */
+  /** OpenAI embedding → PCA projection used for embPca1..16. */
   embeddingPca: EmbeddingPca | null;
 };
 
@@ -98,7 +98,7 @@ export function trainPriorityModel(
   if (!coeffs) return null;
 
   return {
-    version: 7,
+    version: 8,
     method: "ridge_regression",
     trainedAt: new Date().toISOString(),
     sampleCount: n,
@@ -229,7 +229,7 @@ export function parsePriorityModel(
   if (!stored || typeof stored !== "object") return null;
   const m = stored as Partial<PriorityModel>;
   // Earlier versions used different feature vectors — discard and retrain.
-  if (m.version !== 7 || m.method !== "ridge_regression") return null;
+  if (m.version !== 8 || m.method !== "ridge_regression") return null;
   if (
     !Array.isArray(m.weights) ||
     !Array.isArray(m.means) ||

@@ -36,13 +36,53 @@ describe("buildStoryImagePrompt", () => {
     assert.match(prompt, /no beige text band/i);
   });
 
-  it("shows one bottle of white oval tablets when the story names a statin and no germ", () => {
+  it("shows a microbiologist at the bench for a susceptibility story", () => {
+    const prompt = buildStoryImagePrompt(
+      candidate({
+        headline:
+          "Doxycycline use in Gram-positive infections may rely on organism-specific susceptibility rules.",
+        settings: ["hospital"],
+      })
+    );
+    assert.match(prompt, /microbiologist/);
+    assert.match(prompt, /news photograph/i);
+    assert.equal(prompt.includes("Doxycycline use"), false);
+  });
+
+  it("shows a clinic visit when the story names a medicine and no germ", () => {
     const prompt = buildStoryImagePrompt(
       candidate({ headline: "Atorvastatin was tied to fewer antibiotic days." })
     );
-    assert.match(prompt, /white oval tablets/);
-    assert.match(prompt, /Only one bottle/);
+    assert.match(prompt, /primary-care visit/);
+    assert.equal(/on a linen/i.test(prompt), false);
     assert.equal(prompt.includes("Atorvastatin was tied"), false);
+  });
+
+  it("shows a nasal spray in use, not a bottle still life", () => {
+    const prompt = buildStoryImagePrompt(
+      candidate({
+        headline:
+          "Nasal sprays reduced respiratory illness days in primary care.",
+        settings: ["community"],
+      })
+    );
+    assert.match(prompt, /nasal spray/);
+    assert.match(prompt, /not the whole picture/);
+    assert.equal(/on a linen/i.test(prompt), false);
+    assert.match(prompt, /Do not show a hospital/);
+  });
+
+  it("shows a clinician at a computer for an electronic prescribing study", () => {
+    const prompt = buildStoryImagePrompt(
+      candidate({
+        headline:
+          "Electronic prescribing systems varied in how often they caught unsafe orders.",
+        settings: ["hospital"],
+      })
+    );
+    assert.match(prompt, /computer/);
+    assert.match(prompt, /screen turned away/);
+    assert.equal(/on a linen/i.test(prompt), false);
   });
 
   it("keeps a pregnancy story on the person, not a medicine bottle", () => {
@@ -50,7 +90,7 @@ describe("buildStoryImagePrompt", () => {
       candidate({ headline: "Amoxicillin in pregnancy was not tied to birth defects." })
     );
     assert.match(prompt, /pregnant woman/);
-    assert.equal(/amber bottle/i.test(prompt), false);
+    assert.equal(/on a linen/i.test(prompt), false);
   });
 
   it("shows C. difficile spores, not a hospital, for a community study", () => {
