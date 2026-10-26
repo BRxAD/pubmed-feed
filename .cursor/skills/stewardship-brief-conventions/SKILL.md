@@ -162,6 +162,8 @@ Helpers: `lib/brief/firstRating.ts`. No backfill unless asked. Retrain does not 
 
 **Editorial overlay** (`lib/brief/priorityEditorial.ts`), applied after ridge at ingest: **single-center** (any sample size) + not Q1/high-JIF → drop 2 points and **cap at 4** (off the Brief), except guidelines / systematic reviews / meta-analyses. Multi-center, national, or international + Q1/high-JIF → **+1**. Your `admin_priority` still wins.
 
+**Second rater** (`/feed2`, table `second_rater_items`): a separate person scores a fixed set of about 1,000 papers you already rated, mostly your 4s and 5s, plus a smaller check set from other scores. The page hides your score and the model score. Password is `adminamy` only (`verifyFeed2Password`). It does not unlock `/feed` or settings, and the admin secret does not unlock `/feed2`. Those ratings must not be written to `admin_priority`, must not enter `relevance_feedback`, and must not train the model unless you ask.
+
 **Explicit handcrafted backfill (when asked):** `npm run backfill:ml-priority` → `scripts/backfill-ml-priority-handcrafted.ts`. Fills null `ml_priority` only where `admin_priority` is also null, last N months (default 12). Uses model + handcrafted features with **embeddings off**; never reads/writes `emb:*` cache. Prefer `--dry-run` first. Warn: pulls abstracts for eligible rows.
 
 **Explicit auto_settings backfill (when asked):** `npm run backfill:auto-settings` → `scripts/backfill-auto-settings.ts`. Fills null `auto_settings` from title + keywords + MeSH (**no abstracts**). Add `--rewrite-multi` to collapse legacy 2+ label arrays to the single primary. Requires `scripts/add_auto_settings.sql`. Prefer `--dry-run` first.

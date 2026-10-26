@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test lib/brief/briefOrder.test.ts lib/brief/causality.test.ts lib/brief/citation.test.ts lib/brief/citationRate.test.ts lib/brief/storyImageGenerate.test.ts lib/brief/headlineScope.test.ts lib/brief/visualAbstract/pipeline.test.ts lib/classifyTopic.test.ts lib/openalex/filter.test.ts lib/openalex/dates.test.ts",
+    "test": "tsx --test lib/brief/briefOrder.test.ts lib/brief/causality.test.ts lib/brief/citation.test.ts lib/brief/citationRate.test.ts lib/brief/storyImageGenerate.test.ts lib/brief/headlineScope.test.ts lib/brief/secondRaterSample.test.ts lib/brief/visualAbstract/pipeline.test.ts lib/classifyTopic.test.ts lib/openalex/filter.test.ts lib/openalex/dates.test.ts",
     "backfill:citations": "tsx --env-file=.env.local scripts/backfill-citations.ts",
     "import:jcr": "tsx scripts/import_jcr.ts",
     "ingest:now": "tsx scripts/run-ingest-now.ts",

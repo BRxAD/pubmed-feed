@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 
-/** Unlock /feed with the same admin secret used for Brief settings. */
-export default function FeedUnlock() {
+/** Unlock /feed with the admin secret, or /feed2 with its own password. */
+export default function FeedUnlock({
+  nextPath = "/feed",
+}: {
+  nextPath?: string;
+}) {
+  const isFeed2 = nextPath === "/feed2";
   const [secret, setSecret] = useState("");
   const [status, setStatus] = useState<"idle" | "checking" | "error">("idle");
   const [error, setError] = useState("");
@@ -13,7 +18,7 @@ export default function FeedUnlock() {
     const trimmed = secret.trim();
     if (!trimmed) {
       setStatus("error");
-      setError("Enter your admin secret.");
+      setError(isFeed2 ? "Enter the password." : "Enter your admin secret.");
       return;
     }
 
@@ -21,9 +26,15 @@ export default function FeedUnlock() {
     setError("");
 
     try {
-      const res = await fetch("/api/brief/settings", {
-        headers: { "x-brief-admin-secret": trimmed },
-      });
+      const res = isFeed2
+        ? await fetch("/api/admin/second-rater", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ secret: trimmed }),
+          })
+        : await fetch("/api/brief/settings", {
+            headers: { "x-brief-admin-secret": trimmed },
+          });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
@@ -33,14 +44,17 @@ export default function FeedUnlock() {
         setStatus("error");
         setError(
           data.error === "Unauthorized" || res.status === 401
-            ? "That secret does not match. Use the same value that unlocks Brief settings (CRON_SECRET in Vercel)."
+            ? isFeed2
+              ? "That password does not match."
+              : "That secret does not match. Use the same value that unlocks Brief settings (CRON_SECRET in Vercel)."
             : data.error ?? "Could not unlock the feed."
         );
         return;
       }
 
+      const admin = nextPath === "/feed" ? "&admin=1" : "";
       window.location.assign(
-        `/feed?secret=${encodeURIComponent(trimmed)}&admin=1`
+        `${nextPath}?secret=${encodeURIComponent(trimmed)}${admin}`
       );
     } catch {
       setStatus("error");
@@ -50,19 +64,20 @@ export default function FeedUnlock() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16 font-sans text-zinc-900 dark:text-zinc-100">
-      <h1 className="text-2xl font-semibold tracking-tight">Feed access</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {isFeed2 ? "Second rater" : "Feed access"}
+      </h1>
       <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-        Use the same admin secret as Brief settings (
-        <code className="text-xs">/stewardshipbrief/settings</code>
-        ). That is your <code className="text-xs">CRON_SECRET</code> in Vercel (or{" "}
-        <code className="text-xs">BRIEF_ADMIN_SECRET</code> if set).
+        {isFeed2
+          ? "Enter the password you were given for this page."
+          : "Use the same admin secret as Brief settings (/stewardshipbrief/settings). That is your CRON_SECRET in Vercel (or BRIEF_ADMIN_SECRET if set)."}
       </p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
           type="password"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
-          placeholder="Same secret as Brief settings"
+          placeholder={isFeed2 ? "Password" : "Same secret as Brief settings"}
           autoComplete="current-password"
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
         />

@@ -5,6 +5,7 @@ const SITE = "https://www.stewardshipbrief.com";
 /** Paths that must not be crawled (tools, APIs, account flows). */
 const DISALLOW_TOOLS = [
   "/feed",
+  "/feed2",
   "/dashboard",
   "/api/",
   "/stewardshipbrief/settings",

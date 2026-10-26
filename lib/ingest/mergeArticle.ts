@@ -126,7 +126,7 @@ const ARTICLE_REKEY_COLUMNS =
 
 async function movePmidOnTable(
   supabase: SupabaseClient,
-  table: "summaries" | "relevance_feedback",
+  table: "summaries" | "relevance_feedback" | "second_rater_items",
   oldPmid: string,
   newPmid: string
 ): Promise<void> {
@@ -213,6 +213,7 @@ export async function rekeyArticlePmid(
 
   await movePmidOnTable(supabase, "summaries", oldPmid, newPmid);
   await movePmidOnTable(supabase, "relevance_feedback", oldPmid, newPmid);
+  await movePmidOnTable(supabase, "second_rater_items", oldPmid, newPmid);
   await movePmidOnKeyedTable(supabase, "saved_articles", oldPmid, newPmid);
   await movePmidOnKeyedTable(supabase, "brief_email_sends", oldPmid, newPmid);
   await movePmidOnKeyedTable(supabase, "author_outreach", oldPmid, newPmid);

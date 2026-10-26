@@ -15,3 +15,12 @@ export function verifyBriefAdminSecret(
   if (!expected || !secret?.trim()) return false;
   return secret.trim() === expected;
 }
+
+/** Password for /feed2 only. It does not unlock the main feed or settings. */
+export const FEED2_PASSWORD = "adminamy";
+
+export function verifyFeed2Password(
+  secret: string | null | undefined
+): boolean {
+  return secret?.trim() === FEED2_PASSWORD;
+}
