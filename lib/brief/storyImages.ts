@@ -12,7 +12,11 @@ import {
 } from "@/lib/brief/storyImageCatalog";
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
-import { isHospitalPlaceImage } from "@/lib/brief/storyImagePrompt";
+import {
+  allowsNeonatalImage,
+  isHospitalPlaceImage,
+  isNeonatalSubjectImage,
+} from "@/lib/brief/storyImagePrompt";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   isRecyclableStoryImage,
@@ -34,6 +38,14 @@ const BLOCKED_IMAGE_URL_PARTS = [
   "photo-1516549655169", // labeled emergency department, file is an operating room
   "photos/7089020", // team huddle — over-matched generic
   "Agar_plates_with_bacterial_colonies", // file returns 404, so the story looks blank
+  "Penicillin_culture.jpg", // file returns 404
+  "One_Health_Triad.png", // file returns 404
+  "photo-1581595220892", // urgent hospital care — file returns 404
+  "photo-1550572017", // blister pack — file returns 404
+  "photo-1584308666744", // pile of unlabeled pills — rejected
+  "photo-1587854692152", // pile of unlabeled bottles — rejected
+  "photo-1471864190281", // scattered capsules still life — rejected
+  "/brief-images/medications-antibiotics", // scattered pills and blister packs — rejected
   "photo-1529107386315", // city network lights — not stewardship/global health
   "photo-1631217868264", // clinicians discussion — user-rejected
   "/brief-images/heart-endocarditis",
@@ -54,6 +66,15 @@ const BLOCKED_IMAGE_IDS = new Set([
   "pexels-urine-dipstick",
   "emergency-care",
   "wikimedia-agar-plates",
+  "wikimedia-penicillin",
+  "wikimedia-one-health",
+  "sepsis-urgent",
+  "blister-pack",
+  "pills-capsule",
+  "pills-scattered-art",
+  "medicine-bottles",
+  "local-medications-antibiotics",
+  "local-dental-infection-model",
 ]);
 
 function isBlockedCatalogEntry(entry: CatalogEntry): boolean {
@@ -135,9 +156,8 @@ function storyCorpus(item: StoryImageFields): string {
 function subjectConflict(corpus: string, entry: CatalogEntry): boolean {
   const about = `${entry.id} ${entry.label} ${entry.tags.join(" ")}`.toLowerCase();
   if (/\bpregnan/.test(corpus) && !/\bpregnan/.test(about)) return true;
-  if (/\b(nicu|preterm|neonat)/.test(corpus)) {
-    if (!/\b(nicu|neonat|preterm|infant|incubator|newborn)\b/.test(about)) return true;
-  }
+  if (isNeonatalSubjectImage(entry) && !allowsNeonatalImage(corpus)) return true;
+  if (allowsNeonatalImage(corpus) && !isNeonatalSubjectImage(entry)) return true;
   return false;
 }
 
@@ -200,10 +220,7 @@ function scoreEntry(
   if (entry.source === "wikimedia") score = Math.min(1, score + 0.02);
   // Prefer curated local topic photos when tags already match.
   if (entry.source === "local") score = Math.min(1, score + 0.04);
-  if (
-    entry.id === "local-neonatal-nicu-newborn" &&
-    /\b(nicu|preterm|neonat)/.test(corpus)
-  ) {
+  if (entry.id === "local-neonatal-nicu-newborn" && allowsNeonatalImage(corpus)) {
     score = Math.min(1, score + 0.4);
   }
   if (
@@ -211,6 +228,18 @@ function scoreEntry(
     /\bbacteremi|\bblood culture\b|\bbloodstream\b/.test(corpus)
   ) {
     score = Math.min(1, score + 0.3);
+  }
+  if (
+    entry.id === "dental-care" &&
+    /\bdental\b|\bdentist\b|\bdentistry\b/.test(corpus)
+  ) {
+    score = Math.min(1, score + 0.35);
+  }
+  if (
+    entry.id === "clinic-stethoscope" &&
+    /\bdental\b|\bdentist\b|\bdentistry\b/.test(corpus)
+  ) {
+    return 0;
   }
   if (
     entry.id === "iv-drip" &&
