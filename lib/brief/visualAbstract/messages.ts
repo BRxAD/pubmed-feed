@@ -42,6 +42,10 @@ const COPY: Record<VaErrorCode, { message: string; retryable: boolean }> = {
     message: "The visual abstract maker is busy. Please try again in a minute.",
     retryable: true,
   },
+  MODEL_QUOTA: {
+    message: "Visual abstracts are paused for now. Please try again later.",
+    retryable: true,
+  },
   MODEL_TIMEOUT: {
     message: "The visual abstract maker was too slow. Please try again.",
     retryable: true,

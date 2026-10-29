@@ -257,6 +257,20 @@ describe("a failure is explained in plain words, and retried only when a retry c
     assert.equal(store.rows.get(PMID)!.error_code, null);
   });
 
+  it("a credit outage stays retryable after several tries, and does not pretend it will clear in a minute", async () => {
+    const { deps, store, service, clock } = setup();
+    service.extractError = new VaError("MODEL_QUOTA", "no credits");
+    for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
+      await click(deps);
+      clock.now += RETRY_COOLDOWN_MS + 1;
+    }
+    assert.equal(store.rows.get(PMID)!.attempts, MAX_ATTEMPTS);
+    const again = await requestVisualAbstract(deps, { pmid: PMID, userId: USER });
+    assert.equal(again.response.status, "working", "adding credits later can still draw this paper");
+    assert.equal(messageFor("MODEL_QUOTA"), "Visual abstracts are paused for now. Please try again later.");
+    assert.doesNotMatch(messageFor("MODEL_QUOTA"), /minute/);
+  });
+
   it("a paper the maker cannot draw is not tried again", async () => {
     const { deps, service, clock } = setup();
     service.extractError = new VaError("NO_FINDINGS", "none");
@@ -420,6 +434,7 @@ describe("the service client keeps its key on the server and says what went wron
     await assert.rejects(() => reply(422, { error: { code: "NO_ABSTRACT", message: "x" } }).extract(PMID), { code: "NO_ABSTRACT" });
     await assert.rejects(() => reply(422, { error: { code: "LAYOUT_FAILED", message: "x" } }).render({}), { code: "LAYOUT_FAILED" });
     await assert.rejects(() => reply(503, { error: { code: "MODEL_BUSY", message: "x" } }).extract(PMID), { code: "MODEL_BUSY" });
+    await assert.rejects(() => reply(503, { error: { code: "MODEL_QUOTA", message: "x" } }).extract(PMID), { code: "MODEL_QUOTA" });
     await assert.rejects(() => reply(401, { error: { code: "UNAUTHORIZED", message: "x" } }).extract(PMID), { code: "NOT_CONFIGURED" });
     await assert.rejects(() => reply(503, { error: { code: "SERVICE_NOT_CONFIGURED", message: "x" } }).extract(PMID), { code: "NOT_CONFIGURED" });
     await assert.rejects(() => reply(502, "<html>bad gateway</html>").extract(PMID), { code: "SERVICE_DOWN" });

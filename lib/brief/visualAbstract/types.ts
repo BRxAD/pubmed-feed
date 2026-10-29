@@ -27,6 +27,7 @@ export type VaErrorCode =
   | "VALIDATION_FAILED"
   | "LAYOUT_FAILED"
   | "MODEL_BUSY"
+  | "MODEL_QUOTA"
   | "MODEL_TIMEOUT"
   | "EXTRACTION_FAILED"
   | "BUSY"

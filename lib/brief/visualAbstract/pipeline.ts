@@ -54,6 +54,18 @@ function failed(code: VaErrorCode, retryable = isRetryable(code)): VaStatusRespo
   return { status: "failed", code, message: messageFor(code), retryable };
 }
 
+/**
+ * The maker itself is down (no credits, a rate limit, a full gate). These are not tries the paper used up:
+ * a reader can come back after the outage. A timeout or a bad reading still stops after MAX_ATTEMPTS.
+ */
+const MAKER_OUTAGE = new Set<VaErrorCode>(["MODEL_BUSY", "MODEL_QUOTA", "BUSY", "SERVICE_DOWN"]);
+
+function mayRetry(code: VaErrorCode, attempts: number): boolean {
+  if (!isRetryable(code)) return false;
+  if (MAKER_OUTAGE.has(code)) return true;
+  return attempts < MAX_ATTEMPTS;
+}
+
 /** What a stored row means to the dialog. Pure. */
 export function responseForRow(row: VaRow, images: VaImages): VaStatusResponse {
   switch (row.status) {
@@ -62,7 +74,7 @@ export function responseForRow(row: VaRow, images: VaImages): VaStatusResponse {
     case "failed": {
       const code = asVaErrorCode(row.error_code);
       // A paper that has used its attempts, or failed for its own reasons, is not offered another try.
-      return failed(code, isRetryable(code) && row.attempts < MAX_ATTEMPTS);
+      return failed(code, mayRetry(code, row.attempts));
     }
     case "extracted":
     case "rendering":
