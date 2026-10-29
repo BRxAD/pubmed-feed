@@ -16,6 +16,7 @@ import {
   allowsNeonatalImage,
   isHospitalPlaceImage,
   isNeonatalSubjectImage,
+  narrowSubjectMismatch,
 } from "@/lib/brief/storyImagePrompt";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
@@ -118,11 +119,42 @@ function corpusHas(corpus: string, raw: string): boolean {
   if (needle.includes(" ") || needle.includes("-") || needle.includes(".")) {
     return corpus.includes(needle);
   }
+  // "carbapenem" also matches "carbapenems".
   const re = new RegExp(
-    `(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`,
+    `(^|[^a-z0-9])${escapeRegExp(needle)}s?([^a-z0-9]|$)`,
     "i"
   );
   return re.test(corpus);
+}
+
+/**
+ * Words that appear on almost every stewardship paper. They must not
+ * decide the photo, or a dental picture is reused for a resistance review.
+ */
+const NON_SCORING_TAGS = new Set([
+  "humans",
+  "human",
+  "female",
+  "male",
+  "adult",
+  "adults",
+  "aged",
+  "middle aged",
+  "anti-bacterial agents",
+  "anti bacterial agents",
+  "antibacterial agents",
+  "drug resistance bacterial",
+  "drug resistance microbial",
+  "drug resistance",
+  "bacteria",
+  "bacterial",
+]);
+
+function isNonScoringTag(tag: string): boolean {
+  const t = tag.toLowerCase().trim();
+  if (NON_SCORING_TAGS.has(t)) return true;
+  return /^(retrospective|prospective|cross-sectional|cohort|randomized|observational)\b/.test(t) &&
+    /\bstud(y|ies)\b/.test(t);
 }
 
 function normalize(text: string): string {
@@ -156,6 +188,7 @@ function storyCorpus(item: StoryImageFields): string {
 function subjectConflict(corpus: string, entry: CatalogEntry): boolean {
   const about = `${entry.id} ${entry.label} ${entry.tags.join(" ")}`.toLowerCase();
   if (/\bpregnan/.test(corpus) && !/\bpregnan/.test(about)) return true;
+  if (narrowSubjectMismatch(corpus, entry)) return true;
   if (isNeonatalSubjectImage(entry) && !allowsNeonatalImage(corpus)) return true;
   if (allowsNeonatalImage(corpus) && !isNeonatalSubjectImage(entry)) return true;
   return false;
@@ -190,10 +223,10 @@ function scoreEntry(
 
   for (const tag of entry.tags) {
     const t = tag.toLowerCase();
-    if (!corpusHas(corpus, t)) continue;
+    if (isNonScoringTag(t) || !corpusHas(corpus, t)) continue;
     const words = t.split(/\s+/).length;
     const tagWeight =
-      words >= 2 ? 1.85 : t.length >= 10 ? 1.45 : t.length >= 6 ? 1.15 : 0.8;
+      words >= 2 ? 1.85 : t.length >= 12 ? 1.85 : t.length >= 10 ? 1.45 : t.length >= 6 ? 1.15 : 0.8;
     matchedWeight += tagWeight;
     matchedCount += 1;
     if (words >= 2 || t.length >= 8) strongHits += 1;
@@ -220,6 +253,12 @@ function scoreEntry(
   if (entry.source === "wikimedia") score = Math.min(1, score + 0.02);
   // Prefer curated local topic photos when tags already match.
   if (entry.source === "local") score = Math.min(1, score + 0.04);
+  if (
+    entry.id === "local-mdr-gramneg-culture" &&
+    /\bgram-?negative\b|\bcarbapenem/.test(corpus)
+  ) {
+    score = Math.min(1, score + 0.4);
+  }
   if (entry.id === "local-neonatal-nicu-newborn" && allowsNeonatalImage(corpus)) {
     score = Math.min(1, score + 0.4);
   }

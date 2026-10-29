@@ -59,6 +59,28 @@ export function allowsNeonatalImage(text: string): boolean {
   return neonatal && !adult;
 }
 
+/**
+ * A photo of one narrow subject must not be used for a different subject.
+ * Checked on the file name, label, and tags so a recycled dental photo
+ * cannot ride along on shared words such as "drug resistance".
+ */
+const NARROW_SUBJECTS: RegExp[] = [
+  /\b(dental|dentists?|dentistry|odontogenic|periodont\w*|endodontic)\b/,
+  /\bpregnan\w*/,
+  /\b(veterinar\w*|dogs?)\b/,
+];
+
+export function narrowSubjectMismatch(
+  corpus: string,
+  entry: { id: string; label: string; tags?: string[] }
+): boolean {
+  const about = `${entry.id} ${entry.label} ${(entry.tags ?? []).join(" ")}`
+    .toLowerCase()
+    .replace(/[-_]/g, " ");
+  const story = corpus.toLowerCase();
+  return NARROW_SUBJECTS.some((test) => test.test(about) && !test.test(story));
+}
+
 /** The catalog file is the neonatal / NICU picture, not a general pediatric photo. */
 export function isNeonatalSubjectImage(entry: { id: string; label: string }): boolean {
   const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");

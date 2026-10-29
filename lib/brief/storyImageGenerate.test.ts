@@ -5,6 +5,7 @@ import {
   buildStoryImagePrompt,
   isHospitalPlaceImage,
   isNeonatalSubjectImage,
+  narrowSubjectMismatch,
   type StoryImagePromptInput,
 } from "./storyImagePrompt";
 
@@ -53,6 +54,35 @@ describe("buildStoryImagePrompt", () => {
     assert.match(prompt, /children and adults/);
     assert.match(prompt, /Infant, Newborn/);
     assert.match(prompt, /only when the article is about neonates and does not include adults/);
+  });
+
+  it("does not reuse a dental photo for a gram-negative resistance review", () => {
+    const review =
+      "review outlines key factors for gram-negative bacterial resistance drug resistance bacterial anti-bacterial agents";
+    assert.equal(
+      narrowSubjectMismatch(review, {
+        id: "generated-42807492",
+        label: "Dental education's role in shaping antibiotic prescribing practices remains underexplored.",
+        tags: ["drug resistance bacterial", "anti-bacterial agents", "dental education", "humans"],
+      }),
+      true
+    );
+    assert.equal(
+      narrowSubjectMismatch(review, {
+        id: "local-mdr-gramneg-culture",
+        label: "MDR culture plate and susceptibility grid",
+        tags: ["gram-negative", "carbapenem", "culture"],
+      }),
+      false
+    );
+    assert.equal(
+      narrowSubjectMismatch("dental antibiotic prescribing in community clinics", {
+        id: "dental-care",
+        label: "dental clinical care",
+        tags: ["dental", "dentist"],
+      }),
+      false
+    );
   });
 
   it("lets a neonatal photo through only when the paper is neonatal and not adult", () => {
