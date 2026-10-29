@@ -13,8 +13,12 @@ import {
 import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
 import {
+  allowsChildImage,
   allowsNeonatalImage,
+  isAllergyEvaluationStory,
+  isChildSubjectImage,
   isHospitalPlaceImage,
+  isMedicationStillLife,
   isNeonatalSubjectImage,
   narrowSubjectMismatch,
 } from "@/lib/brief/storyImagePrompt";
@@ -148,6 +152,15 @@ const NON_SCORING_TAGS = new Set([
   "drug resistance",
   "bacteria",
   "bacterial",
+  "antibiotic use",
+  "antimicrobial use",
+  "long-term",
+  "short-term",
+  "higher",
+  "lower",
+  "cohort",
+  "risk factors",
+  "adolescent",
 ]);
 
 function isNonScoringTag(tag: string): boolean {
@@ -191,6 +204,8 @@ function subjectConflict(corpus: string, entry: CatalogEntry): boolean {
   if (narrowSubjectMismatch(corpus, entry)) return true;
   if (isNeonatalSubjectImage(entry) && !allowsNeonatalImage(corpus)) return true;
   if (allowsNeonatalImage(corpus) && !isNeonatalSubjectImage(entry)) return true;
+  if (isChildSubjectImage(entry) && !allowsChildImage(corpus)) return true;
+  if (isMedicationStillLife(entry) && isAllergyEvaluationStory(corpus)) return true;
   return false;
 }
 

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  allowsChildImage,
   allowsNeonatalImage,
   buildStoryImagePrompt,
+  isAllergyEvaluationStory,
+  isChildSubjectImage,
   isHospitalPlaceImage,
+  isMedicationStillLife,
   isNeonatalSubjectImage,
   narrowSubjectMismatch,
   type StoryImagePromptInput,
@@ -54,6 +58,49 @@ describe("buildStoryImagePrompt", () => {
     assert.match(prompt, /children and adults/);
     assert.match(prompt, /Infant, Newborn/);
     assert.match(prompt, /only when the article is about neonates and does not include adults/);
+  });
+
+  it("does not reuse a urine or kidney photo for a penicillin allergy story", () => {
+    const allergy =
+      "successful penicillin allergy delabeling did not ensure subsequent penicillin use in children long-term antibiotic use cohort";
+    assert.equal(
+      narrowSubjectMismatch(allergy, {
+        id: "generated-42768754",
+        label: "Long-term antibiotic use in childhood associated with higher kidney cancer risk",
+        tags: ["kidney neoplasms", "urine", "antibiotic use", "childhood", "cohort"],
+      }),
+      true
+    );
+    assert.equal(allowsChildImage(allergy), true);
+    assert.equal(isAllergyEvaluationStory(allergy), true);
+    assert.equal(
+      isChildSubjectImage({
+        id: "pediatric-clinic-consult",
+        label: "pediatrician talking with a child and parent",
+      }),
+      true
+    );
+    assert.equal(
+      isMedicationStillLife({
+        id: "local-deescalate-duration-adherence",
+        label: "antibiotic duration and adherence blister pack",
+      }),
+      true
+    );
+  });
+
+  it("keeps a child clinic photo off an adult hospital delabeling review", () => {
+    const review =
+      "hospital-based penicillin allergy delabeling improved antibiotic prescribing in hospitalized patients";
+    assert.equal(allowsChildImage(review), false);
+    assert.equal(isAllergyEvaluationStory(review), true);
+    assert.equal(
+      isChildSubjectImage({
+        id: "pediatric-clinic-consult",
+        label: "pediatrician talking with a child and parent",
+      }) && !allowsChildImage(review),
+      true
+    );
   });
 
   it("does not reuse a dental photo for a gram-negative resistance review", () => {

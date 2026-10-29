@@ -68,6 +68,8 @@ const NARROW_SUBJECTS: RegExp[] = [
   /\b(dental|dentists?|dentistry|odontogenic|periodont\w*|endodontic)\b/,
   /\bpregnan\w*/,
   /\b(veterinar\w*|dogs?)\b/,
+  /\b(kidneys?|renal|urine|urinary|cystitis|pyelonephritis|bacteriuria)\b/,
+  /\b(neoplasms?|cancers?|oncolog\w*)\b/,
 ];
 
 export function narrowSubjectMismatch(
@@ -79,6 +81,30 @@ export function narrowSubjectMismatch(
     .replace(/[-_]/g, " ");
   const story = corpus.toLowerCase();
   return NARROW_SUBJECTS.some((test) => test.test(about) && !test.test(story));
+}
+
+/** A photo of a child or a pediatric visit. Checked on the file name and label, not tags. */
+export function isChildSubjectImage(entry: { id: string; label: string }): boolean {
+  const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
+  return /\b(pediatr\w*|paediatr\w*|children|child)\b/.test(about);
+}
+
+/** The story is about children. "Childhood" alone does not count. */
+export function allowsChildImage(text: string): boolean {
+  return /\b(pediatr\w*|paediatr\w*|children|child|kids?|infants?)\b/i.test(text);
+}
+
+/** Pill, bottle, blister, and vial still lifes. */
+export function isMedicationStillLife(entry: { id: string; label: string }): boolean {
+  const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
+  return /\b(pills?|capsules?|blister|bottles?|vials?|tablets?)\b/.test(about);
+}
+
+/** Penicillin-allergy label, challenge, or delabeling — not a product photo. */
+export function isAllergyEvaluationStory(text: string): boolean {
+  return /\b(delabel\w*|drug provocation|penicillin allergy|allergy labels?|oral challenge|skin testing)\b/i.test(
+    text
+  );
 }
 
 /** The catalog file is the neonatal / NICU picture, not a general pediatric photo. */
