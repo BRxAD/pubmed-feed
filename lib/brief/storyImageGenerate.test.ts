@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { expandStoryCorpus } from "./storyImageSynonyms";
 import {
   allowsChildImage,
+  allowsMedicationStillLife,
   allowsNeonatalImage,
   buildStoryImagePrompt,
   isAllergyEvaluationStory,
@@ -84,6 +86,73 @@ describe("buildStoryImagePrompt", () => {
       isMedicationStillLife({
         id: "local-deescalate-duration-adherence",
         label: "antibiotic duration and adherence blister pack",
+      }),
+      true
+    );
+  });
+
+  it("keeps a side mention from choosing a specimen, organ, or pill photo", () => {
+    assert.equal(
+      narrowSubjectMismatch("pharmacist interventions for antibiotic duration were low", {
+        id: "generated-42819753",
+        label: "Delays in modifying antibiotic therapy observed for resistant urine cultures",
+        tags: ["urine culture", "urinary tract infection"],
+      }),
+      true
+    );
+    assert.equal(
+      narrowSubjectMismatch("antibiotic exposure and survival in cancer immunotherapy", {
+        id: "local-biofilm-resistome-antibiotic",
+        label: "antibiotic capsule approaching biofilm",
+        tags: ["biofilm", "microbiome"],
+      }),
+      true
+    );
+    assert.equal(
+      allowsMedicationStillLife("antibiotic exposure and survival in cancer immunotherapy", {
+        id: "local-biofilm-resistome-antibiotic",
+        label: "antibiotic capsule approaching biofilm",
+      }),
+      false
+    );
+    assert.equal(
+      allowsMedicationStillLife("blood culture contamination fell after a collection change", {
+        id: "local-blood-culture-laboratory",
+        label: "blood culture vials in laboratory",
+        tags: ["blood culture"],
+      }),
+      true
+    );
+    assert.equal(/surgery/.test(expandStoryCorpus("dental infections")), false);
+    assert.equal(
+      narrowSubjectMismatch("review of native joint septic arthritis microbiology", {
+        id: "local-blood-culture-laboratory",
+        label: "blood culture vials in laboratory",
+        tags: ["blood culture", "microbiology"],
+      }),
+      true
+    );
+    assert.equal(
+      narrowSubjectMismatch("blood culture contamination fell after a collection change", {
+        id: "local-blood-culture-laboratory",
+        label: "blood culture vials in laboratory",
+        tags: ["blood culture"],
+      }),
+      false
+    );
+    assert.equal(
+      narrowSubjectMismatch("cdss increased first-line antibiotic use for pediatric cap", {
+        id: "local-lungs-pneumonia-lrti",
+        label: "lungs and lower respiratory pathology",
+        tags: ["pneumonia", "cap"],
+      }),
+      false
+    );
+    assert.equal(
+      narrowSubjectMismatch("antibiotic prophylaxis reduced infection", {
+        id: "surgeon-or",
+        label: "operating room",
+        tags: ["surgery", "prophylaxis"],
       }),
       true
     );

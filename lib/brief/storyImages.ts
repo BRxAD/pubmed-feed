@@ -14,11 +14,10 @@ import { STORY_IMAGE_POLICY } from "@/lib/brief/storyImagePolicy";
 import { expandStoryCorpus } from "@/lib/brief/storyImageSynonyms";
 import {
   allowsChildImage,
+  allowsMedicationStillLife,
   allowsNeonatalImage,
-  isAllergyEvaluationStory,
   isChildSubjectImage,
   isHospitalPlaceImage,
-  isMedicationStillLife,
   isNeonatalSubjectImage,
   narrowSubjectMismatch,
 } from "@/lib/brief/storyImagePrompt";
@@ -161,6 +160,44 @@ const NON_SCORING_TAGS = new Set([
   "cohort",
   "risk factors",
   "adolescent",
+  "antibiotic",
+  "antibiotics",
+  "antimicrobial",
+  "antimicrobials",
+  "prescribing",
+  "prescription",
+  "prescriptions",
+  "guidelines",
+  "guideline",
+  "adherence",
+  "stewardship",
+  "hospital",
+  "community",
+  "outpatient",
+  "infection",
+  "infections",
+  "clinical",
+  "treatment",
+  "therapy",
+  "patient",
+  "patients",
+  "study",
+  "review",
+  "intervention",
+  "interventions",
+  "diagnosis",
+  "diagnostic",
+  "resistant",
+  "resistance",
+  "audit",
+  "outcome",
+  "outcomes",
+  "medication",
+  "medications",
+  "oral",
+  "duration",
+  "pathogen",
+  "pathogens",
 ]);
 
 function isNonScoringTag(tag: string): boolean {
@@ -197,15 +234,23 @@ function storyCorpus(item: StoryImageFields): string {
   return expandStoryCorpus(raw);
 }
 
+/**
+ * The subject a reader sees beside the photo. Methods and keywords can name
+ * a side topic (a urine culture mentioned in a list) and must not choose it.
+ */
+function storyFocus(item: StoryImageFields): string {
+  return expandStoryCorpus(normalize([item.headline, item.title].filter(Boolean).join(" ")));
+}
+
 /** Drop a stock photo when its subject would be easy to call wrong. */
-function subjectConflict(corpus: string, entry: CatalogEntry): boolean {
+function subjectConflict(corpus: string, focus: string, entry: CatalogEntry): boolean {
   const about = `${entry.id} ${entry.label} ${entry.tags.join(" ")}`.toLowerCase();
   if (/\bpregnan/.test(corpus) && !/\bpregnan/.test(about)) return true;
-  if (narrowSubjectMismatch(corpus, entry)) return true;
-  if (isNeonatalSubjectImage(entry) && !allowsNeonatalImage(corpus)) return true;
-  if (allowsNeonatalImage(corpus) && !isNeonatalSubjectImage(entry)) return true;
-  if (isChildSubjectImage(entry) && !allowsChildImage(corpus)) return true;
-  if (isMedicationStillLife(entry) && isAllergyEvaluationStory(corpus)) return true;
+  if (narrowSubjectMismatch(focus, entry)) return true;
+  if (isNeonatalSubjectImage(entry) && !allowsNeonatalImage(focus)) return true;
+  if (allowsNeonatalImage(focus) && !isNeonatalSubjectImage(entry)) return true;
+  if (isChildSubjectImage(entry) && !allowsChildImage(focus)) return true;
+  if (!allowsMedicationStillLife(focus, entry)) return true;
   return false;
 }
 
@@ -216,14 +261,33 @@ function hasRequiredGate(corpus: string, entry: CatalogEntry): boolean {
 
 type ScoreMode = "strict" | "thematic";
 
+function labelEchoesFocus(focus: string, entry: CatalogEntry): boolean {
+  const label = entry.label.toLowerCase();
+  return focus.split(" ").some((word) => {
+    if (word.length < 8 || isNonScoringTag(word)) return false;
+    return corpusHas(label, word);
+  });
+}
+
+function focusHasSpecificGate(focus: string, entry: CatalogEntry): boolean {
+  return (entry.requireAny ?? []).some((req) => {
+    const t = req.toLowerCase().trim();
+    if (!t || isNonScoringTag(t)) return false;
+    if (!t.includes(" ") && t.length < 8) return false;
+    return corpusHas(focus, t);
+  });
+}
+
 function scoreEntry(
   corpus: string,
+  focus: string,
   settings: ArticleSetting[],
   entry: CatalogEntry,
   mode: ScoreMode
 ): number {
+  if (entry.generic) return 0;
   if (!hasRequiredGate(corpus, entry)) return 0;
-  if (subjectConflict(corpus, entry)) return 0;
+  if (subjectConflict(corpus, focus, entry)) return 0;
   if (
     settings.includes("community") &&
     !settings.includes("hospital") &&
@@ -239,9 +303,9 @@ function scoreEntry(
   for (const tag of entry.tags) {
     const t = tag.toLowerCase();
     if (isNonScoringTag(t) || !corpusHas(corpus, t)) continue;
+    if (entry.source === "generated" && !corpusHas(focus, t)) continue;
     const words = t.split(/\s+/).length;
-    const tagWeight =
-      words >= 2 ? 1.85 : t.length >= 12 ? 1.85 : t.length >= 10 ? 1.45 : t.length >= 6 ? 1.15 : 0.8;
+    const tagWeight = words >= 2 || t.length >= 8 ? 1.85 : t.length >= 6 ? 1.15 : 0.8;
     matchedWeight += tagWeight;
     matchedCount += 1;
     if (words >= 2 || t.length >= 8) strongHits += 1;
@@ -270,18 +334,30 @@ function scoreEntry(
   if (entry.source === "local") score = Math.min(1, score + 0.04);
   if (
     entry.id === "local-mdr-gramneg-culture" &&
-    /\bgram-?negative\b|\bcarbapenem/.test(corpus)
+    /\bgram-?negative\b|\bcarbapenem/.test(focus)
   ) {
     score = Math.min(1, score + 0.4);
   }
-  if (entry.id === "local-neonatal-nicu-newborn" && allowsNeonatalImage(corpus)) {
+  if (
+    (entry.id === "local-lungs-pneumonia-lrti" || entry.id === "local-pneumonia-chest-lung") &&
+    /\bpneumon|\bcap\b|\blrti\b|\blungs?\b/.test(focus)
+  ) {
+    score = Math.min(1, score + 0.4);
+  }
+  if (entry.id === "local-neonatal-nicu-newborn" && allowsNeonatalImage(focus)) {
     score = Math.min(1, score + 0.4);
   }
   if (
     entry.id === "local-blood-culture-laboratory" &&
-    /\bbacteremi|\bblood culture\b|\bbloodstream\b/.test(corpus)
+    /\bbacteremi|\bblood culture\b|\bbloodstream\b/.test(focus)
   ) {
     score = Math.min(1, score + 0.3);
+  }
+  if (focusHasSpecificGate(focus, entry)) {
+    score = Math.min(1, score + 0.35);
+  }
+  if (labelEchoesFocus(focus, entry)) {
+    score = Math.min(1, score + 0.15);
   }
   if (
     entry.id === "dental-care" &&
@@ -339,6 +415,7 @@ function rankCandidates(
   extra: CatalogEntry[] = []
 ): Array<{ entry: CatalogEntry; confidence: number }> {
   const corpus = storyCorpus(item);
+  const focus = storyFocus(item);
   const ranked: Array<{ entry: CatalogEntry; confidence: number }> = [];
 
   for (const entry of [...extra, ...STORY_IMAGE_CATALOG]) {
@@ -350,7 +427,7 @@ function rankCandidates(
         : item.setting
           ? [item.setting]
           : [];
-    const confidence = scoreEntry(corpus, settings, entry, mode);
+    const confidence = scoreEntry(corpus, focus, settings, entry, mode);
     if (confidence > threshold) {
       ranked.push({ entry, confidence });
     }
@@ -382,6 +459,7 @@ export function bestStrictImagePlan(
   extra: CatalogEntry[] = []
 ): { score: number; preferGenerate: boolean } {
   const corpus = storyCorpus(rec);
+  const focus = storyFocus(rec);
   const settings =
     rec.settings?.length > 0
       ? rec.settings
@@ -392,7 +470,7 @@ export function bestStrictImagePlan(
   let preferGenerate = false;
   for (const entry of [...extra, ...STORY_IMAGE_CATALOG]) {
     if (isBlockedCatalogEntry(entry)) continue;
-    const confidence = scoreEntry(corpus, settings, entry, "strict");
+    const confidence = scoreEntry(corpus, focus, settings, entry, "strict");
     if (confidence > best) {
       best = confidence;
       preferGenerate =

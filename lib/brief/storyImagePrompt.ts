@@ -69,7 +69,28 @@ const NARROW_SUBJECTS: RegExp[] = [
   /\bpregnan\w*/,
   /\b(veterinar\w*|dogs?)\b/,
   /\b(kidneys?|renal|urine|urinary|cystitis|pyelonephritis|bacteriuria)\b/,
-  /\b(neoplasms?|cancers?|oncolog\w*)\b/,
+  /\b(neoplasms?|cancers?|oncolog\w*|tumou?rs?)\b/,
+  /\b(biofilms?|resistomes?|microbiomes?|microbiota)\b/,
+  /\b(tuberculos\w*|antitubercular)\b/,
+  /\b(peritonit\w*|cirrhos\w*)\b/,
+  /\b(lepros\w*)\b/,
+  /\b(autis\w*|adhd)\b/,
+  /\b(phages?|bacteriophages?)\b/,
+  /\b(difficile|\bcdi\b|\bcdiff\b)\b/,
+  /\b(cellulit\w*|soft tissue)\b/,
+  /\b(pneumon\w*|\blungs?\b|\bcap\b|\blrti\b|\bvap\b|respiratory)\b/,
+  /\b(blood cultures?|bacterem\w*|bloodstream)\b/,
+  /\b(operating rooms?|\bsurger(?:y|ies|ical)\b|perioperative|\bssi\b)\b/,
+  /\b(intensive care|\bicu\b|critical care|ventilators?)\b/,
+  /\b(wastewater|sewage)\b/,
+  /\b(livestocks?|cattle)\b/,
+  /\b(vaccin\w*)\b/,
+  /\b(candid\w*|antifungals?|echinocandin)\b/,
+  /\b(endocardit\w*)\b/,
+  /\b(septic arthritis|native joint|\bjoints?\b|synovial)\b/,
+  /\b(otitis|ear infection)\b/,
+  /\b(gram-?negative|\bcarbapenem\w*)\b/,
+  /\b(\bsti\b|gonorr\w*|chlamydia|syphilis|sexually transmitted)\b/,
 ];
 
 export function narrowSubjectMismatch(
@@ -104,6 +125,28 @@ export function isMedicationStillLife(entry: { id: string; label: string }): boo
 export function isAllergyEvaluationStory(text: string): boolean {
   return /\b(delabel\w*|drug provocation|penicillin allergy|allergy labels?|oral challenge|skin testing)\b/i.test(
     text
+  );
+}
+
+/**
+ * A pill, bottle, or blister photo is allowed only when the headline is about
+ * that product. A cancer, resistance, or prescribing paper does not get one.
+ */
+function mentionsListedSubject(entry: { id: string; label: string; tags?: string[] }): boolean {
+  const about = `${entry.id} ${entry.label} ${(entry.tags ?? []).join(" ")}`
+    .toLowerCase()
+    .replace(/[-_]/g, " ");
+  return NARROW_SUBJECTS.some((test) => test.test(about));
+}
+
+export function allowsMedicationStillLife(
+  focus: string,
+  entry: { id: string; label: string; tags?: string[] }
+): boolean {
+  if (!isMedicationStillLife(entry)) return true;
+  if (mentionsListedSubject(entry) && !narrowSubjectMismatch(focus, entry)) return true;
+  return /\b(biofilms?|microbiomes?|vaccin\w*|candid\w*|antifungals?|adherence|dispensing|step-?down|iv to oral|oral switch)\b/i.test(
+    focus
   );
 }
 
