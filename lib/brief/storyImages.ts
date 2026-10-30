@@ -402,9 +402,16 @@ function markUsed(entry: { id: string; url: string }, used: UsageTracker): void 
 }
 
 function specificRank(entry: CatalogEntry): number {
-  if (entry.id === "local-blood-culture-laboratory") return 2;
-  if (entry.id === "local-neonatal-nicu-newborn") return 2;
-  return 0;
+  if (entry.id === "local-blood-culture-laboratory") return 3;
+  if (entry.id === "local-neonatal-nicu-newborn") return 3;
+  if (
+    entry.id === "local-ai-ehr-technology" ||
+    entry.id === "local-ehr-technology" ||
+    entry.id === "local-checklist-assessment"
+  ) {
+    return 0;
+  }
+  return 1;
 }
 
 function rankCandidates(
