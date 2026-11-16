@@ -5,7 +5,7 @@
 | Job | EDT | UTC cron | Route |
 |-----|-----|----------|--------|
 | PubMed ingest + summarize | 06:00, 17:00 | `0 10 * * *` / `0 21 * * *` | `/api/cron/daily-digest` |
-| Stewardship Brief email | 08:30 | `30 12 * * *` | `/api/cron/brief-digest` |
+| Stewardship Brief email | 09:30 (08:30 EST) | `30 13 * * *` | `/api/cron/brief-digest` |
 | Author recognition emails (human 5+) | 21:00 | `0 1 * * *` | `/api/cron/author-outreach` (also drops “no email” rows older than 48h) |
 | Priority model retrain check | 18:00 | `0 22 * * *` | `/api/cron/retrain-priority` (weekly gate) |
 
@@ -41,7 +41,7 @@ https://YOUR_HOST/api/cron/author-outreach?secret=YOUR_CRON_SECRET
 4. Resend → recent send → **Deliverability Insights**.
 5. DMARC `_dmarc` TXT; tighten from `p=none` later if reports look clean.
 6. Ask subscribers to mark **Not junk** and allowlist your From address.
-7. Redeploy after From/header/body changes before the next 08:30 EDT Brief cron.
+7. Redeploy after From/header/body changes before the next 09:30 EDT Brief cron.
 
 ## Author recognition emails (human rating 5+)
 

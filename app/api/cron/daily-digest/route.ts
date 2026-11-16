@@ -7,7 +7,7 @@ export const maxDuration = 300;
 /**
  * PubMed ingest + summarize (no email).
  * Runs 2× daily at 06:00 / 17:00 EDT (10:00 / 21:00 UTC).
- * Brief email is `/api/cron/brief-digest` at 08:30 EDT.
+ * Brief email is `/api/cron/brief-digest` at 09:30 EDT (08:30 EST).
  *
  * GET /api/cron/daily-digest?secret=YOUR_CRON_SECRET
  * Authorization: Bearer YOUR_CRON_SECRET (Vercel Cron)
