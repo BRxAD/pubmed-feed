@@ -2,7 +2,27 @@ import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { sanitizePmid } from "@/lib/savedArticleTypes";
 import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
+import {
+  journalsForQuery,
+  type BriefSearchMode,
+} from "@/lib/brief/journalSearch";
 import type { BriefItem } from "@/lib/brief/items";
+
+export type { BriefSearchMode };
+
+export type BriefSearchResult = {
+  items: BriefItem[];
+  /** journal: the query named one journal, so these are only that journal. */
+  mode: BriefSearchMode;
+  /** Stored journal strings when mode is journal. */
+  journalNames: string[] | null;
+};
+
+/** A journal browse is newest-first and can run past the 40-hit text list. */
+const JOURNAL_SEARCH_LIMIT = 120;
+
+let journalCatalog: { at: number; names: string[] } | null = null;
+const JOURNAL_CATALOG_MS = 60 * 60 * 1000;
 
 /**
  * Computes a search relevance score for an article against a user's query.
@@ -107,22 +127,154 @@ export function computeSearchRelevance(
   return score;
 }
 
+function meetsSearchPriority(
+  admin: number | null | undefined,
+  ml: number | null | undefined,
+  min: number
+): boolean {
+  if (admin != null && Number.isFinite(Number(admin))) return Number(admin) >= min;
+  if (ml != null && Number.isFinite(Number(ml))) return Number(ml) >= min;
+  return false;
+}
+
+async function loadJournalCatalog(
+  supabase: ReturnType<typeof getSupabaseServerClient>
+): Promise<string[]> {
+  if (journalCatalog && Date.now() - journalCatalog.at < JOURNAL_CATALOG_MS) {
+    return journalCatalog.names;
+  }
+  const names = new Set<string>();
+  const page = 1000;
+  for (let from = 0; from < 20000; from += page) {
+    const { data, error } = await supabase
+      .from("articles")
+      .select("pmid, journal")
+      .not("journal", "is", null)
+      .order("pmid", { ascending: true })
+      .range(from, from + page - 1);
+    if (error) throw new Error(error.message);
+    if (!data?.length) break;
+    for (const row of data) {
+      const journal = String(row.journal ?? "").trim();
+      if (journal) names.add(journal);
+    }
+    if (data.length < page) break;
+  }
+  const list = [...names];
+  journalCatalog = { at: Date.now(), names: list };
+  return list;
+}
+
+async function searchOneJournal(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  names: string[],
+  limit: number
+): Promise<BriefItem[]> {
+  const articles: {
+    pmid: string;
+    release_date: string | null;
+    pub_date: string | null;
+  }[] = [];
+  const page = 1000;
+  for (let from = 0; from < 5000; from += page) {
+    const { data, error } = await supabase
+      .from("articles")
+      .select("pmid, release_date, pub_date")
+      .in("journal", names)
+      .order("pmid", { ascending: true })
+      .range(from, from + page - 1);
+    if (error) throw new Error(error.message);
+    if (!data?.length) break;
+    for (const row of data) {
+      articles.push({
+        pmid: String(row.pmid ?? ""),
+        release_date: row.release_date ?? null,
+        pub_date: row.pub_date ?? null,
+      });
+    }
+    if (data.length < page) break;
+  }
+  if (articles.length === 0) return [];
+
+  const dates = new Map<string, string>();
+  for (const row of articles) {
+    const pmid = row.pmid.trim();
+    if (!pmid) continue;
+    dates.set(pmid, row.release_date || row.pub_date || "");
+  }
+
+  const eligible = new Set<string>();
+  const pmids = [...dates.keys()];
+  for (let i = 0; i < pmids.length; i += 80) {
+    const slice = pmids.slice(i, i + 80);
+    const { data, error } = await supabase
+      .from("summaries")
+      .select("pmid, admin_priority, ml_priority")
+      .in("pmid", slice);
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) {
+      if (
+        meetsSearchPriority(row.admin_priority, row.ml_priority, 5) &&
+        row.pmid
+      ) {
+        eligible.add(String(row.pmid));
+      }
+    }
+  }
+
+  const ordered = [...eligible].sort((a, b) => {
+    const dateB = dates.get(b) ?? "";
+    const dateA = dates.get(a) ?? "";
+    if (dateB !== dateA) return dateB.localeCompare(dateA);
+    return b.localeCompare(a);
+  });
+
+  return getBriefItemsForSaved(
+    ordered.slice(0, limit).map((pmid) => ({
+      pmid,
+      title: `PMID ${pmid}`,
+      pubmedUrl: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+    }))
+  );
+}
+
 /**
- * Searches the article corpus by title, abstract, and author name.
+ * Searches the article corpus by title, abstract, author, or journal name.
  *
  * Rules:
  * - Only includes articles with priority rating >= 5 (effective priority: admin override or ML grade).
- * - Sorts results strictly by search relevance descending.
+ * - A query that names one journal returns only that journal, newest first.
+ * - Other queries sort by search relevance descending.
  * - Minimal egress: queries lightweight columns/PMIDs first, then hydrates winners.
  */
 export async function searchBriefArticles(
   rawQuery: string,
   limit: number = 40
-): Promise<BriefItem[]> {
+): Promise<BriefSearchResult> {
   const query = rawQuery.trim();
-  if (!query) return [];
+  if (!query) return { items: [], mode: "text", journalNames: null };
 
   const supabase = getSupabaseServerClient();
+
+  let journalNames: string[] | null = null;
+  try {
+    const catalog = await loadJournalCatalog(supabase);
+    journalNames = journalsForQuery(catalog, query);
+  } catch (err) {
+    console.warn(
+      "[search] journal lookup failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  if (journalNames) {
+    const items = await searchOneJournal(
+      supabase,
+      journalNames,
+      Math.max(limit, JOURNAL_SEARCH_LIMIT)
+    );
+    return { items, mode: "journal", journalNames };
+  }
+
   const directPmid = sanitizePmid(query);
 
   // If query is an exact PMID, prioritize direct lookup
@@ -135,7 +287,7 @@ export async function searchBriefArticles(
       },
     ]);
     const eligible = directItems.filter((i) => i.effectivePriority >= 5);
-    if (eligible.length > 0) return eligible;
+    if (eligible.length > 0) return { items: eligible, mode: "text", journalNames: null };
   }
 
   const ftsRankMap = new Map<string, number>();
@@ -214,7 +366,7 @@ export async function searchBriefArticles(
     // Author lookup is optional if the function is not installed yet.
   }
 
-  if (candidatePmids.length === 0) return [];
+  if (candidatePmids.length === 0) return { items: [], mode: "text", journalNames: null };
 
   const uniquePmids = [...new Set(candidatePmids)];
 
@@ -243,5 +395,5 @@ export async function searchBriefArticles(
     return dateB.localeCompare(dateA);
   });
 
-  return priorityEligible.slice(0, limit);
+  return { items: priorityEligible.slice(0, limit), mode: "text", journalNames: null };
 }

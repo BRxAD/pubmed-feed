@@ -28,6 +28,7 @@ export default function BriefFilterBar({
   region = "",
   q = "",
   visibleTopics = [],
+  homeHref = briefHomeHref,
 }: {
   setting: BriefSettingFilter;
   topic?: BriefTopicFilter;
@@ -35,6 +36,8 @@ export default function BriefFilterBar({
   q?: string;
   /** Topic menu entries that have enough stories. All stays first. */
   visibleTopics?: ArticleTopic[];
+  /** Where filter and search links go. The live brief uses the homepage. */
+  homeHref?: typeof briefHomeHref;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<"setting" | "topic" | "region" | null>(null);
@@ -52,7 +55,7 @@ export default function BriefFilterBar({
     e.preventDefault();
     const clean = searchValue.trim();
     router.push(
-      briefHomeHref({
+      homeHref({
         setting: setting || undefined,
         topic: topic || undefined,
         region: region || undefined,
@@ -64,7 +67,7 @@ export default function BriefFilterBar({
   function handleClearSearch() {
     setSearchValue("");
     router.push(
-      briefHomeHref({
+      homeHref({
         setting: setting || undefined,
         topic: topic || undefined,
         region: region || undefined,
@@ -84,7 +87,7 @@ export default function BriefFilterBar({
           options={BRIEF_SETTING_OPTIONS.map((opt) => ({
             value: opt.value,
             label: opt.label,
-            href: briefHomeHref({
+            href: homeHref({
               setting: opt.value || undefined,
               topic: topic || undefined,
               region: region || undefined,
@@ -112,7 +115,7 @@ export default function BriefFilterBar({
             .map((opt) => ({
               value: opt.value,
               label: opt.label,
-              href: briefHomeHref({
+              href: homeHref({
                 setting: setting || undefined,
                 topic: opt.value || undefined,
                 region: region || undefined,
@@ -132,7 +135,7 @@ export default function BriefFilterBar({
           options={BRIEF_WHO_REGION_OPTIONS.map((opt) => ({
             value: opt.value,
             label: opt.label,
-            href: briefHomeHref({
+            href: homeHref({
               setting: setting || undefined,
               topic: topic || undefined,
               region: opt.value || undefined,
@@ -148,14 +151,14 @@ export default function BriefFilterBar({
         className="flex w-full items-center gap-1.5 sm:w-auto"
         role="search"
       >
-        <div className="relative flex-1 sm:w-60 md:w-72">
+        <div className="relative w-full sm:w-[36rem] sm:max-w-full sm:flex-none">
           <input
             type="search"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="Search title, abstract, or author…"
+            placeholder="Search title, abstract, author, or journal…"
             className="w-full rounded-sm border border-[#D8D4C8] bg-white px-2.5 py-1 pr-7 text-xs text-[#1C0B19] outline-none transition-colors placeholder:text-[#72705B]/60 focus:border-[#2A79A7] focus:ring-1 focus:ring-[#2A79A7] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-            aria-label="Search articles by title, abstract, or author"
+            aria-label="Search articles by title, abstract, author, or journal"
           />
           {searchValue && (
             <button

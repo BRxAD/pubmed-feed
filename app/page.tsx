@@ -27,6 +27,7 @@ import {
 } from "@/lib/brief/whoRegionFilter";
 import { listApprovedNewsForBrief } from "@/lib/news/store";
 import { searchBriefArticles } from "@/lib/brief/searchArticles";
+import { loadJournalTopLists } from "@/lib/brief/journalTopListsLoad";
 import { getBriefItemsForSaved } from "@/lib/brief/savedBriefItems";
 import { assignStoryImages } from "@/lib/brief/storyImages";
 import type { BriefItem } from "@/lib/brief/items";
@@ -126,18 +127,32 @@ export default async function HomePage({
   );
 
   try {
-    const [topPriority, topCited, newsItems, topicPool] = await Promise.all([
-      getTopPriorityYearItems(setting, topic, region),
-      getTopCitedYearItems(setting, topic, region),
-      listApprovedNewsForBrief(6),
-      getCachedBriefFilterPool(),
-    ]);
+    const searchPromise = q ? searchBriefArticles(q, 40) : Promise.resolve(null);
+    const [topPriorityAll, topCitedAll, newsItems, topicPool, searchHits] =
+      await Promise.all([
+        getTopPriorityYearItems(setting, topic, region),
+        getTopCitedYearItems(setting, topic, region),
+        listApprovedNewsForBrief(6),
+        getCachedBriefFilterPool(),
+        searchPromise,
+      ]);
+    let topPriority = topPriorityAll;
+    let topCited = topCitedAll;
+    if (searchHits?.mode === "journal" && searchHits.journalNames?.length) {
+      const journalLists = await loadJournalTopLists(
+        searchHits.journalNames,
+        setting,
+        topic,
+        region
+      );
+      topPriority = journalLists.priority;
+      topCited = journalLists.cited;
+    }
     const visibleTopics = topicsWithEnoughArticles(topicPool);
 
-    if (q) {
+    if (q && searchHits) {
       // Search is not limited to the last 28 days. Two columns, no photos.
-      const searchHits = await searchBriefArticles(q, 40);
-      const items = applyBriefFilters(searchHits, setting, topic, region);
+      const items = applyBriefFilters(searchHits.items, setting, topic, region);
 
       return (
         <BriefPage
@@ -148,6 +163,7 @@ export default async function HomePage({
           topic={topic}
           region={region}
           q={q}
+          searchMode={searchHits.mode}
           images={{}}
           newsItems={newsItems}
           googleEnabled={googleEnabled}

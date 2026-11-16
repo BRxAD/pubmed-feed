@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { BriefItem } from "@/lib/brief/items";
+import type { BriefSearchMode } from "@/lib/brief/journalSearch";
 import type { TopPriorityItem } from "@/lib/brief/topPriority";
 import type { TopCitedItem } from "@/lib/brief/topCited";
 import type { BriefSettingFilter } from "@/lib/brief/settingFilter";
@@ -21,7 +22,10 @@ import { SidebarCard } from "@/components/brief/SidebarCard";
 import FeedbackSurvey from "@/components/brief/FeedbackSurvey";
 import { brief } from "@/components/brief/briefTheme";
 import type { NewsItem } from "@/lib/news/types";
-import type { BriefTopicFilter } from "@/lib/brief/topicFilter";
+import {
+  briefHomeHref,
+  type BriefTopicFilter,
+} from "@/lib/brief/topicFilter";
 import type { ArticleTopic } from "@/lib/classifyTopic";
 import type { BriefWhoRegionFilter } from "@/lib/brief/whoRegionFilter";
 import Link from "next/link";
@@ -43,10 +47,12 @@ export default function BriefPage({
   topic = "",
   region = "",
   q = "",
+  searchMode = "text",
   images,
   newsItems = [],
   googleEnabled = true,
   visibleTopics = [],
+  homeHref = briefHomeHref,
 }: {
   items: BriefItem[];
   topPriority: TopPriorityItem[];
@@ -55,10 +61,13 @@ export default function BriefPage({
   topic?: BriefTopicFilter;
   region?: BriefWhoRegionFilter;
   q?: string;
+  searchMode?: BriefSearchMode;
   images: Record<string, StoryImageMatch | null>;
   newsItems?: NewsItem[];
   googleEnabled?: boolean;
   visibleTopics?: ArticleTopic[];
+  /** Where filter and search links go. The live brief uses the homepage. */
+  homeHref?: typeof briefHomeHref;
 }) {
   const { saved, savedItems, toggleSave, signedIn, syncError, loginPrompt } =
     useBriefSaved();
@@ -99,13 +108,16 @@ export default function BriefPage({
           region={region}
           q={q}
           visibleTopics={visibleTopics}
+          homeHref={homeHref}
         />
 
         {q && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D4C8]/60 pb-3 text-sm text-[#1C0B19]">
             <span>
               Search results for <strong>&ldquo;{q}&rdquo;</strong> &mdash;{" "}
-              {`${items.length} ${items.length === 1 ? "study" : "studies"} found (sorted by relevance)`}
+              {searchMode === "journal"
+                ? `${items.length} ${items.length === 1 ? "study" : "studies"} from this journal, newest first`
+                : `${items.length} ${items.length === 1 ? "study" : "studies"} found (sorted by relevance)`}
             </span>
             <Link
               href="/"
@@ -152,7 +164,7 @@ export default function BriefPage({
                 <SidebarCard accent="salmon" wash="cited">
                   <TopCitedPanel
                     items={topCited}
-                    filtered={Boolean(setting || topic || region)}
+                    filtered={Boolean(setting || topic || region || searchMode === "journal")}
                     saved={saved}
                     onToggleSave={toggleSave}
                   />
@@ -160,7 +172,9 @@ export default function BriefPage({
                 <SidebarCard accent="steel" wash="relevance">
                   <TopPriorityPanel
                     items={topPriority}
-                    filtered={Boolean(setting || topic || region)}
+                    filtered={Boolean(
+                      setting || topic || region || searchMode === "journal"
+                    )}
                     saved={saved}
                     onToggleSave={toggleSave}
                   />
