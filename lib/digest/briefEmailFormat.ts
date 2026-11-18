@@ -21,6 +21,48 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Peel sentence punctuation off a matched address so it stays outside the link. */
+function splitTrailingPunctuation(raw: string): { url: string; trail: string } {
+  let url = raw;
+  let trail = "";
+  while (url.length > 0 && /[.,;:!?]$/.test(url)) {
+    trail = url.slice(-1) + trail;
+    url = url.slice(0, -1);
+  }
+  while (
+    url.endsWith(")") &&
+    (url.match(/\(/g)?.length ?? 0) < (url.match(/\)/g)?.length ?? 0)
+  ) {
+    trail = ")" + trail;
+    url = url.slice(0, -1);
+  }
+  return { url, trail };
+}
+
+/**
+ * Escape announcement text, then turn http(s), mailto, and www addresses
+ * into clickable links. Other markup stays text.
+ */
+export function linkifyAnnouncementText(text: string, linkColor: string): string {
+  const pattern = /(?:https?:\/\/|mailto:|www\.)[^\s<>"']+/gi;
+  let html = "";
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    html += escapeHtml(text.slice(cursor, index));
+    const { url, trail } = splitTrailingPunctuation(match[0]);
+    const href = /^www\./i.test(url) ? `https://${url}` : url;
+    if (!/^(https?:\/\/|mailto:)/i.test(href) || url.length < 8) {
+      html += escapeHtml(match[0]);
+    } else {
+      html += `<a href="${escapeHtml(href)}" style="color:${linkColor};text-decoration:underline">${escapeHtml(url)}</a>${escapeHtml(trail)}`;
+    }
+    cursor = index + match[0].length;
+  }
+  html += escapeHtml(text.slice(cursor));
+  return html;
+}
+
 function formatDateLabel(iso: string | null): string {
   if (!iso?.trim()) return "";
   const d = new Date(iso.includes("T") ? iso : `${iso.trim()}T12:00:00`);
@@ -310,10 +352,10 @@ export function buildBriefDigestEmail(options: {
                 </p>
                 ${
                   announcement.title.trim()
-                    ? `<h3 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.35;font-weight:600;color:${plum}">${escapeHtml(announcement.title.trim())}</h3>`
+                    ? `<h3 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.35;font-weight:600;color:${plum}">${linkifyAnnouncementText(announcement.title.trim(), steel)}</h3>`
                     : ""
                 }
-                <div style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.55;color:${plum};white-space:pre-wrap">${escapeHtml(announcement.body.trim())}</div>
+                <div style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.55;color:${plum};white-space:pre-wrap">${linkifyAnnouncementText(announcement.body.trim(), steel)}</div>
               </td>
             </tr>
           </table>

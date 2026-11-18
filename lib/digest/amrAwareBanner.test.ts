@@ -83,3 +83,30 @@ describe("AMR Aware banner", () => {
     assert.equal(other.html.includes("amraware.ca"), false);
   });
 });
+
+describe("announcement links", () => {
+  it("turns web addresses into clickable links and leaves other text plain", () => {
+    const built = buildBriefDigestEmail({
+      items: [],
+      briefUrl: "https://www.stewardshipbrief.com",
+      dateLabel: "Wednesday, November 18, 2026",
+      announcement: {
+        title: "Register at www.amraware.ca",
+        body: "Details at https://www.amraware.ca/week. See <script> and a note.",
+        active: true,
+      },
+      now: new Date("2026-11-17T15:00:00Z"),
+    });
+
+    assert.match(
+      built.html,
+      /<a href="https:\/\/www\.amraware\.ca"[^>]*>www\.amraware\.ca<\/a>/
+    );
+    assert.match(
+      built.html,
+      /<a href="https:\/\/www\.amraware\.ca\/week"[^>]*>https:\/\/www\.amraware\.ca\/week<\/a>\./
+    );
+    assert.match(built.html, /&lt;script&gt;/);
+    assert.equal(built.html.includes("<script>"), false);
+  });
+});
