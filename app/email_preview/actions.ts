@@ -110,6 +110,7 @@ export async function sendTestBriefEmailAction(input: {
       logoLightUrl: `${base}/stewardship-brief-logo-light.png`,
       newsItems,
       announcement: input.announcement ?? null,
+      recipientEmail: email,
       saveUrlForPmid: (pmid) => `${base}/article/${pmid}?save=1`,
     });
 

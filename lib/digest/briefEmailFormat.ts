@@ -5,6 +5,11 @@ import type { NewsItem } from "@/lib/news/types";
 import { newsSourceLabel } from "@/lib/news/labels";
 import { getMeaningfulNewsSummary } from "@/lib/news/summaryClean";
 import type { BriefAnnouncement } from "@/lib/digest/announcements";
+import {
+  AMR_AWARE_IMAGE_PATH,
+  AMR_AWARE_URL,
+  shouldShowAmrAwareBanner,
+} from "@/lib/digest/amrAwareBanner";
 import { formatJournalTitle } from "@/lib/brief/formatJournal";
 import { dedupeNewsStories } from "@/lib/news/dedupe";
 
@@ -105,6 +110,10 @@ export function buildBriefDigestEmail(options: {
   newsItems?: NewsItem[];
   /** Optional announcement banner for this brief. */
   announcement?: BriefAnnouncement | null;
+  /** When this address ends in .ca, the AMR Aware graphic is added Nov 18–24. */
+  recipientEmail?: string;
+  /** Clock for the AMR Aware date window. Defaults to now. */
+  now?: Date;
 }): { subject: string; html: string; text: string } {
   const {
     items,
@@ -116,6 +125,8 @@ export function buildBriefDigestEmail(options: {
     saveUrlForPmid,
     newsItems = [],
     announcement,
+    recipientEmail,
+    now,
   } = options;
   const uniqueNewsItems = dedupeNewsStories(newsItems);
   const { plum, olive, steel, paper, paperWarm, hairline } = briefPalette;
@@ -306,6 +317,25 @@ export function buildBriefDigestEmail(options: {
               </td>
             </tr>
           </table>
+        </td>
+      </tr>
+    `);
+  }
+
+  if (shouldShowAmrAwareBanner(recipientEmail, now)) {
+    const bannerSrc = escapeHtml(`${briefBase}${AMR_AWARE_IMAGE_PATH}`);
+    const bannerHref = escapeHtml(AMR_AWARE_URL);
+    textParts.push(
+      "",
+      "AMR Aware Canada: " + AMR_AWARE_URL,
+      ""
+    );
+    inner.push(`
+      <tr>
+        <td align="center" style="padding:8px 8px 16px;">
+          <a href="${bannerHref}" style="text-decoration:none;">
+            <img src="${bannerSrc}" alt="AMR Aware Canada. Visit AMRaware.ca" width="520" style="display:block;width:100%;max-width:520px;height:auto;border:0;outline:none;text-decoration:none;" />
+          </a>
         </td>
       </tr>
     `);

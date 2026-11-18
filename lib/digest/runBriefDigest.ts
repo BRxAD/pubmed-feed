@@ -281,6 +281,7 @@ export async function runBriefDigest(): Promise<BriefDigestResult> {
         saveUrlForPmid,
         newsItems: recipientNews,
         announcement,
+        recipientEmail: email,
       });
       const headers: Record<string, string> = {
         "List-Id": `The Stewardship Brief <brief.${listIdHost}>`,

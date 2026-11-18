@@ -100,6 +100,7 @@ export default function EmailPreviewDashboard({
       logoLightUrl: `${briefBaseUrl}/stewardship-brief-logo-light.png`,
       newsItems: newsToInclude,
       announcement: annToInclude,
+      recipientEmail: testEmail,
       saveUrlForPmid: (pmid) => `${briefBaseUrl}/article/${pmid}?save=1`,
     });
 
@@ -111,6 +112,7 @@ export default function EmailPreviewDashboard({
     previewIncludeNews,
     briefBaseUrl,
     dateLabel,
+    testEmail,
   ]);
 
   async function handleSaveAnnouncement(e: React.FormEvent) {
