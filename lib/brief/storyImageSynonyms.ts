@@ -33,7 +33,7 @@ const SYNONYM_EXPANSIONS: Array<{ match: RegExp; add: string }> = [
   { match: /\bprocalcitonin\b|\bpct\b/i, add: "procalcitonin biomarker diagnostic stewardship" },
   { match: /\bde[- ]?escalat/i, add: "de-escalation stewardship intravenous oral" },
   { match: /\bduration\b|days of therapy|\bdot\b/i, add: "duration antibiotic course stewardship" },
-  { match: /\boutpatient parenteral|\bopaat\b|\bcopaat\b/i, add: "outpatient parenteral antibiotic infusion" },
+  { match: /\boutpatient parenteral|\bopats?\b|\bcopats?\b/i, add: "outpatient parenteral antibiotic home infusion" },
   { match: /\bltc\b|long[- ]term care|nursing home/i, add: "long-term care nursing home geriatric elderly" },
   { match: /\bone health\b/i, add: "one health zoonotic veterinary animal environment" },
   { match: /\bwastewater\b|resistome\b/i, add: "wastewater environmental resistome sewage" },

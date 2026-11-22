@@ -17,9 +17,13 @@ import {
   allowsMedicationStillLife,
   allowsNeonatalImage,
   isChildSubjectImage,
+  inpatientBedMismatch,
   isHospitalPlaceImage,
   isNeonatalSubjectImage,
+  isOutpatientParenteralStory,
   narrowSubjectMismatch,
+  portraitMismatchForCountry,
+  storyNamesCountry,
 } from "@/lib/brief/storyImagePrompt";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import {
@@ -251,6 +255,8 @@ function subjectConflict(corpus: string, focus: string, entry: CatalogEntry): bo
   if (allowsNeonatalImage(focus) && !isNeonatalSubjectImage(entry)) return true;
   if (isChildSubjectImage(entry) && !allowsChildImage(focus)) return true;
   if (!allowsMedicationStillLife(focus, entry)) return true;
+  if (portraitMismatchForCountry(focus, entry)) return true;
+  if (inpatientBedMismatch(focus, entry)) return true;
   return false;
 }
 
@@ -370,6 +376,12 @@ function scoreEntry(
     /\bdental\b|\bdentist\b|\bdentistry\b/.test(corpus)
   ) {
     return 0;
+  }
+  if (
+    entry.id === "local-opat-home-infusion" &&
+    isOutpatientParenteralStory(focus)
+  ) {
+    score = Math.min(1, score + 0.4);
   }
   if (
     entry.id === "iv-drip" &&
@@ -509,6 +521,9 @@ function genericFallbackCandidates(
     Boolean(item.setting) || (item.settings?.length ?? 0) > 0;
 
   if (!stewardshipCue) return [];
+  // Those fillers are people at work. A study set in a named country
+  // should not get a guessed face when nothing else fits.
+  if (storyNamesCountry(storyFocus(item))) return [];
 
   const out: Array<{ entry: CatalogEntry; confidence: number }> = [];
   for (const entry of STORY_IMAGE_CATALOG) {

@@ -357,6 +357,7 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     id: "doctor-exam",
     url: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=1200&q=80",
     label: "physician consultation",
+    // Studio portrait of one clinician. Not for a study set in a named country.
     source: "unsplash",
     requireAny: ["consultation", "clinical visit", "diagnosis", "primary care"],
     tags: ["consultation", "physician", "clinical visit", "diagnosis", "exam"],
@@ -722,6 +723,7 @@ export const STORY_IMAGE_CATALOG: CatalogEntry[] = [
     id: "local-intravenous-bag",
     url: "/brief-images/intravenous-bag.png",
     label: "IV infusion at bedside",
+    // Patient in a hospital bed. Not for OPAT or other outpatient IV therapy.
     source: "local",
     requireAny: [
       "intravenous",

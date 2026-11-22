@@ -8,10 +8,12 @@ import {
   buildStoryImagePrompt,
   isAllergyEvaluationStory,
   isChildSubjectImage,
+  inpatientBedMismatch,
   isHospitalPlaceImage,
   isMedicationStillLife,
   isNeonatalSubjectImage,
   narrowSubjectMismatch,
+  portraitMismatchForCountry,
   type StoryImagePromptInput,
 } from "./storyImagePrompt";
 
@@ -44,6 +46,9 @@ describe("buildStoryImagePrompt", () => {
     assert.match(prompt, /Helicobacter pylori/);
     assert.match(prompt, /Do not draw any of these words/);
     assert.match(prompt, /No text, letters, numbers/);
+    assert.match(prompt, /named country/);
+    assert.match(prompt, /not a close portrait of one person/);
+    assert.match(prompt, /Do not show a patient in a hospital bed/);
     assert.equal(/show only this/i.test(prompt), false);
     assert.equal(/curved spiral bacteria/i.test(prompt), false);
   });
@@ -60,6 +65,50 @@ describe("buildStoryImagePrompt", () => {
     assert.match(prompt, /children and adults/);
     assert.match(prompt, /Infant, Newborn/);
     assert.match(prompt, /only when the article is about neonates and does not include adults/);
+  });
+
+  it("does not use a clinician portrait for a study set in a named country", () => {
+    const china =
+      "higher primary care quality correlated with reduced inappropriate antibiotic use in rural china";
+    assert.equal(
+      portraitMismatchForCountry(china, {
+        id: "doctor-exam",
+        label: "physician consultation",
+      }),
+      true
+    );
+    assert.equal(
+      portraitMismatchForCountry(
+        "primary care antibiotic prescribing in outpatient clinics",
+        { id: "doctor-exam", label: "physician consultation" }
+      ),
+      false
+    );
+  });
+
+  it("does not show a hospital bed for outpatient parenteral therapy", () => {
+    const opat = "outpatient parenteral therapy shortened hospital stays for bone infections";
+    assert.equal(
+      inpatientBedMismatch(opat, {
+        id: "local-intravenous-bag",
+        label: "IV infusion at bedside",
+      }),
+      true
+    );
+    assert.equal(
+      inpatientBedMismatch("opat completion was higher with weekly nurse visits", {
+        id: "local-intravenous-medication-vancomycin-aminoglycoside",
+        label: "IV infusion pump at the bedside",
+      }),
+      true
+    );
+    assert.equal(
+      inpatientBedMismatch("vancomycin infusions in the icu needed more monitoring", {
+        id: "local-intravenous-bag",
+        label: "IV infusion at bedside",
+      }),
+      false
+    );
   });
 
   it("does not reuse a urine or kidney photo for a penicillin allergy story", () => {

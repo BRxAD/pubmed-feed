@@ -156,6 +156,61 @@ export function isNeonatalSubjectImage(entry: { id: string; label: string }): bo
   return /\b(neonat\w*|newborns?|nicu|preterm|incubator)\b/.test(about);
 }
 
+/**
+ * A posed photo of one clinician. A study set in a named country must not
+ * use it: the face reads as the staff in that place.
+ */
+const CLINICIAN_PORTRAIT_IDS = new Set(["doctor-exam", "white-coat"]);
+
+export function isClinicianPortrait(entry: { id: string; label: string }): boolean {
+  if (CLINICIAN_PORTRAIT_IDS.has(entry.id)) return true;
+  const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
+  return /\bportrait\b/.test(about);
+}
+
+/** Headline or title names a country, so a stock face is the wrong person. */
+export function storyNamesCountry(text: string): boolean {
+  return /\b(china|chinese|india|indian|brazil|brazilian|nigeria|kenya|japan|japanese|korea|korean|vietnam|thailand|indonesia|pakistan|bangladesh|egypt|mexico|ethiopia|uganda|tanzania|ghana|nepal|philippines|australia|canada|france|germany|italy|spain|sweden|norway|denmark|netherlands|belgium|switzerland|poland|turkey|iran|iraq|saudi|israel|argentina|chile|peru|colombia|taiwan|singapore|malaysia|england|scotland|wales|ireland)\b|\bunited states\b|\bunited kingdom\b|\bsouth africa\b|\bnew zealand\b|\bhong kong\b/i.test(
+    text
+  );
+}
+
+export function portraitMismatchForCountry(
+  focus: string,
+  entry: { id: string; label: string }
+): boolean {
+  return isClinicianPortrait(entry) && storyNamesCountry(focus);
+}
+
+/**
+ * A patient in a hospital bed with an IV. Outpatient parenteral therapy
+ * is not an admission, so this picture is the wrong place.
+ */
+const INPATIENT_BED_IDS = new Set([
+  "local-intravenous-bag",
+  "local-intravenous-medication-vancomycin-aminoglycoside",
+]);
+
+export function isInpatientBedImage(entry: { id: string; label: string }): boolean {
+  if (INPATIENT_BED_IDS.has(entry.id)) return true;
+  const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
+  return /\b(bedside|hospital bed)\b/.test(about);
+}
+
+/** OPAT, home infusion, or other IV therapy given without a hospital stay. */
+export function isOutpatientParenteralStory(text: string): boolean {
+  return /\b(opats?|copats?|outpatient parenteral|home infusions?|home iv|outpatient iv|ambulatory infusions?)\b/i.test(
+    text
+  );
+}
+
+export function inpatientBedMismatch(
+  focus: string,
+  entry: { id: string; label: string }
+): boolean {
+  return isOutpatientParenteralStory(focus) && isInpatientBedImage(entry);
+}
+
 /** A photo of a hospital place. Labs, germs, and medicine bottles are not places. */
 export function isHospitalPlaceImage(entry: { id: string; label: string }): boolean {
   const about = `${entry.id} ${entry.label}`.toLowerCase().replace(/[-_]/g, " ");
@@ -173,7 +228,7 @@ export function buildStoryImagePrompt(candidate: StoryImagePromptInput): string 
     "Visual approach and subject:",
     "Select the single most grounded visual metaphor or setting described in the article (for example a hospital unit, a microbiology workspace, a clinical consultation room, a pharmacy archive, or an administrative office).",
     "Include a real person only if human interaction or workflow is central to the article. If the paper focuses on systems, diagnostic devices, environment, or data, show an authentic physical environment, workstation, or detail without a forced human subject.",
-    "If a person is present, show an unposed, candid moment caught mid-action. Match age, sex, professional role, and tone strictly to who the article is about. Show a neonatal unit, incubator, or newborn only when the article is about neonates and does not include adults. A study of women or pregnancy does not show a man as the patient.",
+    "If a person is present, show an unposed, candid moment caught mid-action. Match age, sex, professional role, and tone strictly to who the article is about. Show a neonatal unit, incubator, or newborn only when the article is about neonates and does not include adults. A study of women or pregnancy does not show a man as the patient. When the study is set in a named country, show that place — a clinic, ward, village health post, or lab — not a close portrait of one person. Do not guess what the clinicians look like. Outpatient parenteral therapy and home infusion are not a hospital stay. Do not show a patient in a hospital bed. Show the pump in a home or a clinic.",
     "Camera and lighting:",
     "Realistic news photojournalism, 3:2 landscape orientation.",
     "Choose a focal length and depth of field that fits the subject: deep focus for a broad clinical environment, natural background blur for a focused moment.",
