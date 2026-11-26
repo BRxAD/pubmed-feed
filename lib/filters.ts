@@ -188,27 +188,46 @@ export function parseSummaryBullets(
   let methods: string | null = null;
   let results: string | null = null;
   let bottomLine: string | null = null;
+  let open: "what" | "methods" | "results" | "bottom" | null = null;
+
+  const take = (current: string | null, next: string) =>
+    current ? `${current} ${next}` : next;
 
   for (const line of lines) {
     const stripped = line.replace(/^[-•*]\s*/, "");
 
     if (/^\[WHAT IS KNOWN\]/i.test(stripped)) {
       whatIsKnown = stripped.replace(/^\[WHAT IS KNOWN\]\s*/i, "").trim() || null;
+      open = "what";
     } else if (/^\[WHAT\]/i.test(stripped)) {
       // Legacy label — treat as background context
       whatIsKnown = stripped.replace(/^\[WHAT\]\s*/i, "").trim() || null;
+      open = "what";
     } else if (/^\[METHODS?\]/i.test(stripped)) {
       methods = stripped.replace(/^\[METHODS?\]\s*/i, "").trim() || null;
+      open = "methods";
     } else if (/^\[RESULTS?\]/i.test(stripped)) {
       results = stripped.replace(/^\[RESULTS?\]\s*/i, "").trim() || null;
+      open = "results";
     } else if (/^\[FOUND\]/i.test(stripped)) {
       // Legacy label
       results = stripped.replace(/^\[FOUND\]\s*/i, "").trim() || null;
+      open = "results";
     } else if (/^\[BOTTOM LINE\]/i.test(stripped)) {
       bottomLine = stripped.replace(/^\[BOTTOM LINE\]\s*/i, "").trim() || null;
+      open = "bottom";
     } else if (/^\[SO WHAT\]/i.test(stripped)) {
       // Legacy label
       bottomLine = stripped.replace(/^\[SO WHAT\]\s*/i, "").trim() || null;
+      open = "bottom";
+    } else if (open === "what") {
+      whatIsKnown = take(whatIsKnown, stripped);
+    } else if (open === "methods") {
+      methods = take(methods, stripped);
+    } else if (open === "results") {
+      results = take(results, stripped);
+    } else if (open === "bottom") {
+      bottomLine = take(bottomLine, stripped);
     }
   }
 
