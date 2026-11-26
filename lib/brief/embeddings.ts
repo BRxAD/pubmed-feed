@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import { openAIClientOptions } from "@/lib/openaiClient";
 
 export const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 export const OPENAI_EMBEDDING_DIMS = 1536;
@@ -27,7 +28,7 @@ export function embeddingText(
 function getOpenAI(): OpenAI | null {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
-  return new OpenAI({ apiKey });
+  return new OpenAI(openAIClientOptions(apiKey));
 }
 
 function sleep(ms: number): Promise<void> {
@@ -41,6 +42,7 @@ function estimateTokens(text: string): number {
 
 function rateLimitWaitMs(err: unknown): number | null {
   const msg = err instanceof Error ? err.message : String(err);
+  if (/no credits remaining|insufficient_quota|billing/i.test(msg)) return null;
   const status =
     typeof err === "object" && err && "status" in err
       ? Number((err as { status?: number }).status)

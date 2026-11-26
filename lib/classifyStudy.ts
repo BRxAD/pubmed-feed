@@ -1,6 +1,7 @@
 import "server-only";
 import OpenAI from "openai";
 import { getStudyTaxonomyPrompt } from "@/lib/studyTaxonomy";
+import { openAIClientOptions } from "@/lib/openaiClient";
 
 const UNCLEAR = "Unclear";
 
@@ -74,7 +75,7 @@ export async function classifyStudyAbstract(input: {
   ].filter(Boolean);
   const userMessage = userParts.join("\n\n");
 
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI(openAIClientOptions(apiKey));
 
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",

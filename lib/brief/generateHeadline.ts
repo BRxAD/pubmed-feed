@@ -13,6 +13,7 @@ import {
   STRONG_CAUSAL_RE,
 } from "@/lib/brief/causality";
 import { headlineScopeIssues } from "@/lib/brief/headlineScope";
+import { openAIClientOptions } from "@/lib/openaiClient";
 
 const HYPE_WORDS =
   /\b(breakthrough|game-changer|game changer|revolutionary|cure|miracle|landmark|paradigm[- ]shifting)\b/i;
@@ -417,7 +418,7 @@ export async function generateBriefHeadline(options: {
   }
 
   const { title, abstract, publicationTypes } = options;
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI(openAIClientOptions(apiKey));
 
   let lastHeadline = "";
   let lastIssues: string[] = [];

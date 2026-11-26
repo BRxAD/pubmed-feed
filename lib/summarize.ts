@@ -6,6 +6,7 @@ import {
   ID_ACRONYM_PROMPT_RULE,
 } from "@/lib/brief/idAcronyms";
 import { hasDisallowedCausalSummary } from "@/lib/brief/causality";
+import { openAIClientOptions } from "@/lib/openaiClient";
 
 const SYSTEM_PROMPT = `You summarize biomedical research abstracts for "The Stewardship Brief" — a literature feed for infectious diseases and antimicrobial-stewardship experts.
 
@@ -103,7 +104,7 @@ export async function summarizeAbstract(
     throw new Error("Missing OPENAI_API_KEY environment variable");
   }
 
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI(openAIClientOptions(apiKey));
   const title = options?.title?.trim() ?? "";
   const pubs = (options?.publicationTypes ?? []).join(", ");
   const designText = `${title}\n${pubs}\n${abstract}`;

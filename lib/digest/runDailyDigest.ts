@@ -5,6 +5,10 @@ import { NextRequest } from "next/server";
 import { DEFAULT_DIGEST_MAX_SUMMARIES } from "@/lib/digest/config";
 import { runOpenAlexIngest } from "@/lib/openalex/ingest";
 import { saveLastIngestRunStats } from "@/lib/ingestStats";
+import {
+  summarizeRecentUnsummarized,
+  summaryRunFailedCompletely,
+} from "@/lib/ingest/summarizeCatchUp";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 /** Run ingest in-process — avoids Vercel Deployment Protection on self-fetch URLs. */
@@ -34,6 +38,11 @@ export type DailyDigestResult = {
   topicName?: string;
   ingestPubmed?: Record<string, unknown>;
   ingestOpenAlex?: Record<string, unknown>;
+  summarizeCatchUp?: {
+    storedSummaries: number;
+    summarizeAttempted: number;
+    summarizeFailed: number;
+  };
   /** Legacy ASP emails retired — Brief email is /api/cron/brief-digest. */
   emailsRetired: true;
   briefEmailCron: "/api/cron/brief-digest";
@@ -65,6 +74,36 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     )
   );
 
+  const supabase = getSupabaseServerClient();
+  const { data: topicRow, error: topicErr } = await supabase
+    .from("topics")
+    .select("query_string, ranking_weights")
+    .eq("id", topicId)
+    .maybeSingle();
+  if (topicErr) {
+    throw new Error(`Topic load failed: ${topicErr.message}`);
+  }
+
+  const catchUp = await summarizeRecentUnsummarized({
+    supabase,
+    topicId,
+    queryString: String(
+      (topicRow as { query_string?: string } | null)?.query_string ?? ""
+    ),
+    rankingWeights:
+      ((topicRow as { ranking_weights?: Record<string, unknown> | null } | null)
+        ?.ranking_weights ?? null),
+    maxSummaries,
+  });
+  const remainingAfterCatchUp = Math.max(
+    0,
+    maxSummaries - catchUp.storedSummaries
+  );
+  const billingDown = catchUp.summarizeErrors.some((err) =>
+    /no credits remaining|insufficient_quota/i.test(err)
+  );
+  const summarizeBudget = billingDown ? 0 : remainingAfterCatchUp;
+
   let ingestOpenAlex: Record<string, unknown> = {
     ok: false,
     skipped: true,
@@ -74,7 +113,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     ingestOpenAlex = await runOpenAlexIngest({
       topicName: "main",
       summarize: true,
-      maxSummaries,
+      maxSummaries: summarizeBudget,
       persistStats: false,
     });
   } catch (err) {
@@ -84,25 +123,47 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   }
 
   const used = asCount(ingestOpenAlex.storedSummaries);
-  const remaining = Math.max(0, maxSummaries - used);
+  const remaining = Math.max(0, summarizeBudget - used);
 
   const ingestPubmed = await triggerIngest(
     `/api/ingest?topicName=main&summarize=1&maxArticles=${maxSummaries}&maxSummaries=${remaining}&persistStats=0`
   );
 
-  const supabase = getSupabaseServerClient();
+  const storedSummaries =
+    catchUp.storedSummaries +
+    asCount(ingestOpenAlex.storedSummaries) +
+    asCount(ingestPubmed.storedSummaries);
+  const attemptedSummaries =
+    catchUp.summarizeAttempted +
+    asCount(ingestOpenAlex.summarizeAttempted) +
+    asCount(ingestPubmed.summarizeAttempted);
+  const summaryErrors = [
+    ...catchUp.summarizeErrors,
+    ...(Array.isArray(ingestOpenAlex.summarizeErrors)
+      ? ingestOpenAlex.summarizeErrors.map(String)
+      : []),
+    ...(Array.isArray(ingestPubmed.summarizeErrors)
+      ? ingestPubmed.summarizeErrors.map(String)
+      : []),
+  ];
+
   await saveLastIngestRunStats(supabase, {
     topicId,
     ranAt: new Date().toISOString(),
     newArticles:
       asCount(ingestOpenAlex.newArticles) + asCount(ingestPubmed.newArticles),
-    newSummaries:
-      asCount(ingestOpenAlex.storedSummaries) +
-      asCount(ingestPubmed.storedSummaries),
+    newSummaries: storedSummaries,
     mlPriorityGe5:
+      catchUp.mlPriorityGe5Count +
       asCount(ingestOpenAlex.mlPriorityGe5Count) +
       asCount(ingestPubmed.mlPriorityGe5Count),
   });
+
+  if (summaryRunFailedCompletely(attemptedSummaries, storedSummaries)) {
+    throw new Error(
+      `No summaries were saved (${attemptedSummaries} failed). ${summaryErrors.slice(0, 3).join(" ")}`
+    );
+  }
 
   return {
     ok: true,
@@ -110,6 +171,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     topicName: "Antimicrobial Stewardship",
     ingestPubmed,
     ingestOpenAlex,
+    summarizeCatchUp: catchUp,
     emailsRetired: true,
     briefEmailCron: "/api/cron/brief-digest",
     appUrl: publicAppBaseUrl(),
