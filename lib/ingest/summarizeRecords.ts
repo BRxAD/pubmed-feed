@@ -68,6 +68,8 @@ export async function summarizeNewRecords(options: {
   records: PubMedRecord[];
   maxSummaries: number;
   alreadySummarized?: Set<string>;
+  /** One-off repairs skip photo generation so they do not fill other stories. */
+  skipStoryImages?: boolean;
 }): Promise<SummarizeBatchResult> {
   const {
     supabase,
@@ -263,21 +265,23 @@ export async function summarizeNewRecords(options: {
     );
   }
 
-  try {
-    if (photoCandidates.length > 0) {
-      const photos = await generateBriefStoryImages(
-        supabase as never,
-        photoCandidates
+  if (!options.skipStoryImages) {
+    try {
+      if (photoCandidates.length > 0) {
+        const photos = await generateBriefStoryImages(
+          supabase as never,
+          photoCandidates
+        );
+        console.log("[ingest] story images", photos);
+      }
+      const gaps = await fillMissingBriefStoryImages(supabase as never);
+      if (gaps.generated > 0) console.log("[ingest] story image gaps", gaps);
+    } catch (err) {
+      console.warn(
+        "[ingest] story images skipped:",
+        err instanceof Error ? err.message : err
       );
-      console.log("[ingest] story images", photos);
     }
-    const gaps = await fillMissingBriefStoryImages(supabase as never);
-    if (gaps.generated > 0) console.log("[ingest] story image gaps", gaps);
-  } catch (err) {
-    console.warn(
-      "[ingest] story images skipped:",
-      err instanceof Error ? err.message : err
-    );
   }
 
   return result;
